@@ -1,4 +1,3 @@
-
 import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -7,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Key, Zap, CheckCircle, AlertCircle, Search } from "lucide-react"
+import { Key, Zap, CheckCircle, AlertCircle, Search, Settings } from "lucide-react"
 import { useApiKeys } from "@/hooks/useApiKeys"
+import { useOpenAIModels } from "@/hooks/useOpenAIModels"
+import { useModelPreferences } from "@/hooks/useModelPreferences"
 import { SecureApiKeyModal } from "./SecureApiKeyModal"
 import { OpenAIModelsModal } from "./OpenAIModelsModal"
 
@@ -38,6 +39,8 @@ const fallbackModels = [
 
 export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
   const { getApiKey } = useApiKeys()
+  const { models } = useOpenAIModels()
+  const { getEnabledModels, getEnabledCount } = useModelPreferences()
   const apiKey = getApiKey('openai')
   
   // Update status based on database state
@@ -55,6 +58,17 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
   const handleModelSelect = (modelId: string) => {
     onUpdate('model', modelId)
   }
+
+  // Get enabled models for the dropdown
+  const enabledApiModels = getEnabledModels(models)
+  const enabledCount = getEnabledCount(models)
+  const hasApiModels = models.length > 0
+  const hasEnabledModels = enabledApiModels.length > 0
+
+  // Use enabled API models if available, otherwise fallback models
+  const availableModels = hasEnabledModels 
+    ? enabledApiModels.map(model => ({ id: model.id, name: model.id }))
+    : fallbackModels
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
     const variants = {
@@ -103,15 +117,22 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>Modelo</Label>
+            <div className="flex items-center gap-2">
+              <Label>Modelo</Label>
+              {hasApiModels && (
+                <Badge variant="outline" className="text-xs">
+                  {enabledCount} de {models.length} habilitados
+                </Badge>
+              )}
+            </div>
             {apiKey && (
               <OpenAIModelsModal 
                 onModelSelect={handleModelSelect}
                 currentModel={config.model}
               >
                 <Button variant="outline" size="sm">
-                  <Search className="w-4 h-4 mr-2" />
-                  Buscar Modelos
+                  <Settings className="w-4 h-4 mr-2" />
+                  Gerenciar Modelos
                 </Button>
               </OpenAIModelsModal>
             )}
@@ -125,9 +146,9 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
               <SelectValue placeholder="Selecione um modelo" />
             </SelectTrigger>
             <SelectContent>
-              {fallbackModels.map((model) => (
+              {availableModels.map((model) => (
                 <SelectItem key={model.id} value={model.id}>
-                  {model.name}
+                  {model.name || model.id}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -135,8 +156,16 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           
           {!apiKey && (
             <p className="text-xs text-muted-foreground">
-              Configure sua API key para buscar modelos em tempo real
+              Configure sua API key para gerenciar modelos personalizados
             </p>
+          )}
+          
+          {apiKey && !hasEnabledModels && hasApiModels && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                ⚠️ Nenhum modelo está habilitado. Gerencie os modelos para habilitar pelo menos um.
+              </p>
+            </div>
           )}
         </div>
 
