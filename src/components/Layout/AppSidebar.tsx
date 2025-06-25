@@ -55,6 +55,13 @@ const menuItems = [
 export function AppSidebar() {
   const location = useLocation()
 
+  const isActive = (url: string) => {
+    if (url === "/") {
+      return location.pathname === "/" || location.pathname === "/dashboard"
+    }
+    return location.pathname === url
+  }
+
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="px-6 py-4">
@@ -78,7 +85,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild 
-                    isActive={location.pathname === item.url}
+                    isActive={isActive(item.url)}
                     className="hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     <Link to={item.url} className="flex items-center gap-3">

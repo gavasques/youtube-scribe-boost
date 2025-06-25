@@ -7,9 +7,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { AuthProvider } from "@/hooks/useAuth"
 import { AppSidebar } from "@/components/Layout/AppSidebar"
 import { AppHeader } from "@/components/Layout/AppHeader"
-import Index from "@/pages/Index"
-import Auth from "@/pages/Auth"
 import Dashboard from "@/pages/Dashboard"
+import Auth from "@/pages/Auth"
 import Videos from "@/pages/Videos"
 import Categories from "@/pages/Categories"
 import Blocks from "@/pages/Blocks"
@@ -28,7 +27,6 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/youtube/callback" element={<YouTubeCallback />} />
             <Route
@@ -42,6 +40,7 @@ function App() {
                         <AppHeader />
                         <main className="flex-1 p-6">
                           <Routes>
+                            <Route path="/" element={<Dashboard />} />
                             <Route path="/dashboard" element={<Dashboard />} />
                             <Route path="/videos" element={<Videos />} />
                             <Route path="/categories" element={<Categories />} />
