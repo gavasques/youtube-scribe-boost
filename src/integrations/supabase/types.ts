@@ -119,6 +119,65 @@ export type Database = {
           },
         ]
       }
+      prompts: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          max_tokens: number | null
+          name: string
+          system_prompt: string
+          temperature: number | null
+          top_p: number | null
+          type: string
+          updated_at: string | null
+          user_id: string | null
+          user_prompt: string
+          version: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_tokens?: number | null
+          name: string
+          system_prompt: string
+          temperature?: number | null
+          top_p?: number | null
+          type: string
+          updated_at?: string | null
+          user_id?: string | null
+          user_prompt: string
+          version?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_tokens?: number | null
+          name?: string
+          system_prompt?: string
+          temperature?: number | null
+          top_p?: number | null
+          type?: string
+          updated_at?: string | null
+          user_id?: string | null
+          user_prompt?: string
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null
