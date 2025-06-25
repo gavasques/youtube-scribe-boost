@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
@@ -104,6 +103,23 @@ export default function Blocks() {
     createdAt: block.created_at
   }))
 
+  // Convert database Block to UI format for BlockForm
+  const convertBlockForForm = (block: Block) => ({
+    id: block.id,
+    title: block.title,
+    description: block.description || undefined,
+    content: block.content,
+    type: (block.type === 'CATEGORY_SPECIFIC' ? 'CATEGORY' : block.type) as 'GLOBAL' | 'CATEGORY',
+    scope: block.scope as 'PERMANENT' | 'SCHEDULED',
+    priority: block.priority,
+    isActive: block.is_active,
+    scheduledStart: block.scheduled_start || undefined,
+    scheduledEnd: block.scheduled_end || undefined,
+    categories: [], // Placeholder - categories would need to be implemented
+    videosAffected: 0, // Placeholder - would need to be calculated
+    createdAt: block.created_at
+  })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -177,7 +193,7 @@ export default function Blocks() {
         open={showForm}
         onClose={handleCloseForm}
         onSave={editingBlock ? handleEditBlock : handleCreateBlock}
-        block={editingBlock}
+        block={editingBlock ? convertBlockForForm(editingBlock) : null}
         categories={categories}
       />
     </div>
