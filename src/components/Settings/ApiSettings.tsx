@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { Key, Youtube, Link, Zap, CheckCircle, AlertCircle, Settings } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
+import { useYouTubeAuth } from "@/hooks/useYouTubeAuth"
 
 interface ApiConfig {
   openai: {
@@ -24,12 +25,6 @@ interface ApiConfig {
     customDomain: string
     status: 'connected' | 'disconnected' | 'error'
   }
-  youtube: {
-    autoSync: boolean
-    syncInterval: number
-    maxVideos: number
-    status: 'connected' | 'disconnected' | 'error'
-  }
   general: {
     rateLimitEnabled: boolean
     batchProcessing: boolean
@@ -38,6 +33,18 @@ interface ApiConfig {
 }
 
 export function ApiSettings() {
+  // YouTube Auth hook
+  const { 
+    isConnected, 
+    loading, 
+    connecting,
+    channel,
+    tokens,
+    startOAuth, 
+    disconnect,
+    checkConnection 
+  } = useYouTubeAuth()
+
   const [config, setConfig] = useLocalStorage<ApiConfig>("apiConfig", {
     openai: {
       enabled: true,
@@ -50,12 +57,6 @@ export function ApiSettings() {
       enabled: false,
       customDomain: "",
       status: 'disconnected'
-    },
-    youtube: {
-      autoSync: true,
-      syncInterval: 30,
-      maxVideos: 100,
-      status: 'connected'
     },
     general: {
       rateLimitEnabled: true,
@@ -93,6 +94,40 @@ export function ApiSettings() {
         {text}
       </Badge>
     )
+  }
+
+  const getYouTubeStatusBadge = () => {
+    if (loading) {
+      return <Badge variant="secondary" className="gap-1">
+        <AlertCircle className="w-3 h-3 animate-spin" />
+        Verificando...
+      </Badge>
+    }
+    
+    if (isConnected && tokens) {
+      return <Badge variant="default" className="bg-green-100 text-green-800 gap-1">
+        <CheckCircle className="w-3 h-3" />
+        Conectado
+      </Badge>
+    }
+    
+    return <Badge variant="destructive" className="gap-1">
+      <AlertCircle className="w-3 h-3" />
+      Desconectado
+    </Badge>
+  }
+
+  const handleYouTubeReconnect = async () => {
+    if (isConnected) {
+      // Se já conectado, desconectar primeiro e depois reconectar
+      await disconnect()
+      setTimeout(() => {
+        startOAuth()
+      }, 1000)
+    } else {
+      // Se não conectado, apenas conectar
+      startOAuth()
+    }
   }
 
   return (
@@ -221,7 +256,7 @@ export function ApiSettings() {
         </CardContent>
       </Card>
 
-      {/* YouTube Configuration */}
+      {/* YouTube Integration */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -232,10 +267,26 @@ export function ApiSettings() {
             <CardDescription>
               Configure YouTube API settings and synchronization
             </CardDescription>
-            {getStatusBadge(config.youtube.status)}
+            {getYouTubeStatusBadge()}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isConnected && channel && (
+            <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <Label className="text-green-800">Canal Conectado</Label>
+              </div>
+              <p className="text-sm font-medium text-green-900">{channel.name}</p>
+              <p className="text-xs text-green-700">
+                {channel.subscriberCount > 0 && (
+                  <>Inscritos: {channel.subscriberCount.toLocaleString()} • </>
+                )}
+                Última sincronização: {tokens ? new Date(tokens.updated_at).toLocaleString('pt-BR') : 'N/A'}
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Sincronização Automática</Label>
@@ -244,8 +295,8 @@ export function ApiSettings() {
               </p>
             </div>
             <Switch
-              checked={config.youtube.autoSync}
-              onCheckedChange={(checked) => updateConfig("youtube", "autoSync", checked)}
+              checked={true}
+              disabled={!isConnected}
             />
           </div>
 
@@ -253,8 +304,8 @@ export function ApiSettings() {
             <div className="space-y-2">
               <Label>Intervalo (minutos)</Label>
               <Select 
-                value={config.youtube.syncInterval.toString()} 
-                onValueChange={(value) => updateConfig("youtube", "syncInterval", parseInt(value))}
+                value="30"
+                disabled={!isConnected}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -273,16 +324,33 @@ export function ApiSettings() {
                 type="number"
                 min="10"
                 max="500"
-                value={config.youtube.maxVideos}
-                onChange={(e) => updateConfig("youtube", "maxVideos", parseInt(e.target.value))}
+                value="100"
+                disabled={!isConnected}
               />
             </div>
           </div>
 
-          <Button variant="outline" className="w-full">
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={handleYouTubeReconnect}
+            disabled={connecting || loading}
+          >
             <Youtube className="w-4 h-4 mr-2" />
-            Reconectar YouTube
+            {connecting ? "Conectando..." : isConnected ? "Reconectar YouTube" : "Conectar YouTube"}
           </Button>
+
+          {isConnected && (
+            <Button 
+              variant="destructive" 
+              className="w-full"
+              onClick={disconnect}
+              disabled={loading}
+            >
+              <Youtube className="w-4 h-4 mr-2" />
+              Desconectar YouTube
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -355,12 +423,6 @@ export function ApiSettings() {
                     enabled: false,
                     customDomain: "",
                     status: 'disconnected'
-                  },
-                  youtube: {
-                    autoSync: true,
-                    syncInterval: 30,
-                    maxVideos: 100,
-                    status: 'connected'
                   },
                   general: {
                     rateLimitEnabled: true,
