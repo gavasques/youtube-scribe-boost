@@ -16,9 +16,7 @@ export function useModelPreferences() {
   const [hasChanges, setHasChanges] = useState(false)
 
   const isModelEnabled = useCallback((modelId: string): boolean => {
-    // Se não há preferências salvas, todos os modelos são habilitados por padrão
-    if (Object.keys(preferences).length === 0) return true
-    return preferences[modelId] ?? false
+    return preferences[modelId] === true
   }, [preferences])
 
   const toggleModel = useCallback((modelId: string) => {
@@ -48,12 +46,10 @@ export function useModelPreferences() {
   }, [setPreferences])
 
   const getEnabledModels = useCallback((allModels: Array<{id: string}>) => {
-    if (Object.keys(preferences).length === 0) return allModels
     return allModels.filter(model => preferences[model.id] === true)
   }, [preferences])
 
   const getEnabledCount = useCallback((allModels: Array<{id: string}>) => {
-    if (Object.keys(preferences).length === 0) return allModels.length
     return allModels.filter(model => preferences[model.id] === true).length
   }, [preferences])
 

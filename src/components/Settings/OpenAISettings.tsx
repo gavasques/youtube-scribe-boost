@@ -1,3 +1,4 @@
+
 import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -26,7 +27,7 @@ interface OpenAISettingsProps {
   onUpdate: <T extends keyof OpenAIConfig>(key: T, value: OpenAIConfig[T]) => void
 }
 
-// Modelos de fallback caso a API não esteja disponível
+// Modelos de fallback caso não haja modelos selecionados ou API não disponível
 const fallbackModels = [
   { id: "gpt-4o", name: "GPT-4o (Recomendado)" },
   { id: "gpt-4o-mini", name: "GPT-4o Mini" },
@@ -160,10 +161,10 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
             </p>
           )}
           
-          {apiKey && !hasEnabledModels && hasApiModels && (
+          {apiKey && hasApiModels && !hasEnabledModels && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                ⚠️ Nenhum modelo está habilitado. Gerencie os modelos para habilitar pelo menos um.
+                ⚠️ Nenhum modelo está habilitado. Clique em "Gerenciar Modelos" para selecionar quais modelos devem aparecer neste dropdown.
               </p>
             </div>
           )}
