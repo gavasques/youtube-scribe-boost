@@ -20,7 +20,7 @@ export function usePrompts() {
 
       if (error) throw error
       
-      setPrompts(data || [])
+      setPrompts((data || []) as Prompt[])
     } catch (error) {
       console.error('Erro ao buscar prompts:', error)
       toast({
@@ -47,7 +47,7 @@ export function usePrompts() {
 
       if (error) throw error
 
-      setPrompts(prev => [newPrompt, ...prev])
+      setPrompts(prev => [newPrompt as Prompt, ...prev])
       toast({
         title: 'Prompt criado',
         description: 'O prompt foi criado com sucesso.',
@@ -81,7 +81,7 @@ export function usePrompts() {
 
       if (error) throw error
 
-      setPrompts(prev => prev.map(p => p.id === id ? updatedPrompt : p))
+      setPrompts(prev => prev.map(p => p.id === id ? updatedPrompt as Prompt : p))
       toast({
         title: 'Prompt atualizado',
         description: 'O prompt foi atualizado com sucesso.',
@@ -124,7 +124,7 @@ export function usePrompts() {
         p.type === prompt.type && p.id !== prompt.id
           ? { ...p, is_active: false }
           : p.id === prompt.id 
-          ? updatedPrompt
+          ? updatedPrompt as Prompt
           : p
       ))
 
@@ -168,7 +168,7 @@ export function usePrompts() {
 
       if (error) throw error
 
-      setPrompts(prev => [duplicatedPrompt, ...prev])
+      setPrompts(prev => [duplicatedPrompt as Prompt, ...prev])
       toast({
         title: 'Prompt duplicado',
         description: 'Uma cópia do prompt foi criada e está inativa.',
