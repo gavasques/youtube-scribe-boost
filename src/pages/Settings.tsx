@@ -1,3 +1,4 @@
+
 import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { ThemeSettings } from "@/components/Settings/ThemeSettings"
 import { NotificationSettings } from "@/components/Settings/NotificationSettings"

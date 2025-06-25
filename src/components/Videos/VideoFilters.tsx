@@ -21,6 +21,8 @@ const videoFiltersSchema = z.object({
   video_type: z.enum(["all", "REGULAR", "SHORT"])
 })
 
+type VideoFiltersForm = z.infer<typeof videoFiltersSchema>
+
 interface VideoFiltersProps {
   filters: VideoFiltersType
   onFiltersChange: (filters: VideoFiltersType) => void
@@ -28,9 +30,18 @@ interface VideoFiltersProps {
 }
 
 export function VideoFilters({ filters, onFiltersChange, categories }: VideoFiltersProps) {
-  const form = useForm<z.infer<typeof videoFiltersSchema>>({
+  // Convert VideoFiltersType to the form schema type
+  const formDefaults: VideoFiltersForm = {
+    search: filters.search,
+    configuration_status: filters.configuration_status as VideoFiltersForm["configuration_status"],
+    update_status: filters.update_status as VideoFiltersForm["update_status"],
+    category_id: filters.category_id,
+    video_type: filters.video_type as VideoFiltersForm["video_type"]
+  }
+
+  const form = useForm<VideoFiltersForm>({
     resolver: zodResolver(videoFiltersSchema),
-    defaultValues: filters,
+    defaultValues: formDefaults,
     mode: "onChange"
   })
 
@@ -56,7 +67,7 @@ export function VideoFilters({ filters, onFiltersChange, categories }: VideoFilt
     
     if (validatedData.success) {
       onFiltersChange(validatedData.data as VideoFiltersType)
-      form.setValue(key, value)
+      form.setValue(key as keyof VideoFiltersForm, value as any)
     }
   }
 

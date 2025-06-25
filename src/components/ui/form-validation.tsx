@@ -1,9 +1,9 @@
 
 import React from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, DefaultValues } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { Shield, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 interface ValidatedFormProps<T extends z.ZodSchema> {
   schema: T
   onSubmit: (data: z.infer<T>) => void | Promise<void>
-  defaultValues?: Partial<z.infer<T>>
+  defaultValues?: DefaultValues<z.infer<T>>
   children: (form: ReturnType<typeof useForm>) => React.ReactNode
   submitLabel?: string
   isLoading?: boolean
