@@ -1,9 +1,11 @@
+
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { Layout } from '@/components/Layout/Layout'
 import Index from '@/pages/Index'
 import Auth from '@/pages/Auth'
 import Dashboard from '@/pages/Dashboard'
@@ -39,55 +41,78 @@ function App() {
         <Router>
           <div className="min-h-screen bg-background">
             <Routes>
-              <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<YouTubeCallback />} />
               
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Index />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
               <Route path="/dashboard" element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <Layout>
+                    <Dashboard />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
               <Route path="/videos" element={
                 <ProtectedRoute>
-                  <Videos />
+                  <Layout>
+                    <Videos />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
               <Route path="/blocks" element={
                 <ProtectedRoute>
-                  <Blocks />
+                  <Layout>
+                    <Blocks />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
               <Route path="/categories" element={
                 <ProtectedRoute>
-                  <Categories />
+                  <Layout>
+                    <Categories />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
               <Route path="/prompts" element={
                 <ProtectedRoute>
-                  <Prompts />
+                  <Layout>
+                    <Prompts />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
               <Route path="/approvals" element={
                 <ProtectedRoute>
-                  <Approvals />
+                  <Layout>
+                    <Approvals />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
               <Route path="/schedule" element={
                 <ProtectedRoute>
-                  <Schedule />
+                  <Layout>
+                    <Schedule />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
               <Route path="/settings" element={
                 <ProtectedRoute>
-                  <Settings />
+                  <Layout>
+                    <Settings />
+                  </Layout>
                 </ProtectedRoute>
               } />
               
