@@ -303,6 +303,51 @@ export type Database = {
           },
         ]
       }
+      youtube_tokens: {
+        Row: {
+          access_token: string
+          channel_id: string | null
+          channel_name: string | null
+          channel_thumbnail: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          refresh_token: string
+          scope: string
+          subscriber_count: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          channel_id?: string | null
+          channel_name?: string | null
+          channel_thumbnail?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          refresh_token: string
+          scope: string
+          subscriber_count?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          channel_id?: string | null
+          channel_name?: string | null
+          channel_thumbnail?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string
+          scope?: string
+          subscriber_count?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
