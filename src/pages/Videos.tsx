@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,10 +13,12 @@ import { Category } from "@/types/category"
 import { useToast } from "@/hooks/use-toast"
 import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 import { useVideos } from "@/hooks/useVideos"
+import { useAuditLog } from "@/hooks/useAuditLog"
 
 export default function Videos() {
   const { toast } = useToast()
   const { videos, loading, fetchVideos } = useVideos()
+  const { logEvent } = useAuditLog()
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
@@ -102,29 +103,77 @@ export default function Videos() {
     }
   }
 
-  const handleUpdateStatusToggle = (videoId: string, newStatus: string) => {
-    // Implementar atualização real do status
-    toast({
-      title: "Status atualizado!",
-      description: `Status de atualização alterado para: ${getUpdateStatusLabel(newStatus)}`,
-    })
+  const handleUpdateStatusToggle = async (videoId: string, newStatus: string) => {
+    try {
+      // Log the status change
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Video status changed to: ${getUpdateStatusLabel(newStatus)}`,
+        metadata: {
+          video_id: videoId,
+          old_status: videos.find(v => v.id === videoId)?.update_status,
+          new_status: newStatus
+        },
+        severity: 'LOW'
+      })
+
+      // Implementar atualização real do status
+      toast({
+        title: "Status atualizado!",
+        description: `Status de atualização alterado para: ${getUpdateStatusLabel(newStatus)}`,
+      })
+    } catch (error) {
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Failed to update video status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        metadata: { video_id: videoId, error: String(error) },
+        severity: 'MEDIUM'
+      })
+    }
   }
 
-  const handleEditVideo = (video: Video) => {
+  const handleEditVideo = async (video: Video) => {
+    await logEvent({
+      event_type: 'VIDEO_UPDATE',
+      description: `Started editing video: ${video.title}`,
+      metadata: { video_id: video.id, action: 'edit_start' },
+      severity: 'LOW'
+    })
+    
     setEditingVideo(video)
     setShowModal(true)
   }
 
-  const handleSaveVideo = (data: VideoFormData) => {
+  const handleSaveVideo = async (data: VideoFormData) => {
     if (!editingVideo) return
 
-    toast({
-      title: "Vídeo atualizado!",
-      description: "As alterações foram salvas com sucesso.",
-    })
-    
-    setEditingVideo(null)
-    setShowModal(false)
+    try {
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Video updated successfully: ${editingVideo.title}`,
+        metadata: { 
+          video_id: editingVideo.id, 
+          updated_fields: Object.keys(data),
+          action: 'edit_complete'
+        },
+        severity: 'LOW'
+      })
+
+      toast({
+        title: "Vídeo atualizado!",
+        description: "As alterações foram salvas com sucesso.",
+      })
+      
+      setEditingVideo(null)
+      setShowModal(false)
+    } catch (error) {
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Failed to update video: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        metadata: { video_id: editingVideo.id, error: String(error) },
+        severity: 'HIGH'
+      })
+    }
   }
 
   const handleCloseModal = () => {
@@ -142,7 +191,14 @@ export default function Videos() {
     setPreviewingVideo(null)
   }
 
-  const handleSyncComplete = () => {
+  const handleSyncComplete = async () => {
+    await logEvent({
+      event_type: 'SYNC_OPERATION',
+      description: 'YouTube synchronization completed successfully',
+      metadata: { operation: 'sync_complete', videos_count: videos.length },
+      severity: 'LOW'
+    })
+    
     fetchVideos()
     setShowSyncModal(false)
   }

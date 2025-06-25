@@ -1,4 +1,3 @@
-
 import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { ThemeSettings } from "@/components/Settings/ThemeSettings"
 import { NotificationSettings } from "@/components/Settings/NotificationSettings"
@@ -6,6 +5,9 @@ import { PerformanceSettings } from "@/components/Settings/PerformanceSettings"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Palette, Bell, Zap, Shield, HelpCircle } from "lucide-react"
+import { SecurityDashboard } from "@/components/security/SecurityDashboard"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { SecurityStatus } from "@/components/security/SecurityStatus"
 
 export default function Settings() {
   return (
@@ -25,37 +27,29 @@ export default function Settings() {
         </Breadcrumb>
 
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
-            <p className="text-muted-foreground">
-              Personalize sua experiência e configure preferências
-            </p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
+          <p className="text-muted-foreground">
+            Gerencie suas preferências e configurações do sistema
+          </p>
         </div>
 
         {/* Settings Tabs */}
-        <Tabs defaultValue="appearance" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="appearance" className="flex items-center gap-2">
-              <Palette className="w-4 h-4" />
-              <span className="hidden sm:inline">Aparência</span>
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2">
-              <Bell className="w-4 h-4" />
-              <span className="hidden sm:inline">Notificações</span>
-            </TabsTrigger>
-            <TabsTrigger value="performance" className="flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              <span className="hidden sm:inline">Performance</span>
-            </TabsTrigger>
-            <TabsTrigger value="security" className="flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              <span className="hidden sm:inline">Segurança</span>
-            </TabsTrigger>
+        <Tabs defaultValue="general" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="general">Geral</TabsTrigger>
+            <TabsTrigger value="theme">Tema</TabsTrigger>
+            <TabsTrigger value="notifications">Notificações</TabsTrigger>
+            <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="security">Segurança</TabsTrigger>
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="appearance">
+          <TabsContent value="general">
+            <ThemeSettings />
+          </TabsContent>
+
+          <TabsContent value="theme">
             <ThemeSettings />
           </TabsContent>
 
@@ -67,14 +61,25 @@ export default function Settings() {
             <PerformanceSettings />
           </TabsContent>
 
-          <TabsContent value="security">
-            <div className="text-center py-8">
-              <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Configurações de Segurança</h3>
-              <p className="text-muted-foreground">
-                Em breve! Esta seção incluirá configurações de autenticação, backup e auditoria.
-              </p>
-            </div>
+          <TabsContent value="security" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Configurações de Segurança
+                </CardTitle>
+                <CardDescription>
+                  Gerencie configurações de segurança e monitoramento
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SecurityStatus />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="dashboard" className="space-y-6">
+            <SecurityDashboard />
           </TabsContent>
         </Tabs>
       </div>
