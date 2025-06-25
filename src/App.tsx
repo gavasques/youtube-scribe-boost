@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { AuthProvider } from "@/hooks/useAuth"
 import { AppSidebar } from "@/components/Layout/AppSidebar"
 import { AppHeader } from "@/components/Layout/AppHeader"
+import { ErrorBoundary } from "@/components/ui/error-boundary"
 import Dashboard from "@/pages/Dashboard"
 import Auth from "@/pages/Auth"
 import Videos from "@/pages/Videos"
@@ -20,50 +21,63 @@ import NotFound from "@/pages/NotFound"
 import YouTubeCallback from "@/components/YouTubeCallback"
 import "./App.css"
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+    },
+  },
+})
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Router>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/auth/youtube/callback" element={<YouTubeCallback />} />
-            <Route
-              path="/*"
-              element={
-                <ProtectedRoute>
-                  <SidebarProvider>
-                    <div className="flex min-h-screen w-full">
-                      <AppSidebar />
-                      <div className="flex-1 flex flex-col">
-                        <AppHeader />
-                        <main className="flex-1 p-6">
-                          <Routes>
-                            <Route path="/" element={<Dashboard />} />
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/videos" element={<Videos />} />
-                            <Route path="/categories" element={<Categories />} />
-                            <Route path="/blocks" element={<Blocks />} />
-                            <Route path="/prompts" element={<Prompts />} />
-                            <Route path="/approvals" element={<Approvals />} />
-                            <Route path="/schedule" element={<Schedule />} />
-                            <Route path="/settings" element={<Settings />} />
-                            <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </main>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Router>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/youtube/callback" element={<YouTubeCallback />} />
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoute>
+                    <SidebarProvider>
+                      <div className="flex min-h-screen w-full">
+                        <AppSidebar />
+                        <div className="flex-1 flex flex-col">
+                          <AppHeader />
+                          <main className="flex-1 p-6">
+                            <ErrorBoundary>
+                              <Routes>
+                                <Route path="/" element={<Dashboard />} />
+                                <Route path="/dashboard" element={<Dashboard />} />
+                                <Route path="/videos" element={<Videos />} />
+                                <Route path="/categories" element={<Categories />} />
+                                <Route path="/blocks" element={<Blocks />} />
+                                <Route path="/prompts" element={<Prompts />} />
+                                <Route path="/approvals" element={<Approvals />} />
+                                <Route path="/schedule" element={<Schedule />} />
+                                <Route path="/settings" element={<Settings />} />
+                                <Route path="*" element={<NotFound />} />
+                              </Routes>
+                            </ErrorBoundary>
+                          </main>
+                        </div>
                       </div>
-                    </div>
-                  </SidebarProvider>
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-          <Toaster />
-        </Router>
-      </AuthProvider>
-    </QueryClientProvider>
+                    </SidebarProvider>
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+            <Toaster />
+          </Router>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 
