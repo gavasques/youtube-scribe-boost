@@ -67,15 +67,27 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
   const hasApiModels = models.length > 0
   const hasEnabledModels = enabledApiModels.length > 0
 
+  // Debug logs para investigar o problema
+  console.log('🔍 OpenAI Settings Debug:', {
+    apiKey: !!apiKey,
+    modelsCount: models.length,
+    enabledApiModels,
+    enabledCount,
+    hasApiModels,
+    hasEnabledModels
+  })
+
   // Determine available models based on context:
-  // 1. No API key: use fallback models
-  // 2. Has API key but no models selected: empty array (will show guidance)
-  // 3. Has API key and models selected: show only selected models
+  // Se não há API key: usar fallback
+  // Se há API key E há modelos da API E há modelos habilitados: usar modelos habilitados
+  // Caso contrário: array vazio
   const availableModels = !apiKey 
     ? fallbackModels
-    : hasEnabledModels 
+    : (hasApiModels && hasEnabledModels)
       ? enabledApiModels.map(model => ({ id: model.id, name: model.id }))
       : []
+
+  console.log('🎯 Available models for dropdown:', availableModels)
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
     const variants = {
@@ -93,6 +105,9 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
       </Badge>
     )
   }
+
+  // Condição para mostrar o aviso (só quando há API key, há modelos carregados, mas nenhum habilitado)
+  const shouldShowEnableModelsWarning = apiKey && hasApiModels && !hasEnabledModels
 
   return (
     <Card>
@@ -148,11 +163,11 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           <Select 
             value={config.model} 
             onValueChange={(value) => onUpdate("model", value)}
-            disabled={apiKey && hasApiModels && !hasEnabledModels}
+            disabled={shouldShowEnableModelsWarning}
           >
             <SelectTrigger>
               <SelectValue placeholder={
-                apiKey && hasApiModels && !hasEnabledModels 
+                shouldShowEnableModelsWarning
                   ? "Selecione modelos primeiro" 
                   : "Selecione um modelo"
               } />
@@ -172,10 +187,19 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
             </p>
           )}
           
-          {apiKey && hasApiModels && !hasEnabledModels && (
+          {shouldShowEnableModelsWarning && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm text-amber-800">
                 ⚠️ Nenhum modelo está selecionado. Clique em "Gerenciar Modelos" para escolher quais modelos devem aparecer neste dropdown.
+              </p>
+            </div>
+          )}
+
+          {/* Debug info temporário */}
+          {apiKey && hasApiModels && hasEnabledModels && availableModels.length === 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">
+                🐛 DEBUG: Modelos habilitados detectados mas lista vazia. Verifique o console para mais detalhes.
               </p>
             </div>
           )}
