@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -200,6 +199,15 @@ export default function Prompts() {
     })
   }
 
+  const handleDelete = (prompt: Prompt) => {
+    setPrompts(prev => prev.filter(p => p.id !== prompt.id))
+    applyFilters()
+    toast({
+      title: "Prompt removido",
+      description: `O prompt "${prompt.name}" foi removido com sucesso.`,
+    })
+  }
+
   const getActiveCount = (type: PromptType) => {
     return prompts.filter(p => p.type === type && p.is_active).length
   }
@@ -305,6 +313,7 @@ export default function Prompts() {
               onEdit={handleEditPrompt}
               onToggleActive={handleToggleActive}
               onDuplicate={handleDuplicate}
+              onDelete={handleDelete}
             />
           ))
         )}

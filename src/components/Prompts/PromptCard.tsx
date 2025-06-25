@@ -2,7 +2,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Brain, Edit, Copy, Power, PowerOff } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { Brain, Edit, Copy, Power, PowerOff, Trash2 } from "lucide-react"
 import { Prompt } from "@/types/prompt"
 
 interface PromptCardProps {
@@ -10,6 +11,7 @@ interface PromptCardProps {
   onEdit: (prompt: Prompt) => void
   onToggleActive: (prompt: Prompt) => void
   onDuplicate: (prompt: Prompt) => void
+  onDelete: (prompt: Prompt) => void
 }
 
 const getTypeLabel = (type: string) => {
@@ -34,7 +36,7 @@ const getTypeColor = (type: string) => {
   return colors[type as keyof typeof colors] || "bg-gray-100 text-gray-800"
 }
 
-export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate }: PromptCardProps) {
+export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDelete }: PromptCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
@@ -83,6 +85,36 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate }: Prom
             >
               <Edit className="w-4 h-4" />
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  title="Remover"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remover Prompt</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja remover o prompt "{prompt.name}"? 
+                    Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => onDelete(prompt)}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Remover
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </CardHeader>
