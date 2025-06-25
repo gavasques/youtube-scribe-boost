@@ -1,5 +1,4 @@
 
-
 import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -8,10 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Key, Zap, CheckCircle, AlertCircle, Search, Settings } from "lucide-react"
+import { Key, Zap, CheckCircle, AlertCircle, Search } from "lucide-react"
 import { useApiKeys } from "@/hooks/useApiKeys"
-import { useOpenAIModels } from "@/hooks/useOpenAIModels"
-import { useModelPreferences } from "@/hooks/useModelPreferences"
 import { SecureApiKeyModal } from "./SecureApiKeyModal"
 import { OpenAIModelsModal } from "./OpenAIModelsModal"
 
@@ -28,7 +25,7 @@ interface OpenAISettingsProps {
   onUpdate: <T extends keyof OpenAIConfig>(key: T, value: OpenAIConfig[T]) => void
 }
 
-// Modelos de fallback apenas quando não há API key
+// Modelos de fallback caso a API não esteja disponível
 const fallbackModels = [
   { id: "gpt-4o", name: "GPT-4o (Recomendado)" },
   { id: "gpt-4o-mini", name: "GPT-4o Mini" },
@@ -41,8 +38,6 @@ const fallbackModels = [
 
 export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
   const { getApiKey } = useApiKeys()
-  const { models } = useOpenAIModels()
-  const { getEnabledModels, getEnabledCount } = useModelPreferences()
   const apiKey = getApiKey('openai')
   
   // Update status based on database state
@@ -61,34 +56,6 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
     onUpdate('model', modelId)
   }
 
-  // Get enabled models for the dropdown
-  const enabledApiModels = getEnabledModels(models)
-  const enabledCount = getEnabledCount(models)
-  const hasApiModels = models.length > 0
-  const hasEnabledModels = enabledApiModels.length > 0
-
-  // Debug logs para investigar o problema
-  console.log('🔍 OpenAI Settings Debug:', {
-    apiKey: !!apiKey,
-    modelsCount: models.length,
-    enabledApiModels,
-    enabledCount,
-    hasApiModels,
-    hasEnabledModels
-  })
-
-  // Determine available models based on context:
-  // Se não há API key: usar fallback
-  // Se há API key E há modelos da API E há modelos habilitados: usar modelos habilitados
-  // Caso contrário: array vazio
-  const availableModels = !apiKey 
-    ? fallbackModels
-    : (hasApiModels && hasEnabledModels)
-      ? enabledApiModels.map(model => ({ id: model.id, name: model.id }))
-      : []
-
-  console.log('🎯 Available models for dropdown:', availableModels)
-
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
     const variants = {
       connected: { variant: "default" as const, icon: CheckCircle, text: "Conectado" },
@@ -105,9 +72,6 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
       </Badge>
     )
   }
-
-  // Condição para mostrar o aviso (só quando há API key, há modelos carregados, mas nenhum habilitado)
-  const shouldShowEnableModelsWarning = apiKey && hasApiModels && !hasEnabledModels
 
   return (
     <Card>
@@ -139,22 +103,15 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Label>Modelo</Label>
-              {hasApiModels && (
-                <Badge variant="outline" className="text-xs">
-                  {enabledCount} de {models.length} habilitados
-                </Badge>
-              )}
-            </div>
+            <Label>Modelo</Label>
             {apiKey && (
               <OpenAIModelsModal 
                 onModelSelect={handleModelSelect}
                 currentModel={config.model}
               >
                 <Button variant="outline" size="sm">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Gerenciar Modelos
+                  <Search className="w-4 h-4 mr-2" />
+                  Buscar Modelos
                 </Button>
               </OpenAIModelsModal>
             )}
@@ -163,19 +120,14 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           <Select 
             value={config.model} 
             onValueChange={(value) => onUpdate("model", value)}
-            disabled={shouldShowEnableModelsWarning}
           >
             <SelectTrigger>
-              <SelectValue placeholder={
-                shouldShowEnableModelsWarning
-                  ? "Selecione modelos primeiro" 
-                  : "Selecione um modelo"
-              } />
+              <SelectValue placeholder="Selecione um modelo" />
             </SelectTrigger>
             <SelectContent>
-              {availableModels.map((model) => (
+              {fallbackModels.map((model) => (
                 <SelectItem key={model.id} value={model.id}>
-                  {model.name || model.id}
+                  {model.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -183,25 +135,8 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           
           {!apiKey && (
             <p className="text-xs text-muted-foreground">
-              Configure sua API key para gerenciar modelos personalizados
+              Configure sua API key para buscar modelos em tempo real
             </p>
-          )}
-          
-          {shouldShowEnableModelsWarning && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm text-amber-800">
-                ⚠️ Nenhum modelo está selecionado. Clique em "Gerenciar Modelos" para escolher quais modelos devem aparecer neste dropdown.
-              </p>
-            </div>
-          )}
-
-          {/* Debug info temporário */}
-          {apiKey && hasApiModels && hasEnabledModels && availableModels.length === 0 && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">
-                🐛 DEBUG: Modelos habilitados detectados mas lista vazia. Verifique o console para mais detalhes.
-              </p>
-            </div>
           )}
         </div>
 
@@ -242,4 +177,3 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
     </Card>
   )
 }
-
