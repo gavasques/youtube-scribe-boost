@@ -10,11 +10,14 @@ import { VideoFilters } from "@/components/Videos/VideoFilters"
 import { Video, VideoFilters as VideoFiltersType, VideoFormData } from "@/types/video"
 import { Category } from "@/types/category"
 import { useToast } from "@/hooks/use-toast"
+import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 
 export default function Videos() {
   const { toast } = useToast()
   const [showModal, setShowModal] = useState(false)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [editingVideo, setEditingVideo] = useState<Video | null>(null)
+  const [previewingVideo, setPreviewingVideo] = useState<Video | null>(null)
   
   const [filters, setFilters] = useState<VideoFiltersType>({
     search: "",
@@ -225,6 +228,16 @@ export default function Videos() {
     setEditingVideo(null)
   }
 
+  const handlePreviewVideo = (video: Video) => {
+    setPreviewingVideo(video)
+    setShowPreviewModal(true)
+  }
+
+  const handleClosePreviewModal = () => {
+    setShowPreviewModal(false)
+    setPreviewingVideo(null)
+  }
+
   // Filter videos based on current filters
   const getFilteredVideos = () => {
     return videos.filter(video => {
@@ -398,6 +411,7 @@ export default function Videos() {
                         variant="outline"
                         size="sm"
                         className="gap-1 h-8"
+                        onClick={() => handlePreviewVideo(video)}
                       >
                         <Eye className="w-3 h-3" />
                         Preview
@@ -424,6 +438,13 @@ export default function Videos() {
         onSave={handleSaveVideo}
         video={editingVideo}
         categories={categories}
+      />
+
+      {/* Video Preview Modal */}
+      <VideoPreviewModal
+        open={showPreviewModal}
+        onClose={handleClosePreviewModal}
+        video={previewingVideo}
       />
     </div>
   )
