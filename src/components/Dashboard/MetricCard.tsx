@@ -1,21 +1,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LucideIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface MetricCardProps {
   title: string
   value: string | number
   description?: string
   icon: LucideIcon
+  className?: string
   trend?: {
     value: string
     isPositive: boolean
   }
 }
 
-export function MetricCard({ title, value, description, icon: Icon, trend }: MetricCardProps) {
+export function MetricCard({ title, value, description, icon: Icon, className, trend }: MetricCardProps) {
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className={cn("hover:shadow-md transition-shadow", className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
