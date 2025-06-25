@@ -1,4 +1,3 @@
-
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -16,7 +15,7 @@ import Approvals from '@/pages/Approvals'
 import Schedule from '@/pages/Schedule'
 import Settings from '@/pages/Settings'
 import NotFound from '@/pages/NotFound'
-import { YouTubeCallback } from '@/components/YouTubeCallback'
+import YouTubeCallback from '@/components/YouTubeCallback'
 
 // Configure React Query with proper configuration
 const queryClient = new QueryClient({
