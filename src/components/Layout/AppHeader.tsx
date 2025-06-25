@@ -1,9 +1,8 @@
-
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { useLocation } from "react-router-dom"
-import { Sync, Bell, User } from "lucide-react"
+import { RefreshCw, Bell, User } from "lucide-react"
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -42,7 +41,7 @@ export function AppHeader() {
       
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" className="gap-2">
-          <Sync className="w-4 h-4" />
+          <RefreshCw className="w-4 h-4" />
           Sincronizar
         </Button>
         <Button variant="ghost" size="sm">

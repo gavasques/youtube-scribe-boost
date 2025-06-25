@@ -1,9 +1,8 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Search, Filter, Upload, Eye, Edit, Sync } from "lucide-react"
+import { Search, Filter, Upload, Eye, Edit, RefreshCw } from "lucide-react"
 
 export default function Videos() {
   const videos = [
@@ -76,7 +75,7 @@ export default function Videos() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2">
-            <Sync className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4" />
             Sincronizar
           </Button>
           <Button className="gap-2">

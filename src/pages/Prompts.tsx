@@ -1,8 +1,7 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Edit, Brain, MessageSquare } from "lucide-react"
+import { Zap, Edit, Brain, MessageSquare, Plus } from "lucide-react"
 
 export default function Prompts() {
   const prompts = [
