@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { 
-  Youtube, 
   Zap, 
   Link, 
   RefreshCw, 
@@ -27,12 +25,12 @@ import {
   XCircle
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import YouTubeConnection from "@/components/YouTubeConnection"
 
 export default function Settings() {
   const { toast } = useToast()
   
   // Estados das configurações
-  const [youtubeConnected, setYoutubeConnected] = useState(true)
   const [openaiApiKey, setOpenaiApiKey] = useState("sk-********************************")
   const [showApiKey, setShowApiKey] = useState(false)
   const [aiModel, setAiModel] = useState("gpt-4o")
@@ -68,28 +66,6 @@ export default function Settings() {
     })
   }
 
-  const handleConnectYoutube = () => {
-    // Simulação da conexão
-    setYoutubeConnected(!youtubeConnected)
-    toast({
-      title: youtubeConnected ? "YouTube desconectado" : "YouTube conectado",
-      description: youtubeConnected ? "A conexão foi removida." : "Canal conectado com sucesso!",
-    })
-  }
-
-  const getConnectionStatus = (connected: boolean) => {
-    if (connected) {
-      return <Badge variant="default" className="bg-green-100 text-green-800 gap-1">
-        <CheckCircle className="w-3 h-3" />
-        Conectado
-      </Badge>
-    }
-    return <Badge variant="destructive" className="gap-1">
-      <XCircle className="w-3 h-3" />
-      Desconectado
-    </Badge>
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -109,79 +85,7 @@ export default function Settings() {
 
         <TabsContent value="youtube-ai" className="space-y-6">
           {/* YouTube Integration */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Youtube className="w-5 h-5 text-red-500" />
-                Conectar ao YouTube
-              </CardTitle>
-              <CardDescription>
-                Configure a conexão com sua conta do YouTube
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Status da Conexão</p>
-                  <p className="text-sm text-muted-foreground">
-                    {youtubeConnected ? "Conectado como: Meu Canal Tech" : "Não conectado"}
-                  </p>
-                </div>
-                {getConnectionStatus(youtubeConnected)}
-              </div>
-              
-              {youtubeConnected && (
-                <div className="space-y-2">
-                  <Label htmlFor="youtube-channel">Canal Conectado</Label>
-                  <Input 
-                    id="youtube-channel"
-                    value="Meu Canal Tech"
-                    disabled
-                    className="bg-muted"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Última sincronização: hoje às 14:30
-                  </p>
-                </div>
-              )}
-
-              {youtubeConnected && (
-                <div className="space-y-2">
-                  <Label>Permissões Concedidas</Label>
-                  <div className="text-sm space-y-1">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span>Ler informações do canal</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span>Gerenciar vídeos</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span>Atualizar descrições</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleConnectYoutube}
-                  className={youtubeConnected ? "bg-red-600 hover:bg-red-700" : "bg-red-600 hover:bg-red-700"}
-                >
-                  <Youtube className="w-4 h-4 mr-2" />
-                  {youtubeConnected ? "Desconectar" : "Conectar com YouTube"}
-                </Button>
-                {youtubeConnected && (
-                  <Button variant="outline" className="gap-2">
-                    <RefreshCw className="w-4 h-4" />
-                    Sincronizar Agora
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <YouTubeConnection />
 
           {/* AI Configuration */}
           <Card>
