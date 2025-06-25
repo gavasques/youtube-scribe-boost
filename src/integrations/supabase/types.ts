@@ -9,7 +9,241 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      blocks: {
+        Row: {
+          content: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          scope: string | null
+          title: string
+          type: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          scope?: string | null
+          title: string
+          type?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          scope?: string | null
+          title?: string
+          type?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blocks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          parent_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          updated_at: string | null
+          youtube_access_token: string | null
+          youtube_channel_id: string | null
+          youtube_channel_name: string | null
+          youtube_refresh_token: string | null
+          youtube_token_expiry: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string | null
+          youtube_access_token?: string | null
+          youtube_channel_id?: string | null
+          youtube_channel_name?: string | null
+          youtube_refresh_token?: string | null
+          youtube_token_expiry?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string | null
+          youtube_access_token?: string | null
+          youtube_channel_id?: string | null
+          youtube_channel_name?: string | null
+          youtube_refresh_token?: string | null
+          youtube_token_expiry?: string | null
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          ai_chapters: Json | null
+          ai_description: string | null
+          ai_generated_tags: string[] | null
+          ai_summary: string | null
+          compiled_description: string | null
+          configuration_status: string | null
+          created_at: string | null
+          current_description: string | null
+          current_tags: string[] | null
+          id: string
+          original_description: string | null
+          original_tags: string[] | null
+          published_at: string | null
+          title: string
+          transcription: string | null
+          update_status: string | null
+          updated_at: string | null
+          user_id: string | null
+          video_type: string | null
+          youtube_id: string
+          youtube_url: string
+        }
+        Insert: {
+          ai_chapters?: Json | null
+          ai_description?: string | null
+          ai_generated_tags?: string[] | null
+          ai_summary?: string | null
+          compiled_description?: string | null
+          configuration_status?: string | null
+          created_at?: string | null
+          current_description?: string | null
+          current_tags?: string[] | null
+          id?: string
+          original_description?: string | null
+          original_tags?: string[] | null
+          published_at?: string | null
+          title: string
+          transcription?: string | null
+          update_status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          video_type?: string | null
+          youtube_id: string
+          youtube_url: string
+        }
+        Update: {
+          ai_chapters?: Json | null
+          ai_description?: string | null
+          ai_generated_tags?: string[] | null
+          ai_summary?: string | null
+          compiled_description?: string | null
+          configuration_status?: string | null
+          created_at?: string | null
+          current_description?: string | null
+          current_tags?: string[] | null
+          id?: string
+          original_description?: string | null
+          original_tags?: string[] | null
+          published_at?: string | null
+          title?: string
+          transcription?: string | null
+          update_status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          video_type?: string | null
+          youtube_id?: string
+          youtube_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
