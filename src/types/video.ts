@@ -1,7 +1,7 @@
 
 export type VideoType = 'REGULAR' | 'SHORT' | 'LIVE'
-export type ConfigurationStatus = 'NOT_CONFIGURED' | 'CONFIGURED' | 'PROCESSING'
-export type UpdateStatus = 'ACTIVE_FOR_UPDATE' | 'PAUSED' | 'DISABLED'
+export type ConfigurationStatus = 'NOT_CONFIGURED' | 'CONFIGURED' | 'NEEDS_ATTENTION'
+export type UpdateStatus = 'ACTIVE_FOR_UPDATE' | 'DO_NOT_UPDATE' | 'IGNORED'
 
 export interface Video {
   id: string
@@ -26,12 +26,30 @@ export interface Video {
   published_at: string | null
   created_at: string
   updated_at: string
+  
+  // Propriedades computadas/extras para UI
+  thumbnail_url?: string
+  views?: string
+  duration?: string
+  category_name?: string
+  has_transcription?: boolean
+  ai_processed?: boolean
 }
 
 export interface VideoFormData {
   title: string
   youtube_url: string
+  youtube_id: string
   video_type: VideoType
   category_id?: string
   transcription?: string
+  update_status?: UpdateStatus
+}
+
+export interface VideoFilters {
+  search: string
+  configuration_status: string
+  update_status: string
+  category_id: string
+  video_type: string
 }

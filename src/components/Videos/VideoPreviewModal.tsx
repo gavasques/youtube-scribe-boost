@@ -53,7 +53,7 @@ ${video.ai_generated_tags?.join(', ') || video.current_tags?.join(', ') || 'Sem 
 
 ${video.ai_chapters && video.ai_chapters.length > 0 ? `
 ⏰ CAPÍTULOS:
-${video.ai_chapters.map(chapter => `${chapter.timestamp} - ${chapter.title}`).join('\n')}
+${video.ai_chapters.map((chapter: any) => `${chapter.timestamp} - ${chapter.title}`).join('\n')}
 ` : ''}
 
 #importação #negócios #empreendedorismo`
@@ -83,7 +83,7 @@ ${video.ai_chapters.map(chapter => `${chapter.timestamp} - ${chapter.title}`).jo
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span>{video.views} views</span>
+                <span>{video.views || '0'} views</span>
                 <span>•</span>
                 <span>{video.published_at}</span>
                 {video.duration && (
@@ -191,7 +191,7 @@ ${video.ai_chapters.map(chapter => `${chapter.timestamp} - ${chapter.title}`).jo
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${video.has_transcription ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-3 h-3 rounded-full ${video.transcription ? 'bg-green-500' : 'bg-gray-300'}`} />
                   <span className="text-sm">Transcrição</span>
                 </div>
                 <div className="flex items-center gap-2">

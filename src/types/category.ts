@@ -10,6 +10,10 @@ export interface Category {
   is_active: boolean
   created_at: string
   updated_at: string
+  
+  // Propriedades computadas/extras para UI
+  video_count?: number
+  children?: Category[]
 }
 
 export interface CategoryFormData {

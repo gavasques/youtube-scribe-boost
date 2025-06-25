@@ -23,6 +23,10 @@ interface VideoModalProps {
 
 export function VideoModal({ open, onClose, onSave, video, categories }: VideoModalProps) {
   const [formData, setFormData] = useState<VideoFormData>({
+    title: "",
+    youtube_url: "",
+    youtube_id: "",
+    video_type: "REGULAR",
     category_id: "",
     update_status: "ACTIVE_FOR_UPDATE",
     transcription: ""
@@ -33,6 +37,10 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
   useEffect(() => {
     if (video) {
       setFormData({
+        title: video.title,
+        youtube_url: video.youtube_url,
+        youtube_id: video.youtube_id,
+        video_type: video.video_type,
         category_id: video.category_id || "",
         update_status: video.update_status,
         transcription: video.transcription || ""
@@ -40,6 +48,10 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
       setTranscriptionText(video.transcription || "")
     } else {
       setFormData({
+        title: "",
+        youtube_url: "",
+        youtube_id: "",
+        video_type: "REGULAR",
         category_id: "",
         update_status: "ACTIVE_FOR_UPDATE",
         transcription: ""
@@ -129,7 +141,7 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
                   <Label htmlFor="update_status">Status de Atualização</Label>
                   <Select
                     value={formData.update_status}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, update_status: value }))}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, update_status: value as any }))}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -194,10 +206,10 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4" />
                   <span className="text-sm">
-                    Status: {video.has_transcription ? "Transcrição disponível" : "Sem transcrição"}
+                    Status: {video.transcription ? "Transcrição disponível" : "Sem transcrição"}
                   </span>
                 </div>
-                {video.has_transcription && (
+                {video.transcription && (
                   <Button type="button" variant="outline" size="sm">
                     Processar com IA
                   </Button>

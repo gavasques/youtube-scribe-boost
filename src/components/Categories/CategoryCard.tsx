@@ -89,7 +89,7 @@ export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) 
             )}
           </div>
           <div className="text-right">
-            <p className="text-sm font-medium">{category.video_count}</p>
+            <p className="text-sm font-medium">{category.video_count || 0}</p>
             <p className="text-xs text-muted-foreground">vídeos</p>
           </div>
         </div>

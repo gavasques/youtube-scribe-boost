@@ -39,7 +39,13 @@ export function useVideos() {
       const { data: newVideo, error } = await supabase
         .from('videos')
         .insert([{
-          ...data,
+          title: data.title,
+          youtube_url: data.youtube_url,
+          youtube_id: data.youtube_id,
+          video_type: data.video_type,
+          category_id: data.category_id,
+          transcription: data.transcription,
+          update_status: data.update_status || 'ACTIVE_FOR_UPDATE',
           user_id: (await supabase.auth.getUser()).data.user?.id
         }])
         .select()
