@@ -3,36 +3,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLocalStorage } from "@/hooks/useLocalStorage"
-import { Monitor, Moon, Sun } from "lucide-react"
-
-type Theme = "light" | "dark" | "system"
+import { Sun } from "lucide-react"
 
 export function ThemeSettings() {
-  const [theme, setTheme] = useLocalStorage<Theme>("theme", "system")
   const [animations, setAnimations] = useLocalStorage("animations", true)
   const [reducedMotion, setReducedMotion] = useLocalStorage("reducedMotion", false)
 
-  const applyTheme = (newTheme: Theme) => {
-    setTheme(newTheme)
-    
-    if (newTheme === "dark") {
-      document.documentElement.classList.add("dark")
-    } else if (newTheme === "light") {
-      document.documentElement.classList.remove("dark")
-    } else {
-      // System theme
-      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-      document.documentElement.classList.toggle("dark", systemDark)
-    }
-  }
-
-  const themeOptions = [
-    { value: "light", label: "Claro", icon: Sun },
-    { value: "dark", label: "Escuro", icon: Moon },
-    { value: "system", label: "Sistema", icon: Monitor }
-  ]
+  // Força o tema claro sempre
+  React.useEffect(() => {
+    document.documentElement.classList.remove("dark")
+  }, [])
 
   return (
     <Card>
@@ -45,24 +26,14 @@ export function ThemeSettings() {
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label>Tema</Label>
-          <Select value={theme} onValueChange={(value: Theme) => applyTheme(value)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {themeOptions.map((option) => {
-                const Icon = option.icon
-                return (
-                  <SelectItem key={option.value} value={option.value}>
-                    <div className="flex items-center gap-2">
-                      <Icon className="w-4 h-4" />
-                      {option.label}
-                    </div>
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+            <Sun className="w-4 h-4" />
+            <span className="text-sm font-medium">Tema Claro</span>
+            <span className="text-xs text-muted-foreground ml-auto">(Fixo)</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            O tema está fixado no modo claro para melhor experiência
+          </p>
         </div>
 
         <div className="flex items-center justify-between">
@@ -95,10 +66,9 @@ export function ThemeSettings() {
           <Button 
             variant="outline" 
             onClick={() => {
-              setTheme("system")
               setAnimations(true)
               setReducedMotion(false)
-              applyTheme("system")
+              document.documentElement.classList.remove("dark")
             }}
           >
             Restaurar Padrões
