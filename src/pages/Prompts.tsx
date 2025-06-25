@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Brain, Plus, Search } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Prompt, PromptFormData, PromptType } from "@/types/prompt"
 import { PromptCard } from "@/components/Prompts/PromptCard"
 import { PromptEditor } from "@/components/Prompts/PromptEditor"
@@ -118,7 +118,7 @@ export default function Prompts() {
   }
 
   // Aplicar filtros quando mudarem
-  useState(() => {
+  useEffect(() => {
     applyFilters()
   }, [searchTerm, typeFilter, statusFilter, prompts])
 
