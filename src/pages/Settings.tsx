@@ -18,18 +18,20 @@ export default function Settings() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
+              <BreadcrumbLink href="/" className="text-indigo-600 hover:text-purple-600">Dashboard</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>Configurações</BreadcrumbPage>
+              <BreadcrumbPage className="text-indigo-700 font-medium">Configurações</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            Configurações
+          </h1>
           <p className="text-muted-foreground">
             Gerencie suas preferências e configurações do sistema
           </p>
@@ -37,13 +39,13 @@ export default function Settings() {
 
         {/* Settings Tabs */}
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="general">Geral</TabsTrigger>
-            <TabsTrigger value="theme">Tema</TabsTrigger>
-            <TabsTrigger value="notifications">Notificações</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
-            <TabsTrigger value="security">Segurança</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6 bg-gradient-to-r from-indigo-50 to-purple-50">
+            <TabsTrigger value="general" className="data-[state=active]:bg-indigo-500 data-[state=active]:text-white">Geral</TabsTrigger>
+            <TabsTrigger value="theme" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white">Tema</TabsTrigger>
+            <TabsTrigger value="notifications" className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white">Notificações</TabsTrigger>
+            <TabsTrigger value="performance" className="data-[state=active]:bg-amber-500 data-[state=active]:text-white">Performance</TabsTrigger>
+            <TabsTrigger value="security" className="data-[state=active]:bg-rose-500 data-[state=active]:text-white">Segurança</TabsTrigger>
+            <TabsTrigger value="dashboard" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white">Dashboard</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -63,13 +65,13 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">
-            <Card>
+            <Card className="border-rose-200 bg-gradient-to-br from-rose-50 to-pink-50">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-rose-800">
                   <Shield className="w-5 h-5" />
                   Configurações de Segurança
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-rose-600">
                   Gerencie configurações de segurança e monitoramento
                 </CardDescription>
               </CardHeader>

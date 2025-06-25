@@ -100,7 +100,9 @@ export default function Prompts() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Prompts IA</h1>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+              Prompts IA
+            </h1>
             <p className="text-muted-foreground">
               Configure os prompts para processamento inteligente de conteúdo
             </p>
@@ -108,7 +110,7 @@ export default function Prompts() {
         </div>
         <div className="flex justify-center items-center py-12">
           <div className="text-center space-y-4">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <div className="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
             <p className="text-muted-foreground">Carregando prompts...</p>
           </div>
         </div>
@@ -120,35 +122,37 @@ export default function Prompts() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Prompts IA</h1>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+            Prompts IA
+          </h1>
           <p className="text-muted-foreground">
             Configure os prompts para processamento inteligente de conteúdo
           </p>
         </div>
-        <Button onClick={handleNewPrompt} className="gap-2">
+        <Button onClick={handleNewPrompt} className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 border-0">
           <Plus className="w-4 h-4" />
           Novo Prompt
         </Button>
       </div>
 
       {/* Filtros */}
-      <Card>
+      <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
         <CardHeader>
-          <CardTitle className="text-lg">Filtros</CardTitle>
+          <CardTitle className="text-lg text-amber-800">Filtros</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-amber-600" />
               <Input
                 placeholder="Buscar prompts..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
+                className="pl-9 border-amber-300 focus:border-amber-500"
               />
             </div>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="border-amber-300 focus:border-amber-500">
                 <SelectValue placeholder="Tipo de prompt" />
               </SelectTrigger>
               <SelectContent>
@@ -161,7 +165,7 @@ export default function Prompts() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="border-amber-300 focus:border-amber-500">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -176,29 +180,38 @@ export default function Prompts() {
 
       {/* Estatísticas por tipo */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {promptTypes.map(type => (
-          <Card key={type.value}>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {getActiveCount(type.value as PromptType)}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {type.label}
-              </div>
-              <Badge variant="outline" className="mt-1">
-                Ativo
-              </Badge>
-            </CardContent>
-          </Card>
-        ))}
+        {promptTypes.map((type, index) => {
+          const colors = [
+            'from-blue-500 to-cyan-500',
+            'from-emerald-500 to-teal-500',
+            'from-purple-500 to-violet-500',
+            'from-rose-500 to-pink-500',
+            'from-amber-500 to-orange-500'
+          ];
+          return (
+            <Card key={type.value} className="border-0 shadow-lg">
+              <CardContent className="p-4 text-center">
+                <div className={`text-2xl font-bold bg-gradient-to-r ${colors[index % colors.length]} bg-clip-text text-transparent`}>
+                  {getActiveCount(type.value as PromptType)}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {type.label}
+                </div>
+                <Badge variant="outline" className="mt-1 border-emerald-300 text-emerald-700">
+                  Ativo
+                </Badge>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Lista de prompts */}
       <div className="grid gap-4">
         {filteredPrompts.length === 0 ? (
-          <Card>
+          <Card className="border-amber-200">
             <CardContent className="p-8 text-center">
-              <Brain className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <Brain className="w-12 h-12 mx-auto text-amber-600 mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhum prompt encontrado</h3>
               <p className="text-muted-foreground mb-4">
                 {prompts.length === 0 
@@ -206,7 +219,7 @@ export default function Prompts() {
                   : "Não há prompts que correspondam aos filtros aplicados."
                 }
               </p>
-              <Button onClick={handleNewPrompt} className="gap-2">
+              <Button onClick={handleNewPrompt} className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 border-0">
                 <Plus className="w-4 h-4" />
                 {prompts.length === 0 ? "Criar Primeiro Prompt" : "Criar Novo Prompt"}
               </Button>

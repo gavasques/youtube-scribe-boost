@@ -43,7 +43,7 @@ export default function Approvals() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-muted-foreground">Carregando aprovações...</p>
         </div>
       </div>
@@ -54,7 +54,9 @@ export default function Approvals() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Aprovações</h1>
+        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
+          Aprovações
+        </h1>
         <p className="text-muted-foreground">
           Gerencie aprovações de mudanças que afetam múltiplos vídeos
         </p>
@@ -62,53 +64,53 @@ export default function Approvals() {
 
       {/* Estatísticas */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="border-l-4 border-orange-500 bg-gradient-to-br from-orange-50 to-amber-50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+            <CardTitle className="text-sm font-medium text-orange-800">Pendentes</CardTitle>
             <Clock className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-orange-700">{stats.pending}</div>
+            <p className="text-xs text-orange-600">
               Aguardando revisão
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aprovadas</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium text-emerald-800">Aprovadas</CardTitle>
+            <CheckCircle className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.approved}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-emerald-700">{stats.approved}</div>
+            <p className="text-xs text-emerald-600">
               Processadas com sucesso
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-red-500 bg-gradient-to-br from-red-50 to-rose-50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejeitadas</CardTitle>
+            <CardTitle className="text-sm font-medium text-red-800">Rejeitadas</CardTitle>
             <XCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.rejected}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-red-700">{stats.rejected}</div>
+            <p className="text-xs text-red-600">
               Não processadas
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-blue-500 bg-gradient-to-br from-blue-50 to-cyan-50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
+            <CardTitle className="text-sm font-medium text-blue-800">Total</CardTitle>
             <FileCheck className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-blue-700">{stats.total}</div>
+            <p className="text-xs text-blue-600">
               Todas as aprovações
             </p>
           </CardContent>
@@ -126,10 +128,10 @@ export default function Approvals() {
       {/* Lista de Aprovações */}
       <div className="space-y-4">
         {filteredApprovals.length === 0 ? (
-          <Card>
+          <Card className="border-rose-200">
             <CardContent className="py-8">
               <div className="text-center">
-                <FileCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <FileCheck className="h-12 w-12 text-rose-500 mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">Nenhuma aprovação encontrada</h3>
                 <p className="text-muted-foreground">
                   {filters.status !== 'all' || filters.type !== 'all' || filters.search

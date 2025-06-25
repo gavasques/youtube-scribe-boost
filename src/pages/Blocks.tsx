@@ -124,7 +124,7 @@ export default function Blocks() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
           <p className="mt-2 text-muted-foreground">Carregando blocos...</p>
         </div>
       </div>
@@ -136,7 +136,9 @@ export default function Blocks() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Blocos</h1>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+            Blocos
+          </h1>
           <p className="text-muted-foreground">
             Gerencie os blocos de conteúdo para suas descrições
           </p>
@@ -145,10 +147,11 @@ export default function Blocks() {
           <Button
             variant="outline"
             onClick={() => setViewMode(viewMode === 'table' ? 'grid' : 'table')}
+            className="border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300"
           >
             {viewMode === 'table' ? 'Ver em Grade' : 'Ver em Tabela'}
           </Button>
-          <Button className="gap-2" onClick={() => setShowForm(true)}>
+          <Button className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0" onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4" />
             Novo Bloco
           </Button>
@@ -174,14 +177,14 @@ export default function Blocks() {
       {/* Empty State */}
       {!loading && blocks.length === 0 && (
         <div className="text-center py-12">
-          <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
-            <Plus className="w-8 h-8 text-muted-foreground" />
+          <div className="mx-auto w-24 h-24 bg-gradient-to-br from-purple-100 to-violet-100 rounded-full flex items-center justify-center mb-4">
+            <Plus className="w-8 h-8 text-purple-600" />
           </div>
           <h3 className="text-lg font-medium mb-2">Nenhum bloco encontrado</h3>
           <p className="text-muted-foreground mb-4">
             Comece criando seu primeiro bloco de conteúdo
           </p>
-          <Button onClick={() => setShowForm(true)} className="gap-2">
+          <Button onClick={() => setShowForm(true)} className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0">
             <Plus className="w-4 h-4" />
             Criar Primeiro Bloco
           </Button>

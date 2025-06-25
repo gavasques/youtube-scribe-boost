@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -37,20 +38,31 @@
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* New vibrant colors */
+    --purple: 262.1 83.3% 57.8%;
+    --purple-foreground: 210 20% 98%;
+    --emerald: 142.1 76.2% 36.3%;
+    --emerald-foreground: 355.7 100% 97.3%;
+    --amber: 32.8 95% 44.9%;
+    --amber-foreground: 26 83.3% 14.1%;
+    --rose: 346.8 77.2% 49.8%;
+    --rose-foreground: 355.7 100% 97.3%;
+    --cyan: 198.6 88.7% 48.4%;
+    --cyan-foreground: 210 20% 98%;
+    --indigo: 231.2 81.8% 53.3%;
+    --indigo-foreground: 210 20% 98%;
+    --orange: 24.6 95% 53.1%;
+    --orange-foreground: 60 9.1% 97.8%;
+    --violet: 262.1 83.3% 57.8%;
+    --violet-foreground: 210 20% 98%;
   }
 
   .dark {
@@ -89,6 +101,24 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Dark mode vibrant colors */
+    --purple: 262.1 83.3% 57.8%;
+    --purple-foreground: 210 20% 98%;
+    --emerald: 142.1 76.2% 36.3%;
+    --emerald-foreground: 355.7 100% 97.3%;
+    --amber: 32.8 95% 44.9%;
+    --amber-foreground: 26 83.3% 14.1%;
+    --rose: 346.8 77.2% 49.8%;
+    --rose-foreground: 355.7 100% 97.3%;
+    --cyan: 198.6 88.7% 48.4%;
+    --cyan-foreground: 210 20% 98%;
+    --indigo: 231.2 81.8% 53.3%;
+    --indigo-foreground: 210 20% 98%;
+    --orange: 24.6 95% 53.1%;
+    --orange-foreground: 60 9.1% 97.8%;
+    --violet: 262.1 83.3% 57.8%;
+    --violet-foreground: 210 20% 98%;
   }
 }
 
@@ -100,4 +130,21 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom gradient backgrounds */
+.gradient-purple {
+  background: linear-gradient(135deg, hsl(var(--purple)) 0%, hsl(var(--indigo)) 100%);
+}
+
+.gradient-emerald {
+  background: linear-gradient(135deg, hsl(var(--emerald)) 0%, hsl(var(--cyan)) 100%);
+}
+
+.gradient-amber {
+  background: linear-gradient(135deg, hsl(var(--amber)) 0%, hsl(var(--orange)) 100%);
+}
+
+.gradient-rose {
+  background: linear-gradient(135deg, hsl(var(--rose)) 0%, hsl(var(--violet)) 100%);
 }
