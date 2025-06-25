@@ -1,4 +1,3 @@
-
 import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -11,6 +10,7 @@ import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { Key, Youtube, Link, Zap, CheckCircle, AlertCircle, Settings } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { useYouTubeAuth } from "@/hooks/useYouTubeAuth"
+import { ApiKeyModal } from "./ApiKeyModal"
 
 interface ApiConfig {
   openai: {
@@ -19,11 +19,13 @@ interface ApiConfig {
     temperature: number
     maxTokens: number
     status: 'connected' | 'disconnected' | 'error'
+    apiKey?: string
   }
   bitly: {
     enabled: boolean
     customDomain: string
     status: 'connected' | 'disconnected' | 'error'
+    apiKey?: string
   }
   general: {
     rateLimitEnabled: boolean
@@ -77,6 +79,16 @@ export function ApiSettings() {
         [key]: value
       }
     }))
+  }
+
+  const handleOpenAIKeySave = (apiKey: string) => {
+    updateConfig("openai", "apiKey", apiKey)
+    updateConfig("openai", "status", apiKey ? 'connected' : 'disconnected')
+  }
+
+  const handleBitlyKeySave = (apiKey: string) => {
+    updateConfig("bitly", "apiKey", apiKey)
+    updateConfig("bitly", "status", apiKey ? 'connected' : 'disconnected')
   }
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
@@ -202,10 +214,16 @@ export function ApiSettings() {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full">
-            <Key className="w-4 h-4 mr-2" />
-            Configurar API Key
-          </Button>
+          <ApiKeyModal
+            service="OpenAI"
+            currentKey={config.openai.apiKey}
+            onSave={handleOpenAIKeySave}
+          >
+            <Button variant="outline" className="w-full">
+              <Key className="w-4 h-4 mr-2" />
+              Configurar API Key
+            </Button>
+          </ApiKeyModal>
         </CardContent>
       </Card>
 
@@ -249,10 +267,16 @@ export function ApiSettings() {
             </p>
           </div>
 
-          <Button variant="outline" className="w-full">
-            <Key className="w-4 h-4 mr-2" />
-            Configurar API Key
-          </Button>
+          <ApiKeyModal
+            service="Bitly"
+            currentKey={config.bitly.apiKey}
+            onSave={handleBitlyKeySave}
+          >
+            <Button variant="outline" className="w-full">
+              <Key className="w-4 h-4 mr-2" />
+              Configurar API Key
+            </Button>
+          </ApiKeyModal>
         </CardContent>
       </Card>
 
