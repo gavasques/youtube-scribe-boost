@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -12,6 +11,9 @@ import { Badge } from "@/components/ui/badge"
 import { Upload, Play, FileText, Brain, Eye, ExternalLink } from "lucide-react"
 import { Video, VideoFormData } from "@/types/video"
 import { Category } from "@/types/category"
+import { TranscriptionUpload } from "./TranscriptionUpload"
+import { AIProcessingSettings } from "./AIProcessingSettings"
+import { useAIProcessing } from "@/hooks/useAIProcessing"
 
 interface VideoModalProps {
   open: boolean
@@ -33,6 +35,19 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
   })
 
   const [transcriptionText, setTranscriptionText] = useState("")
+  const { processing, progress, processWithAI, uploadTranscription } = useAIProcessing()
+
+  // Estado para configurações de processamento IA
+  const [aiConfig, setAiConfig] = useState({
+    summary: true,
+    chapters: true,
+    description: true,
+    tags: true,
+    category: false,
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+    maxTokens: 1000
+  })
 
   useEffect(() => {
     if (video) {
@@ -79,6 +94,51 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
         return <Badge variant="secondary">Não Configurado</Badge>
     }
   }
+
+  const handleAIProcessing = async () => {
+    if (!video || !transcriptionText) return
+
+    try {
+      // Buscar prompts ativos do banco (por simplicidade, usando prompts padrão)
+      const prompts: any = {}
+      
+      if (aiConfig.summary) {
+        prompts.summary = "Crie um resumo conciso e informativo do vídeo baseado na transcrição. Destaque os pontos principais em parágrafos estruturados."
+      }
+      
+      if (aiConfig.chapters) {
+        prompts.chapters = "Analise a transcrição e crie capítulos com timestamps. Retorne como JSON array com objetos {timestamp: 'MM:SS', title: 'Título do Capítulo'}."
+      }
+      
+      if (aiConfig.description) {
+        prompts.description = "Crie uma descrição otimizada para YouTube baseada na transcrição. Inclua palavras-chave relevantes e seja atrativo para o público."
+      }
+      
+      if (aiConfig.tags) {
+        prompts.tags = "Gere tags relevantes para o vídeo baseado na transcrição. Retorne como lista separada por vírgulas."
+      }
+      
+      if (aiConfig.category) {
+        prompts.category = "Analise o conteúdo da transcrição e sugira a categoria mais apropriada para este vídeo."
+      }
+
+      const settings = {
+        model: aiConfig.model,
+        temperature: aiConfig.temperature,
+        maxTokens: aiConfig.maxTokens
+      }
+
+      await processWithAI(video.id, transcriptionText, prompts, settings)
+      
+      // Recarregar dados do vídeo após processamento
+      // Em um cenário real, você faria uma nova busca do vídeo atualizado
+      
+    } catch (error) {
+      console.error('Erro no processamento IA:', error)
+    }
+  }
+
+  const canProcessAI = transcriptionText.length > 0 && Object.values(aiConfig).slice(0, 5).some(Boolean)
 
   if (!video) return null
 
@@ -177,30 +237,24 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
               </div>
             </TabsContent>
 
-            <TabsContent value="transcription" className="space-y-4">
-              <div className="space-y-2">
-                <Label>Upload de Transcrição</Label>
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                  <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Arraste um arquivo de transcrição ou clique para selecionar
-                  </p>
-                  <Button type="button" variant="outline" size="sm">
-                    Selecionar Arquivo
-                  </Button>
-                </div>
-              </div>
+            <TabsContent value="transcription" className="space-y-6">
+              <TranscriptionUpload
+                value={transcriptionText}
+                onChange={setTranscriptionText}
+                onFileUpload={uploadTranscription}
+                processing={processing}
+                progress={progress}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="transcription">Transcrição Manual</Label>
-                <Textarea
-                  id="transcription"
-                  value={transcriptionText}
-                  onChange={(e) => setTranscriptionText(e.target.value)}
-                  placeholder="Cole ou digite a transcrição do vídeo aqui..."
-                  className="min-h-[200px]"
+              {transcriptionText && (
+                <AIProcessingSettings
+                  config={aiConfig}
+                  onChange={setAiConfig}
+                  onProcess={handleAIProcessing}
+                  canProcess={canProcessAI}
+                  processing={processing}
                 />
-              </div>
+              )}
 
               <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-2">
@@ -209,9 +263,15 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
                     Status: {video.transcription ? "Transcrição disponível" : "Sem transcrição"}
                   </span>
                 </div>
-                {video.transcription && (
-                  <Button type="button" variant="outline" size="sm">
-                    Processar com IA
+                {video.transcription && !video.ai_processed && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleAIProcessing}
+                    disabled={processing || !canProcessAI}
+                  >
+                    {processing ? 'Processando...' : 'Processar com IA'}
                   </Button>
                 )}
               </div>
