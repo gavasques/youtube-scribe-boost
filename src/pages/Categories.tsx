@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,85 +28,99 @@ export default function Categories() {
   const [categories, setCategories] = useState<Category[]>([
     {
       id: "1",
+      user_id: "mock-user-id",
       name: "Importação",
       description: "Vídeos sobre importação de produtos",
-      parent_id: undefined,
+      parent_id: null,
       color: "#f97316",
       icon: "package",
       is_active: true,
-      video_count: 12,
       created_at: "2024-06-15",
+      updated_at: "2024-06-15",
+      video_count: 12,
       children: [
         {
           id: "1a",
+          user_id: "mock-user-id",
           name: "AliExpress",
           description: "Importação via AliExpress",
           parent_id: "1",
           color: "#f97316",
           icon: "package",
           is_active: true,
-          video_count: 8,
-          created_at: "2024-06-16"
+          created_at: "2024-06-16",
+          updated_at: "2024-06-16",
+          video_count: 8
         }
       ]
     },
     {
       id: "2",
+      user_id: "mock-user-id",
       name: "Internacionalização",
       description: "Expansão internacional de negócios",
-      parent_id: undefined,
+      parent_id: null,
       color: "#22c55e",
       icon: "globe",
       is_active: true,
-      video_count: 8,
       created_at: "2024-06-10",
+      updated_at: "2024-06-10",
+      video_count: 8,
       children: []
     },
     {
       id: "3",
+      user_id: "mock-user-id",
       name: "Amazon",
       description: "Vendas na plataforma Amazon",
-      parent_id: undefined,
+      parent_id: null,
       color: "#3b82f6",
       icon: "shopping-cart",
       is_active: true,
-      video_count: 15,
       created_at: "2024-06-05",
+      updated_at: "2024-06-05",
+      video_count: 15,
       children: [
         {
           id: "3a",
+          user_id: "mock-user-id",
           name: "FBA",
           description: "Fulfillment by Amazon",
           parent_id: "3",
           color: "#3b82f6",
           icon: "shopping-cart",
           is_active: true,
-          video_count: 10,
-          created_at: "2024-06-06"
+          created_at: "2024-06-06",
+          updated_at: "2024-06-06",
+          video_count: 10
         },
         {
           id: "3b",
+          user_id: "mock-user-id",
           name: "PPC",
           description: "Anúncios pagos Amazon",
           parent_id: "3",
           color: "#3b82f6",
           icon: "shopping-cart",
           is_active: true,
-          video_count: 5,
-          created_at: "2024-06-07"
+          created_at: "2024-06-07",
+          updated_at: "2024-06-07",
+          video_count: 5
         }
       ]
     },
     {
       id: "4",
+      user_id: "mock-user-id",
       name: "Sem Categoria",
       description: "Vídeos não categorizados",
-      parent_id: undefined,
+      parent_id: null,
       color: "#6b7280",
       icon: "folder",
       is_active: true,
-      video_count: 3,
       created_at: "2024-06-01",
+      updated_at: "2024-06-01",
+      video_count: 3,
       children: []
     }
   ])
@@ -170,14 +183,16 @@ export default function Categories() {
   const handleCreateCategory = (data: any) => {
     const newCategory: Category = {
       id: Date.now().toString(),
+      user_id: "mock-user-id",
       name: data.name,
       description: data.description,
       parent_id: data.parent_id,
       color: data.color,
       icon: data.icon,
       is_active: data.is_active,
-      video_count: 0,
       created_at: new Date().toISOString().split('T')[0],
+      updated_at: new Date().toISOString().split('T')[0],
+      video_count: 0,
       children: []
     }
 
@@ -201,6 +216,7 @@ export default function Categories() {
             color: data.color,
             icon: data.icon,
             is_active: data.is_active,
+            updated_at: new Date().toISOString().split('T')[0],
           }
         : cat
     )
