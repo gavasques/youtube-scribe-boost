@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Video } from '@/types/video'
-import { Block } from '@/types/block'
+import { Block, BlockType } from '@/types/block'
 
 interface CompilerOptions {
   includeBitlyShortening?: boolean
@@ -76,7 +76,11 @@ export function useDescriptionCompiler() {
         }
         
         return false
-      })
+      }).map(block => ({
+        ...block,
+        type: block.type as BlockType,
+        scope: block.scope as 'PERMANENT' | 'SCHEDULED'
+      }))
     } catch (error) {
       console.error('Erro ao buscar blocos aplicáveis:', error)
       return []
