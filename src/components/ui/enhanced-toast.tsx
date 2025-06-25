@@ -1,66 +1,84 @@
 
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { CheckCircle, XCircle, AlertCircle, Info, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export type ToastType = "success" | "error" | "warning" | "info"
+interface ToastAction {
+  label: string
+  onClick: () => void
+}
 
 interface EnhancedToastOptions {
   title: string
   description?: string
-  type?: ToastType
-  action?: {
-    label: string
-    onClick: () => void
-  }
+  duration?: number
+  action?: ToastAction
   persistent?: boolean
-  onClose?: () => void
 }
 
-const toastIcons = {
-  success: CheckCircle,
-  error: XCircle, 
-  warning: AlertCircle,
-  info: Info
+export const showSuccessToast = (options: EnhancedToastOptions) => {
+  toast.success(options.title, {
+    description: options.description,
+    duration: options.persistent ? Infinity : (options.duration || 4000),
+    icon: <CheckCircle className="w-4 h-4" />,
+    action: options.action ? {
+      label: options.action.label,
+      onClick: options.action.onClick,
+    } : undefined,
+  })
 }
 
-const toastStyles = {
-  success: "border-green-200 bg-green-50 text-green-800",
-  error: "border-red-200 bg-red-50 text-red-800",
-  warning: "border-yellow-200 bg-yellow-50 text-yellow-800", 
-  info: "border-blue-200 bg-blue-50 text-blue-800"
+export const showErrorToast = (options: EnhancedToastOptions) => {
+  toast.error(options.title, {
+    description: options.description,
+    duration: options.persistent ? Infinity : (options.duration || 6000),
+    icon: <XCircle className="w-4 h-4" />,
+    action: options.action ? {
+      label: options.action.label,
+      onClick: options.action.onClick,
+    } : undefined,
+  })
 }
 
-export function useEnhancedToast() {
-  const { toast } = useToast()
+export const showWarningToast = (options: EnhancedToastOptions) => {
+  toast.warning(options.title, {
+    description: options.description,
+    duration: options.persistent ? Infinity : (options.duration || 5000),
+    icon: <AlertCircle className="w-4 h-4" />,
+    action: options.action ? {
+      label: options.action.label,
+      onClick: options.action.onClick,
+    } : undefined,
+  })
+}
 
-  const showToast = ({
-    title,
-    description,
-    type = "info",
-    action,
-    persistent = false,
-    onClose
-  }: EnhancedToastOptions) => {
-    const Icon = toastIcons[type]
+export const showInfoToast = (options: EnhancedToastOptions) => {
+  toast.info(options.title, {
+    description: options.description,
+    duration: options.persistent ? Infinity : (options.duration || 4000),
+    icon: <Info className="w-4 h-4" />,
+    action: options.action ? {
+      label: options.action.label,
+      onClick: options.action.onClick,
+    } : undefined,
+  })
+}
 
-    toast({
-      title: (
-        <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4" />
-          <span>{title}</span>
-        </div>
-      ),
-      description,
-      className: toastStyles[type],
-      duration: persistent ? Infinity : undefined,
-      action: action ? (
-        <Button variant="outline" size="sm" onClick={action.onClick}>
-          {action.label}
-        </Button>
-      ) : undefined,
-    })
+export const dismissToast = (id?: string | number) => {
+  if (id) {
+    toast.dismiss(id)
+  } else {
+    toast.dismiss()
   }
+}
 
-  return { showToast }
+// Loading toast with dismissible option
+export const showLoadingToast = (title: string, description?: string) => {
+  return toast.loading(title, {
+    description,
+    action: {
+      label: "Cancelar",
+      onClick: () => toast.dismiss(),
+    },
+  })
 }
