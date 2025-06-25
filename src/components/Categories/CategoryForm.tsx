@@ -162,13 +162,13 @@ export function CategoryForm({ open, onClose, onSave, category, categories }: Ca
             <Label htmlFor="parent">Categoria Pai</Label>
             <Select
               value={formData.parent_id}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, parent_id: value }))}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, parent_id: value === "none" ? "" : value }))}
             >
               <SelectTrigger className={errors.parent_id ? "border-destructive" : ""}>
                 <SelectValue placeholder="Selecionar categoria pai (opcional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nenhuma (categoria principal)</SelectItem>
+                <SelectItem value="none">Nenhuma (categoria principal)</SelectItem>
                 {availableParentCategories.map((cat) => (
                   <SelectItem key={cat.id} value={cat.id}>
                     {cat.name}
