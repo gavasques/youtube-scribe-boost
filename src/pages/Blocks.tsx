@@ -56,9 +56,13 @@ export default function Blocks() {
     }
   }
 
-  const handleEdit = (block: Block) => {
-    setEditingBlock(block)
-    setShowForm(true)
+  const handleEdit = (tableBlock: any) => {
+    // Find the original block from the database
+    const originalBlock = blocks.find(b => b.id === tableBlock.id)
+    if (originalBlock) {
+      setEditingBlock(originalBlock)
+      setShowForm(true)
+    }
   }
 
   const handleCloseForm = () => {
@@ -66,18 +70,35 @@ export default function Blocks() {
     setEditingBlock(null)
   }
 
-  // Convert Block to the format expected by BlocksTable
+  // Convert Block from database to the format expected by BlocksTable
   const convertedBlocks = blocks.map(block => ({
     id: block.id,
     title: block.title,
     description: block.description || undefined,
     content: block.content,
-    type: block.type as 'GLOBAL' | 'CATEGORY',
+    type: (block.type === 'CATEGORY_SPECIFIC' ? 'CATEGORY' : block.type) as 'GLOBAL' | 'CATEGORY',
     scope: block.scope as 'PERMANENT' | 'SCHEDULED',
     priority: block.priority,
     isActive: block.is_active,
-    scheduledStart: block.scheduled_start,
-    scheduledEnd: block.scheduled_end,
+    scheduledStart: block.scheduled_start || undefined,
+    scheduledEnd: block.scheduled_end || undefined,
+    categories: [], // Placeholder - categories would need to be implemented
+    videosAffected: 0, // Placeholder - would need to be calculated
+    createdAt: block.created_at
+  }))
+
+  // Convert Block from database to the format expected by BlockPreview
+  const convertedBlocksForPreview = blocks.map(block => ({
+    id: block.id,
+    title: block.title,
+    description: block.description || undefined,
+    content: block.content,
+    type: (block.type === 'CATEGORY_SPECIFIC' ? 'CATEGORY' : block.type) as 'GLOBAL' | 'CATEGORY',
+    scope: block.scope as 'PERMANENT' | 'SCHEDULED',
+    priority: block.priority,
+    isActive: block.is_active,
+    scheduledStart: block.scheduled_start || undefined,
+    scheduledEnd: block.scheduled_end || undefined,
     categories: [], // Placeholder - categories would need to be implemented
     videosAffected: 0, // Placeholder - would need to be calculated
     createdAt: block.created_at
@@ -128,7 +149,7 @@ export default function Blocks() {
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {convertedBlocks.map((block) => (
+          {convertedBlocksForPreview.map((block) => (
             <BlockPreview key={block.id} block={block} />
           ))}
         </div>
