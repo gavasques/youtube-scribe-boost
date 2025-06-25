@@ -1,6 +1,7 @@
 
-import { Calendar, Home, Video, Blocks, FolderTree, Settings, Zap, Clock } from "lucide-react"
+import { Calendar, Home, Video, Blocks, FolderTree, Settings, Zap, Clock, CheckCircle } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
+import { useApprovals } from "@/hooks/useApprovals"
 import {
   Sidebar,
   SidebarContent,
@@ -13,6 +14,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar"
+import { Badge } from "@/components/ui/badge"
 
 const menuItems = [
   {
@@ -41,6 +43,12 @@ const menuItems = [
     icon: Zap,
   },
   {
+    title: "Aprovações",
+    url: "/approvals",
+    icon: CheckCircle,
+    showBadge: true,
+  },
+  {
     title: "Agenda",
     url: "/schedule",
     icon: Clock,
@@ -54,6 +62,7 @@ const menuItems = [
 
 export function AppSidebar() {
   const location = useLocation()
+  const { pendingCount } = useApprovals()
 
   const isActive = (url: string) => {
     if (url === "/") {
@@ -91,6 +100,11 @@ export function AppSidebar() {
                     <Link to={item.url} className="flex items-center gap-3">
                       <item.icon className="w-4 h-4" />
                       <span>{item.title}</span>
+                      {item.showBadge && pendingCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto text-xs">
+                          {pendingCount}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

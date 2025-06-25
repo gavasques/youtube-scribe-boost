@@ -13,6 +13,7 @@ import Videos from "@/pages/Videos"
 import Categories from "@/pages/Categories"
 import Blocks from "@/pages/Blocks"
 import Prompts from "@/pages/Prompts"
+import Approvals from "@/pages/Approvals"
 import Schedule from "@/pages/Schedule"
 import Settings from "@/pages/Settings"
 import NotFound from "@/pages/NotFound"
@@ -46,6 +47,7 @@ function App() {
                             <Route path="/categories" element={<Categories />} />
                             <Route path="/blocks" element={<Blocks />} />
                             <Route path="/prompts" element={<Prompts />} />
+                            <Route path="/approvals" element={<Approvals />} />
                             <Route path="/schedule" element={<Schedule />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="*" element={<NotFound />} />

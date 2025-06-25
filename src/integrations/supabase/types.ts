@@ -9,6 +9,57 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      approvals: {
+        Row: {
+          affected_videos_count: number
+          approval_reason: string | null
+          approved_at: string | null
+          created_at: string
+          data: Json
+          description: string | null
+          id: string
+          rejected_at: string | null
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["approval_status"]
+          title: string
+          type: Database["public"]["Enums"]["approval_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          affected_videos_count?: number
+          approval_reason?: string | null
+          approved_at?: string | null
+          created_at?: string
+          data?: Json
+          description?: string | null
+          id?: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["approval_status"]
+          title: string
+          type: Database["public"]["Enums"]["approval_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          affected_videos_count?: number
+          approval_reason?: string | null
+          approved_at?: string | null
+          created_at?: string
+          data?: Json
+          description?: string | null
+          id?: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["approval_status"]
+          title?: string
+          type?: Database["public"]["Enums"]["approval_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       blocks: {
         Row: {
           content: string
@@ -356,7 +407,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      approval_status: "PENDING" | "APPROVED" | "REJECTED"
+      approval_type:
+        | "BLOCK_CHANGE"
+        | "MASS_UPDATE"
+        | "SYNC_OPERATION"
+        | "CATEGORY_CHANGE"
+        | "TAG_UPDATE"
+        | "SEASONAL_TEMPLATE"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -471,6 +529,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      approval_status: ["PENDING", "APPROVED", "REJECTED"],
+      approval_type: [
+        "BLOCK_CHANGE",
+        "MASS_UPDATE",
+        "SYNC_OPERATION",
+        "CATEGORY_CHANGE",
+        "TAG_UPDATE",
+        "SEASONAL_TEMPLATE",
+      ],
+    },
   },
 } as const
