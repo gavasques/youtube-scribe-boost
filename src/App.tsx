@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/Layout/AppSidebar";
-import { AppLayout } from "@/components/Layout/AppLayout";
+import { AppHeader } from "@/components/Layout/AppHeader";
 import Dashboard from "./pages/Dashboard";
 import Videos from "./pages/Videos";
 import Blocks from "./pages/Blocks";
@@ -27,18 +27,21 @@ const App = () => (
         <SidebarProvider>
           <div className="min-h-screen flex w-full">
             <AppSidebar />
-            <AppLayout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/videos" element={<Videos />} />
-                <Route path="/blocks" element={<Blocks />} />
-                <Route path="/categories" element={<Categories />} />
-                <Route path="/prompts" element={<Prompts />} />
-                <Route path="/schedule" element={<Schedule />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </AppLayout>
+            <div className="flex flex-col flex-1">
+              <AppHeader />
+              <main className="flex-1 p-6 bg-muted/30">
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/videos" element={<Videos />} />
+                  <Route path="/blocks" element={<Blocks />} />
+                  <Route path="/categories" element={<Categories />} />
+                  <Route path="/prompts" element={<Prompts />} />
+                  <Route path="/schedule" element={<Schedule />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </main>
+            </div>
           </div>
         </SidebarProvider>
       </BrowserRouter>
