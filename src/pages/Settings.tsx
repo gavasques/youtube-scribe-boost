@@ -39,9 +39,8 @@ export default function Settings() {
         </div>
 
         {/* Settings Tabs */}
-        <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7 bg-gradient-to-r from-indigo-50 to-purple-50">
-            <TabsTrigger value="general" className="data-[state=active]:bg-indigo-500 data-[state=active]:text-white">Geral</TabsTrigger>
+        <Tabs defaultValue="apis" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6 bg-gradient-to-r from-indigo-50 to-purple-50">
             <TabsTrigger value="apis" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">APIs</TabsTrigger>
             <TabsTrigger value="theme" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white">Tema</TabsTrigger>
             <TabsTrigger value="notifications" className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white">Notificações</TabsTrigger>
@@ -49,10 +48,6 @@ export default function Settings() {
             <TabsTrigger value="security" className="data-[state=active]:bg-rose-500 data-[state=active]:text-white">Segurança</TabsTrigger>
             <TabsTrigger value="dashboard" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white">Dashboard</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="general">
-            <ThemeSettings />
-          </TabsContent>
 
           <TabsContent value="apis">
             <ApiSettings />
