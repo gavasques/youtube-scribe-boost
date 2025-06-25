@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -366,16 +365,22 @@ export default function Videos() {
                   <TableCell>
                     <div className="flex gap-1">
                       {video.has_transcription && (
-                        <FileText className="w-4 h-4 text-green-600" title="Tem transcrição" />
+                        <span title="Tem transcrição">
+                          <FileText className="w-4 h-4 text-green-600" />
+                        </span>
                       )}
                       {video.ai_processed && (
-                        <Brain className="w-4 h-4 text-blue-600" title="Processado por IA" />
+                        <span title="Processado por IA">
+                          <Brain className="w-4 h-4 text-blue-600" />
+                        </span>
                       )}
-                      <ExternalLink 
-                        className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-blue-600" 
+                      <span 
                         title="Ver no YouTube"
+                        className="cursor-pointer"
                         onClick={() => window.open(video.youtube_url, '_blank')}
-                      />
+                      >
+                        <ExternalLink className="w-4 h-4 text-muted-foreground hover:text-blue-600" />
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell>
