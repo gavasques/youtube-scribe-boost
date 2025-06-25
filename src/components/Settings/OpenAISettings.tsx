@@ -1,4 +1,5 @@
 
+
 import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -27,7 +28,7 @@ interface OpenAISettingsProps {
   onUpdate: <T extends keyof OpenAIConfig>(key: T, value: OpenAIConfig[T]) => void
 }
 
-// Modelos de fallback caso não haja modelos selecionados ou API não disponível
+// Modelos de fallback apenas quando não há API key
 const fallbackModels = [
   { id: "gpt-4o", name: "GPT-4o (Recomendado)" },
   { id: "gpt-4o-mini", name: "GPT-4o Mini" },
@@ -66,10 +67,15 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
   const hasApiModels = models.length > 0
   const hasEnabledModels = enabledApiModels.length > 0
 
-  // Use enabled API models if available, otherwise fallback models
-  const availableModels = hasEnabledModels 
-    ? enabledApiModels.map(model => ({ id: model.id, name: model.id }))
-    : fallbackModels
+  // Determine available models based on context:
+  // 1. No API key: use fallback models
+  // 2. Has API key but no models selected: empty array (will show guidance)
+  // 3. Has API key and models selected: show only selected models
+  const availableModels = !apiKey 
+    ? fallbackModels
+    : hasEnabledModels 
+      ? enabledApiModels.map(model => ({ id: model.id, name: model.id }))
+      : []
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
     const variants = {
@@ -142,9 +148,14 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           <Select 
             value={config.model} 
             onValueChange={(value) => onUpdate("model", value)}
+            disabled={apiKey && hasApiModels && !hasEnabledModels}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Selecione um modelo" />
+              <SelectValue placeholder={
+                apiKey && hasApiModels && !hasEnabledModels 
+                  ? "Selecione modelos primeiro" 
+                  : "Selecione um modelo"
+              } />
             </SelectTrigger>
             <SelectContent>
               {availableModels.map((model) => (
@@ -162,9 +173,9 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           )}
           
           {apiKey && hasApiModels && !hasEnabledModels && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                ⚠️ Nenhum modelo está habilitado. Clique em "Gerenciar Modelos" para selecionar quais modelos devem aparecer neste dropdown.
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-800">
+                ⚠️ Nenhum modelo está selecionado. Clique em "Gerenciar Modelos" para escolher quais modelos devem aparecer neste dropdown.
               </p>
             </div>
           )}
@@ -207,3 +218,4 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
     </Card>
   )
 }
+
