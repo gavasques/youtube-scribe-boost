@@ -2,165 +2,58 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import { BlocksTable, Block } from "@/components/Blocks/BlocksTable"
+import { BlocksTable } from "@/components/Blocks/BlocksTable"
 import { BlockForm } from "@/components/Blocks/BlockForm"
 import { BlockPreview } from "@/components/Blocks/BlockPreview"
-import { useToast } from "@/hooks/use-toast"
+import { useBlocks } from "@/hooks/useBlocks"
+import { Block } from "@/types/block"
 
 export default function Blocks() {
-  const { toast } = useToast()
+  const { 
+    blocks, 
+    loading, 
+    createBlock, 
+    updateBlock, 
+    toggleBlockActive, 
+    duplicateBlock, 
+    deleteBlock 
+  } = useBlocks()
+  
   const [showForm, setShowForm] = useState(false)
   const [editingBlock, setEditingBlock] = useState<Block | null>(null)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
 
-  // Mock data
-  const [blocks, setBlocks] = useState<Block[]>([
-    {
-      id: "1",
-      title: "CTA Principal",
-      description: "Call-to-action principal para inscrições",
-      type: "GLOBAL",
-      scope: "PERMANENT",
-      content: "🔔 Inscreva-se no canal e ative o sininho para não perder nenhum vídeo!",
-      categories: [],
-      isActive: true,
-      priority: 10,
-      videosAffected: 45,
-      createdAt: "2024-06-15"
-    },
-    {
-      id: "2",
-      title: "Links Redes Sociais",
-      description: "Links para todas as redes sociais",
-      type: "GLOBAL",
-      scope: "PERMANENT",
-      content: "📱 Me siga nas redes:\n- Instagram: @meucanal\n- Twitter: @meucanal\n- TikTok: @meucanal",
-      categories: [],
-      isActive: true,
-      priority: 5,
-      videosAffected: 45,
-      createdAt: "2024-06-10"
-    },
-    {
-      id: "3",
-      title: "Promoção Black Friday",
-      description: "Promoção especial de fim de ano",
-      type: "GLOBAL",
-      scope: "SCHEDULED",
-      content: "🔥 BLACK FRIDAY: 50% OFF em todos os cursos até 30/11!\n🎯 Use o cupom: BLACK50",
-      categories: [],
-      isActive: false,
-      priority: 20,
-      scheduledStart: "2024-11-20",
-      scheduledEnd: "2024-11-30",
-      videosAffected: 0,
-      createdAt: "2024-06-01"
-    },
-    {
-      id: "4",
-      title: "Tutorial Específico",
-      description: "Links específicos para tutoriais",
-      type: "CATEGORY",
-      scope: "PERMANENT",
-      content: "📚 Mais tutoriais na playlist: [LINK]\n💻 Código no GitHub: [LINK]",
-      categories: ["Tutoriais", "Programação"],
-      isActive: true,
-      priority: 15,
-      videosAffected: 12,
-      createdAt: "2024-05-28"
-    },
-    {
-      id: "5",
-      title: "Gaming CTA",
-      description: "Call-to-action específico para gaming",
-      type: "CATEGORY",
-      scope: "PERMANENT",
-      content: "🎮 Deixe seu like se curtiu a gameplay!\n🏆 Comenta aí qual jogo querem ver!",
-      categories: ["Gaming", "Reviews"],
-      isActive: true,
-      priority: 8,
-      videosAffected: 8,
-      createdAt: "2024-05-20"
-    }
-  ])
-
   const categories = ["Tutoriais", "Programação", "Gaming", "Reviews", "Tecnologia", "Lifestyle"]
 
-  const handleCreateBlock = (data: any) => {
-    const newBlock: Block = {
-      id: Date.now().toString(),
-      title: data.title,
-      description: data.description,
-      content: data.content,
-      type: data.type,
-      scope: data.scope,
-      priority: data.priority,
-      categories: data.categories,
-      isActive: true,
-      scheduledStart: data.scheduledStart,
-      scheduledEnd: data.scheduledEnd,
-      videosAffected: data.applyToExisting ? 45 : 0,
-      createdAt: new Date().toISOString().split('T')[0]
+  const handleCreateBlock = async (data: any) => {
+    const result = await createBlock(data)
+    if (result.data) {
+      setShowForm(false)
     }
-
-    setBlocks([...blocks, newBlock])
-    toast({
-      title: "Bloco criado com sucesso!",
-      description: `O bloco "${data.title}" foi criado e está ativo.`,
-    })
   }
 
-  const handleEditBlock = (data: any) => {
+  const handleEditBlock = async (data: any) => {
     if (!editingBlock) return
 
-    const updatedBlocks = blocks.map(block =>
-      block.id === editingBlock.id
-        ? {
-            ...block,
-            title: data.title,
-            description: data.description,
-            content: data.content,
-            type: data.type,
-            scope: data.scope,
-            priority: data.priority,
-            categories: data.categories,
-            scheduledStart: data.scheduledStart,
-            scheduledEnd: data.scheduledEnd,
-          }
-        : block
-    )
-
-    setBlocks(updatedBlocks)
-    setEditingBlock(null)
-    toast({
-      title: "Bloco atualizado!",
-      description: `As alterações no bloco "${data.title}" foram salvas.`,
-    })
+    const result = await updateBlock(editingBlock.id, data)
+    if (result.data) {
+      setEditingBlock(null)
+      setShowForm(false)
+    }
   }
 
-  const handleToggleActive = (blockId: string) => {
-    const updatedBlocks = blocks.map(block =>
-      block.id === blockId
-        ? { ...block, isActive: !block.isActive }
-        : block
-    )
-    setBlocks(updatedBlocks)
-
+  const handleToggleActive = async (blockId: string) => {
     const block = blocks.find(b => b.id === blockId)
-    toast({
-      title: `Bloco ${block?.isActive ? 'desativado' : 'ativado'}!`,
-      description: `O bloco "${block?.title}" foi ${block?.isActive ? 'desativado' : 'ativado'}.`,
-    })
+    if (block) {
+      await toggleBlockActive(block)
+    }
   }
 
-  const handleDeleteBlock = (blockId: string) => {
+  const handleDeleteBlock = async (blockId: string) => {
     const block = blocks.find(b => b.id === blockId)
-    setBlocks(blocks.filter(b => b.id !== blockId))
-    toast({
-      title: "Bloco excluído!",
-      description: `O bloco "${block?.title}" foi removido permanentemente.`,
-      variant: "destructive",
-    })
+    if (block) {
+      await deleteBlock(block)
+    }
   }
 
   const handleEdit = (block: Block) => {
@@ -171,6 +64,34 @@ export default function Blocks() {
   const handleCloseForm = () => {
     setShowForm(false)
     setEditingBlock(null)
+  }
+
+  // Convert Block to the format expected by BlocksTable
+  const convertedBlocks = blocks.map(block => ({
+    id: block.id,
+    title: block.title,
+    description: block.description || undefined,
+    content: block.content,
+    type: block.type as 'GLOBAL' | 'CATEGORY',
+    scope: block.scope as 'PERMANENT' | 'SCHEDULED',
+    priority: block.priority,
+    isActive: block.is_active,
+    scheduledStart: block.scheduled_start,
+    scheduledEnd: block.scheduled_end,
+    categories: [], // Placeholder - categories would need to be implemented
+    videosAffected: 0, // Placeholder - would need to be calculated
+    createdAt: block.created_at
+  }))
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Carregando blocos...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -200,16 +121,33 @@ export default function Blocks() {
       {/* Content */}
       {viewMode === 'table' ? (
         <BlocksTable
-          blocks={blocks}
+          blocks={convertedBlocks}
           onEdit={handleEdit}
           onToggleActive={handleToggleActive}
           onDelete={handleDeleteBlock}
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {blocks.map((block) => (
+          {convertedBlocks.map((block) => (
             <BlockPreview key={block.id} block={block} />
           ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && blocks.length === 0 && (
+        <div className="text-center py-12">
+          <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
+            <Plus className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">Nenhum bloco encontrado</h3>
+          <p className="text-muted-foreground mb-4">
+            Comece criando seu primeiro bloco de conteúdo
+          </p>
+          <Button onClick={() => setShowForm(true)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Criar Primeiro Bloco
+          </Button>
         </div>
       )}
 

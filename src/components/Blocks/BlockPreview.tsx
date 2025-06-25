@@ -2,10 +2,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Globe, FolderTree } from "lucide-react"
-import { Block } from "./BlocksTable"
 
 interface BlockPreviewProps {
-  block: Block
+  block: {
+    id: string
+    title: string
+    description?: string
+    type: 'GLOBAL' | 'CATEGORY'
+    scope: 'PERMANENT' | 'SCHEDULED'
+    content: string
+    categories: string[]
+    isActive: boolean
+    priority: number
+    videosAffected: number
+    createdAt: string
+    scheduledStart?: string | null
+    scheduledEnd?: string | null
+  }
 }
 
 export function BlockPreview({ block }: BlockPreviewProps) {
@@ -90,7 +103,7 @@ export function BlockPreview({ block }: BlockPreviewProps) {
               {block.isActive ? "Ativo" : "Inativo"}
             </Badge>
             <span className="text-xs text-muted-foreground">
-              Criado em {block.createdAt}
+              Criado em {new Date(block.createdAt).toLocaleDateString('pt-BR')}
             </span>
           </div>
         </div>
