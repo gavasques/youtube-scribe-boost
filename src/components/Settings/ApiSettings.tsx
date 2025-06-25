@@ -1,4 +1,3 @@
-
 import React from "react"
 import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { OpenAISettings } from "./OpenAISettings"
@@ -13,13 +12,11 @@ interface ApiConfig {
     temperature: number
     maxTokens: number
     status: 'connected' | 'disconnected' | 'error'
-    apiKey?: string
   }
   bitly: {
     enabled: boolean
     customDomain: string
     status: 'connected' | 'disconnected' | 'error'
-    apiKey?: string
   }
   general: {
     rateLimitEnabled: boolean

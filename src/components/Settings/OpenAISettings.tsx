@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Key, Zap, CheckCircle, AlertCircle } from "lucide-react"
-import { ApiKeyModal } from "./ApiKeyModal"
+import { useApiKeys } from "@/hooks/useApiKeys"
+import { SecureApiKeyModal } from "./SecureApiKeyModal"
 
 interface OpenAIConfig {
   enabled: boolean
@@ -16,7 +17,6 @@ interface OpenAIConfig {
   temperature: number
   maxTokens: number
   status: 'connected' | 'disconnected' | 'error'
-  apiKey?: string
 }
 
 interface OpenAISettingsProps {
@@ -25,9 +25,19 @@ interface OpenAISettingsProps {
 }
 
 export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
-  const handleKeySave = (apiKey: string) => {
-    onUpdate("apiKey", apiKey)
-    onUpdate("status", apiKey ? 'connected' : 'disconnected')
+  const { getApiKey } = useApiKeys()
+  const apiKey = getApiKey('openai')
+  
+  // Update status based on database state
+  React.useEffect(() => {
+    const newStatus = apiKey ? 'connected' : 'disconnected'
+    if (config.status !== newStatus) {
+      onUpdate('status', newStatus)
+    }
+  }, [apiKey, config.status, onUpdate])
+
+  const handleStatusChange = (status: 'connected' | 'disconnected' | 'error') => {
+    onUpdate('status', status)
   }
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
@@ -117,16 +127,15 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           </div>
         </div>
 
-        <ApiKeyModal
+        <SecureApiKeyModal
           service="OpenAI"
-          currentKey={config.apiKey}
-          onSave={handleKeySave}
+          onStatusChange={handleStatusChange}
         >
           <Button variant="outline" className="w-full">
             <Key className="w-4 h-4 mr-2" />
-            Configurar API Key
+            {apiKey ? 'Atualizar API Key' : 'Configurar API Key'}
           </Button>
-        </ApiKeyModal>
+        </SecureApiKeyModal>
       </CardContent>
     </Card>
   )

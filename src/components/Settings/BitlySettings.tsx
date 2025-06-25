@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Key, Link, CheckCircle, AlertCircle } from "lucide-react"
-import { ApiKeyModal } from "./ApiKeyModal"
+import { useApiKeys } from "@/hooks/useApiKeys"
+import { SecureApiKeyModal } from "./SecureApiKeyModal"
 
 interface BitlyConfig {
   enabled: boolean
   customDomain: string
   status: 'connected' | 'disconnected' | 'error'
-  apiKey?: string
 }
 
 interface BitlySettingsProps {
@@ -22,9 +22,19 @@ interface BitlySettingsProps {
 }
 
 export function BitlySettings({ config, onUpdate }: BitlySettingsProps) {
-  const handleKeySave = (apiKey: string) => {
-    onUpdate("apiKey", apiKey)
-    onUpdate("status", apiKey ? 'connected' : 'disconnected')
+  const { getApiKey } = useApiKeys()
+  const apiKey = getApiKey('bitly')
+  
+  // Update status based on database state
+  React.useEffect(() => {
+    const newStatus = apiKey ? 'connected' : 'disconnected'
+    if (config.status !== newStatus) {
+      onUpdate('status', newStatus)
+    }
+  }, [apiKey, config.status, onUpdate])
+
+  const handleStatusChange = (status: 'connected' | 'disconnected' | 'error') => {
+    onUpdate('status', status)
   }
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
@@ -84,16 +94,15 @@ export function BitlySettings({ config, onUpdate }: BitlySettingsProps) {
           </p>
         </div>
 
-        <ApiKeyModal
+        <SecureApiKeyModal
           service="Bitly"
-          currentKey={config.apiKey}
-          onSave={handleKeySave}
+          onStatusChange={handleStatusChange}
         >
           <Button variant="outline" className="w-full">
             <Key className="w-4 h-4 mr-2" />
-            Configurar API Key
+            {apiKey ? 'Atualizar API Key' : 'Configurar API Key'}
           </Button>
-        </ApiKeyModal>
+        </SecureApiKeyModal>
       </CardContent>
     </Card>
   )
