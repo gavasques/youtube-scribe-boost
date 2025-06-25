@@ -1,0 +1,31 @@
+
+export type BlockType = 'GLOBAL' | 'CATEGORY_SPECIFIC'
+export type BlockScope = 'PERMANENT' | 'SCHEDULED'
+
+export interface Block {
+  id: string
+  user_id: string
+  title: string
+  description: string | null
+  content: string
+  type: BlockType
+  scope: BlockScope
+  priority: number
+  is_active: boolean
+  scheduled_start: string | null
+  scheduled_end: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BlockFormData {
+  title: string
+  description?: string
+  content: string
+  type: BlockType
+  scope: BlockScope
+  priority?: number
+  is_active?: boolean
+  scheduled_start?: string
+  scheduled_end?: string
+}
