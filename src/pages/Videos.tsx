@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -40,7 +41,8 @@ export default function Videos() {
       is_active: true,
       created_at: "2024-06-15",
       updated_at: "2024-06-15",
-      video_count: 12
+      video_count: 12,
+      children: []
     },
     {
       id: "2",
@@ -53,7 +55,8 @@ export default function Videos() {
       is_active: true,
       created_at: "2024-06-10",
       updated_at: "2024-06-10",
-      video_count: 8
+      video_count: 8,
+      children: []
     },
     {
       id: "3",
@@ -66,7 +69,8 @@ export default function Videos() {
       is_active: true,
       created_at: "2024-06-05",
       updated_at: "2024-06-05",
-      video_count: 15
+      video_count: 15,
+      children: []
     }
   ]
 
@@ -90,8 +94,6 @@ export default function Videos() {
       current_tags: ["importação", "china", "aliexpress"],
       ai_generated_tags: ["importação", "china", "aliexpress", "produtos", "negócios"],
       transcription: "Olá pessoal, hoje vou ensinar como importar produtos...",
-      has_transcription: true,
-      ai_processed: true,
       ai_summary: "Vídeo sobre importação de produtos da China com dicas de segurança e fornecedores confiáveis.",
       ai_description: "Guia completo para iniciantes sobre como importar produtos da China de forma segura e lucrativa.",
       ai_chapters: [
@@ -101,7 +103,6 @@ export default function Videos() {
       ],
       created_at: "2024-06-20",
       updated_at: "2024-06-20",
-      // Propriedades computadas
       thumbnail_url: "https://i.ytimg.com/vi/abc123/mqdefault.jpg",
       views: "12.5K",
       duration: "15:32",
@@ -132,7 +133,7 @@ export default function Videos() {
       ai_chapters: null,
       created_at: "2024-06-18",
       updated_at: "2024-06-18",
-      // Propriedades computadas
+      thumbnail_url: "https://i.ytimg.com/vi/def456/mqdefault.jpg",
       views: "8.3K",
       duration: "12:45",
       category_name: "Internacionalização",
@@ -162,7 +163,7 @@ export default function Videos() {
       ai_chapters: null,
       created_at: "2024-06-15",
       updated_at: "2024-06-15",
-      // Propriedades computadas
+      thumbnail_url: "https://i.ytimg.com/vi/ghi789/mqdefault.jpg",
       views: "45.2K",
       duration: "0:58",
       category_name: "Amazon",
@@ -192,9 +193,10 @@ export default function Videos() {
       ai_chapters: null,
       created_at: "2024-06-10",
       updated_at: "2024-06-10",
-      // Propriedades computadas
+      thumbnail_url: "https://i.ytimg.com/vi/jkl012/mqdefault.jpg",
       views: "3.8K",
       duration: "18:22",
+      category_name: undefined,
       has_transcription: false,
       ai_processed: false
     }
