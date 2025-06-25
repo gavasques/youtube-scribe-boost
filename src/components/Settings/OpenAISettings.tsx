@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Key, Zap, CheckCircle, AlertCircle, Search } from "lucide-react"
 import { useApiKeys } from "@/hooks/useApiKeys"
@@ -24,17 +23,6 @@ interface OpenAISettingsProps {
   config: OpenAIConfig
   onUpdate: <T extends keyof OpenAIConfig>(key: T, value: OpenAIConfig[T]) => void
 }
-
-// Modelos de fallback caso a API não esteja disponível
-const fallbackModels = [
-  { id: "gpt-4o", name: "GPT-4o (Recomendado)" },
-  { id: "gpt-4o-mini", name: "GPT-4o Mini" },
-  { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
-  { id: "gpt-4", name: "GPT-4" },
-  { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
-  { id: "o1-preview", name: "O1 Preview" },
-  { id: "o1-mini", name: "O1 Mini" }
-]
 
 export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
   const { getApiKey } = useApiKeys()
@@ -117,27 +105,16 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
             )}
           </div>
           
-          <Select 
-            value={config.model} 
-            onValueChange={(value) => onUpdate("model", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione um modelo" />
-            </SelectTrigger>
-            <SelectContent>
-              {fallbackModels.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {model.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Input
+            type="text"
+            placeholder="Ex: gpt-4o, gpt-4o-mini, gpt-3.5-turbo..."
+            value={config.model}
+            onChange={(e) => onUpdate("model", e.target.value)}
+          />
           
-          {!apiKey && (
-            <p className="text-xs text-muted-foreground">
-              Configure sua API key para buscar modelos em tempo real
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Digite o nome do modelo OpenAI que deseja usar. Use o botão "Buscar Modelos" para ver os modelos disponíveis.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
