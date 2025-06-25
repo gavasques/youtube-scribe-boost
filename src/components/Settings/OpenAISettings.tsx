@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Key, Zap, CheckCircle, AlertCircle } from "lucide-react"
+import { Key, Zap, CheckCircle, AlertCircle, Search } from "lucide-react"
 import { useApiKeys } from "@/hooks/useApiKeys"
 import { SecureApiKeyModal } from "./SecureApiKeyModal"
+import { OpenAIModelsModal } from "./OpenAIModelsModal"
 
 interface OpenAIConfig {
   enabled: boolean
@@ -23,6 +24,17 @@ interface OpenAISettingsProps {
   config: OpenAIConfig
   onUpdate: <T extends keyof OpenAIConfig>(key: T, value: OpenAIConfig[T]) => void
 }
+
+// Modelos de fallback caso a API não esteja disponível
+const fallbackModels = [
+  { id: "gpt-4o", name: "GPT-4o (Recomendado)" },
+  { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+  { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
+  { id: "gpt-4", name: "GPT-4" },
+  { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
+  { id: "o1-preview", name: "O1 Preview" },
+  { id: "o1-mini", name: "O1 Mini" }
+]
 
 export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
   const { getApiKey } = useApiKeys()
@@ -38,6 +50,10 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
 
   const handleStatusChange = (status: 'connected' | 'disconnected' | 'error') => {
     onUpdate('status', status)
+  }
+
+  const handleModelSelect = (modelId: string) => {
+    onUpdate('model', modelId)
   }
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
@@ -86,21 +102,42 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
         </div>
 
         <div className="space-y-2">
-          <Label>Modelo</Label>
+          <div className="flex items-center justify-between">
+            <Label>Modelo</Label>
+            {apiKey && (
+              <OpenAIModelsModal 
+                onModelSelect={handleModelSelect}
+                currentModel={config.model}
+              >
+                <Button variant="outline" size="sm">
+                  <Search className="w-4 h-4 mr-2" />
+                  Buscar Modelos
+                </Button>
+              </OpenAIModelsModal>
+            )}
+          </div>
+          
           <Select 
             value={config.model} 
             onValueChange={(value) => onUpdate("model", value)}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Selecione um modelo" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 (Recomendado)</SelectItem>
-              <SelectItem value="o3-2025-04-16">O3 (Reasoning)</SelectItem>
-              <SelectItem value="o4-mini-2025-04-16">O4 Mini (Rápido)</SelectItem>
-              <SelectItem value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini</SelectItem>
+              {fallbackModels.map((model) => (
+                <SelectItem key={model.id} value={model.id}>
+                  {model.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
+          
+          {!apiKey && (
+            <p className="text-xs text-muted-foreground">
+              Configure sua API key para buscar modelos em tempo real
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">

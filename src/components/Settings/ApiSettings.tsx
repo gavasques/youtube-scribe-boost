@@ -1,3 +1,4 @@
+
 import React from "react"
 import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { OpenAISettings } from "./OpenAISettings"
@@ -29,7 +30,7 @@ export function ApiSettings() {
   const [config, setConfig] = useLocalStorage<ApiConfig>("apiConfig", {
     openai: {
       enabled: true,
-      model: "gpt-4.1-2025-04-14",
+      model: "gpt-4o-mini", // Modelo padrão válido
       temperature: 0.7,
       maxTokens: 2000,
       status: 'disconnected'
@@ -89,7 +90,7 @@ export function ApiSettings() {
     setConfig({
       openai: {
         enabled: true,
-        model: "gpt-4.1-2025-04-14",
+        model: "gpt-4o-mini", // Modelo padrão válido
         temperature: 0.7,
         maxTokens: 2000,
         status: 'disconnected'
