@@ -33,6 +33,27 @@ export function useVideos() {
     }
   }
 
+  // Buscar um vídeo específico (útil após atualizações)
+  const fetchVideo = async (videoId: string): Promise<Video | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('id', videoId)
+        .single()
+
+      if (error) throw error
+
+      // Atualizar o vídeo na lista local
+      setVideos(prev => prev.map(v => v.id === videoId ? data as Video : v))
+      
+      return data as Video
+    } catch (error) {
+      console.error('Erro ao buscar vídeo específico:', error)
+      return null
+    }
+  }
+
   // Criar novo vídeo
   const createVideo = async (data: VideoFormData) => {
     try {
@@ -142,6 +163,7 @@ export function useVideos() {
     createVideo,
     updateVideo,
     deleteVideo,
-    fetchVideos
+    fetchVideos,
+    fetchVideo
   }
 }

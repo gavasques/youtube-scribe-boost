@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Upload, Play, FileText, Brain, Eye, ExternalLink } from "lucide-react"
+import { Upload, Play, FileText, Brain, Eye, ExternalLink, Zap } from "lucide-react"
 import { Video, VideoFormData } from "@/types/video"
 import { Category } from "@/types/category"
 import { TranscriptionUpload } from "./TranscriptionUpload"
 import { AIProcessingSettings } from "./AIProcessingSettings"
+import { DescriptionCompiler } from "./DescriptionCompiler"
 import { useAIProcessing } from "@/hooks/useAIProcessing"
 
 interface VideoModalProps {
@@ -144,7 +145,7 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Play className="w-5 h-5" />
@@ -156,10 +157,16 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="basic">Básico</TabsTrigger>
             <TabsTrigger value="transcription">Transcrição</TabsTrigger>
             <TabsTrigger value="ai-content">Conteúdo IA</TabsTrigger>
+            <TabsTrigger value="compiler">
+              <div className="flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                Compilação
+              </div>
+            </TabsTrigger>
             <TabsTrigger value="preview">Preview</TabsTrigger>
           </TabsList>
 
@@ -343,6 +350,16 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
                   )}
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="compiler" className="space-y-4">
+              <DescriptionCompiler 
+                video={video} 
+                onUpdate={() => {
+                  // Callback para atualizar dados após aplicação
+                  console.log('Descrição aplicada, atualizando interface...')
+                }} 
+              />
             </TabsContent>
 
             <TabsContent value="preview" className="space-y-4">
