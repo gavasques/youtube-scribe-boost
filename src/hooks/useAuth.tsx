@@ -27,19 +27,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null)
         setLoading(false)
 
-        // Create user profile if user signs up
-        if (event === 'SIGNED_UP' && session?.user) {
-          const { error } = await supabase
-            .from('users')
-            .insert({
-              id: session.user.id,
-              email: session.user.email!,
-              first_name: session.user.user_metadata?.first_name,
-              last_name: session.user.user_metadata?.last_name
-            })
-          
-          if (error) {
-            console.error('Error creating user profile:', error)
+        // Create user profile if user signs in for the first time (after signup)
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Check if this is a new user by looking at created_at vs current time
+          const userCreatedAt = new Date(session.user.created_at)
+          const now = new Date()
+          const timeDiff = now.getTime() - userCreatedAt.getTime()
+          const isNewUser = timeDiff < 60000 // Less than 1 minute ago
+
+          if (isNewUser) {
+            const { error } = await supabase
+              .from('users')
+              .insert({
+                id: session.user.id,
+                email: session.user.email!,
+                first_name: session.user.user_metadata?.first_name,
+                last_name: session.user.user_metadata?.last_name
+              })
+            
+            if (error) {
+              console.error('Error creating user profile:', error)
+            }
           }
         }
       }
