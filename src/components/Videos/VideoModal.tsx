@@ -89,6 +89,8 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
     try {
       const newCategoryId = categoryId === "none" ? null : categoryId
 
+      console.log('Saving category:', { videoId: video.id, newCategoryId, categoryId })
+
       // Atualizar no banco de dados
       const { error } = await supabase
         .from('videos')
@@ -109,9 +111,10 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
       }
 
       // Mostrar confirmação
+      const categoryName = categoryId === "none" ? "removida" : categories.find(c => c.id === categoryId)?.name || "alterada"
       toast({
         title: "Categoria atualizada!",
-        description: `Categoria ${categoryId === "none" ? "removida" : "alterada"} com sucesso.`,
+        description: `Categoria ${categoryName === "removida" ? "removida" : `alterada para "${categoryName}"`} com sucesso.`,
       })
 
     } catch (error) {
@@ -292,6 +295,11 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.category_id && formData.category_id !== "none" && (
+                    <p className="text-xs text-muted-foreground">
+                      Categoria atual: {categories.find(c => c.id === formData.category_id)?.name || 'Categoria não encontrada'}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

@@ -15,12 +15,26 @@ export function useVideos() {
       setLoading(true)
       const { data, error } = await supabase
         .from('videos')
-        .select('*')
+        .select(`
+          *,
+          categories!left(
+            id,
+            name
+          )
+        `)
         .order('created_at', { ascending: false })
 
       if (error) throw error
       
-      setVideos((data || []) as Video[])
+      // Mapear os dados para incluir o nome da categoria
+      const videosWithCategoryNames = (data || []).map(video => ({
+        ...video,
+        category_name: video.categories?.name || null,
+        has_transcription: !!video.transcription,
+        ai_processed: !!(video.ai_summary || video.ai_description || video.ai_generated_tags?.length > 0)
+      }))
+      
+      setVideos(videosWithCategoryNames as Video[])
     } catch (error) {
       console.error('Erro ao buscar vídeos:', error)
       toast({
