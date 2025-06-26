@@ -10,6 +10,7 @@ export interface Prompt {
   is_active: boolean
   created_at: string
   updated_at: string
+  user_id: string | null
 }
 
 export interface PromptFormData {

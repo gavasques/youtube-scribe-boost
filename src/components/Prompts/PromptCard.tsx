@@ -40,7 +40,7 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
               <Brain className="w-5 h-5 text-blue-500" />
               {prompt.name}
               {isGlobalPrompt && (
-                <Globe className="w-4 h-4 text-amber-500" title="Prompt Global" />
+                <Globe className="w-4 h-4 text-amber-500" />
               )}
             </CardTitle>
             <div className="flex gap-2">
