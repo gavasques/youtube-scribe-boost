@@ -26,18 +26,61 @@ export default function Dashboard() {
     ignoredVideos: 0
   })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user) return
+    console.log('Dashboard useEffect triggered, user:', user?.id)
+    
+    if (!user) {
+      console.log('No user found, setting loading to false')
+      setLoading(false)
+      return
+    }
 
     const fetchStats = async () => {
       try {
+        console.log('Starting to fetch stats for user:', user.id)
+        
         // Buscar estatísticas em paralelo
-        const [videosResult, blocksResult, categoriesResult] = await Promise.all([
-          supabase.from('videos').select('update_status', { count: 'exact' }).eq('user_id', user.id),
-          supabase.from('blocks').select('*', { count: 'exact' }).eq('user_id', user.id).eq('is_active', true),
-          supabase.from('categories').select('*', { count: 'exact' }).eq('user_id', user.id).eq('is_active', true)
-        ])
+        console.log('Fetching videos...')
+        const videosResult = await supabase
+          .from('videos')
+          .select('update_status', { count: 'exact' })
+          .eq('user_id', user.id)
+        
+        console.log('Videos result:', videosResult)
+        
+        console.log('Fetching blocks...')
+        const blocksResult = await supabase
+          .from('blocks')
+          .select('*', { count: 'exact' })
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+        
+        console.log('Blocks result:', blocksResult)
+        
+        console.log('Fetching categories...')
+        const categoriesResult = await supabase
+          .from('categories')
+          .select('*', { count: 'exact' })
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+        
+        console.log('Categories result:', categoriesResult)
+
+        // Verificar se houve erros
+        if (videosResult.error) {
+          console.error('Error fetching videos:', videosResult.error)
+          throw videosResult.error
+        }
+        if (blocksResult.error) {
+          console.error('Error fetching blocks:', blocksResult.error)
+          throw blocksResult.error
+        }
+        if (categoriesResult.error) {
+          console.error('Error fetching categories:', categoriesResult.error)
+          throw categoriesResult.error
+        }
 
         const totalVideos = videosResult.count || 0
         const activeBlocks = blocksResult.count || 0
@@ -47,17 +90,23 @@ export default function Dashboard() {
         const pendingVideos = videosResult.data?.filter(v => v.update_status === 'ACTIVE_FOR_UPDATE').length || 0
         const ignoredVideos = videosResult.data?.filter(v => v.update_status === 'IGNORED').length || 0
 
-        setStats({
+        const newStats = {
           totalVideos,
           activeBlocks,
           categories,
           pendingVideos,
           ignoredVideos
-        })
+        }
+
+        console.log('Final stats:', newStats)
+        setStats(newStats)
+        setError(null)
       } catch (error) {
         console.error('Erro ao carregar estatísticas:', error)
+        setError(error.message || 'Erro desconhecido')
         // Manter valores padrão em caso de erro
       } finally {
+        console.log('Setting loading to false')
         setLoading(false)
       }
     }
@@ -65,7 +114,10 @@ export default function Dashboard() {
     fetchStats()
   }, [user])
 
+  console.log('Dashboard render - loading:', loading, 'error:', error, 'user:', user?.id)
+
   if (loading) {
+    console.log('Rendering loading state')
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -86,6 +138,26 @@ export default function Dashboard() {
       </div>
     )
   }
+
+  if (error) {
+    console.log('Rendering error state:', error)
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+              Dashboard
+            </h1>
+            <p className="text-red-500">
+              Erro ao carregar dados: {error}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  console.log('Rendering main dashboard with stats:', stats)
 
   return (
     <div className="space-y-6">

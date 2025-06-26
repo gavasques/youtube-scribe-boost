@@ -40,46 +40,86 @@ export function ProgressChart() {
       description: "Nenhum vídeo processado ainda"
     }
   ])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user) return
+    console.log('ProgressChart useEffect triggered, user:', user?.id)
+    
+    if (!user) {
+      console.log('No user in ProgressChart, setting loading to false')
+      setLoading(false)
+      return
+    }
 
     const fetchProgress = async () => {
       try {
+        console.log('Fetching progress data for user:', user.id)
+        
         // Verificar conexão YouTube
-        const { data: youtubeTokens } = await supabase
+        console.log('Checking YouTube tokens...')
+        const { data: youtubeTokens, error: tokensError } = await supabase
           .from('youtube_tokens')
           .select('*')
           .eq('user_id', user.id)
           .maybeSingle()
 
+        if (tokensError) {
+          console.error('Error fetching YouTube tokens:', tokensError)
+        }
+        console.log('YouTube tokens result:', youtubeTokens)
+
         // Contar blocos ativos
-        const { count: blocksCount } = await supabase
+        console.log('Counting active blocks...')
+        const { count: blocksCount, error: blocksError } = await supabase
           .from('blocks')
           .select('*', { count: 'exact' })
           .eq('user_id', user.id)
           .eq('is_active', true)
 
+        if (blocksError) {
+          console.error('Error counting blocks:', blocksError)
+        }
+        console.log('Blocks count:', blocksCount)
+
         // Contar categorias
-        const { count: categoriesCount } = await supabase
+        console.log('Counting categories...')
+        const { count: categoriesCount, error: categoriesError } = await supabase
           .from('categories')
           .select('*', { count: 'exact' })
           .eq('user_id', user.id)
           .eq('is_active', true)
 
+        if (categoriesError) {
+          console.error('Error counting categories:', categoriesError)
+        }
+        console.log('Categories count:', categoriesCount)
+
         // Contar prompts ativos
-        const { count: promptsCount } = await supabase
+        console.log('Counting prompts...')
+        const { count: promptsCount, error: promptsError } = await supabase
           .from('prompts')
           .select('*', { count: 'exact' })
           .eq('user_id', user.id)
           .eq('is_active', true)
 
+        if (promptsError) {
+          console.error('Error counting prompts:', promptsError)
+        }
+        console.log('Prompts count:', promptsCount)
+
         // Contar vídeos processados (com AI)
-        const { count: processedVideos } = await supabase
+        console.log('Counting processed videos...')
+        const { count: processedVideos, error: videosError } = await supabase
           .from('videos')
           .select('*', { count: 'exact' })
           .eq('user_id', user.id)
           .not('ai_description', 'is', null)
+
+        if (videosError) {
+          console.error('Error counting processed videos:', videosError)
+        }
+        console.log('Processed videos count:', processedVideos)
 
         const newProgressData: ProgressData[] = [
           {
@@ -109,16 +149,55 @@ export function ProgressChart() {
           }
         ]
 
+        console.log('Final progress data:', newProgressData)
         setProgressData(newProgressData)
+        setError(null)
       } catch (error) {
         console.error('Erro ao carregar progresso:', error)
+        setError(error.message || 'Erro desconhecido')
+      } finally {
+        console.log('ProgressChart setting loading to false')
+        setLoading(false)
       }
     }
 
     fetchProgress()
   }, [user])
 
+  if (loading) {
+    console.log('ProgressChart rendering loading state')
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Progresso de Configuração</CardTitle>
+          <CardDescription>Carregando...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded"></div>
+            <div className="h-4 bg-gray-200 rounded"></div>
+            <div className="h-4 bg-gray-200 rounded"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    console.log('ProgressChart rendering error state:', error)
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Progresso de Configuração</CardTitle>
+          <CardDescription>Erro ao carregar dados: {error}</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   const overallProgress = progressData.reduce((acc, item) => acc + item.progress, 0) / progressData.length
+
+  console.log('ProgressChart rendering main content, overall progress:', overallProgress)
 
   return (
     <Card>
