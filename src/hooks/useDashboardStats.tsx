@@ -31,10 +31,10 @@ export function useDashboardStats() {
 
     const fetchStats = async () => {
       try {
-        const [videosResult, blocksResult, categoriesResult] = await Promise.all([
+        const [videosResult, blocksResult, categoriesResult, configurationsResult] = await Promise.all([
           supabase
             .from('videos')
-            .select('update_status', { count: 'exact' })
+            .select('*', { count: 'exact' })
             .eq('user_id', user.id),
           supabase
             .from('blocks')
@@ -45,19 +45,23 @@ export function useDashboardStats() {
             .from('categories')
             .select('*', { count: 'exact' })
             .eq('user_id', user.id)
-            .eq('is_active', true)
+            .eq('is_active', true),
+          supabase
+            .from('video_configuration')
+            .select('update_status')
         ])
 
         if (videosResult.error) throw videosResult.error
         if (blocksResult.error) throw blocksResult.error
         if (categoriesResult.error) throw categoriesResult.error
+        if (configurationsResult.error) throw configurationsResult.error
 
         const totalVideos = videosResult.count || 0
         const activeBlocks = blocksResult.count || 0
         const categories = categoriesResult.count || 0
 
-        const pendingVideos = videosResult.data?.filter(v => v.update_status === 'ACTIVE_FOR_UPDATE').length || 0
-        const ignoredVideos = videosResult.data?.filter(v => v.update_status === 'IGNORED').length || 0
+        const pendingVideos = configurationsResult.data?.filter(c => c.update_status === 'ACTIVE_FOR_UPDATE').length || 0
+        const ignoredVideos = configurationsResult.data?.filter(c => c.update_status === 'IGNORED').length || 0
 
         setStats({
           totalVideos,

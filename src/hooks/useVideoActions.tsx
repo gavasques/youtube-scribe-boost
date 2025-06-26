@@ -1,29 +1,26 @@
+
 import { useToast } from "@/hooks/use-toast"
 import { useAuditLog } from "@/hooks/useAuditLog"
-import { supabase } from "@/integrations/supabase/client"
-import { Video, VideoFormData } from "@/types/video"
+import { VideoConfigurationService } from "@/features/videos/services/VideoConfigurationService"
+import { VideoService } from "@/features/videos/services/VideoService"
+import { VideoWithRelations } from "@/features/videos/types/normalized"
+import { VideoFormData } from "@/features/videos/types"
 import { UPDATE_STATUS_LABELS } from "@/utils/videoConstants"
 
 export function useVideoActions() {
   const { toast } = useToast()
   const { logEvent } = useAuditLog()
 
-  const handleUpdateStatusToggle = async (videoId: string, newStatus: string, videos: Video[]) => {
+  const handleUpdateStatusToggle = async (videoId: string, newStatus: string, videos: VideoWithRelations[]) => {
     try {
-      // Atualizar no banco de dados
-      const { error } = await supabase
-        .from('videos')
-        .update({ update_status: newStatus })
-        .eq('id', videoId)
-
-      if (error) throw error
+      await VideoConfigurationService.updateStatus(videoId, undefined, newStatus)
 
       await logEvent({
         event_type: 'VIDEO_UPDATE',
         description: `Video status changed to: ${UPDATE_STATUS_LABELS[newStatus as keyof typeof UPDATE_STATUS_LABELS]}`,
         metadata: {
           video_id: videoId,
-          old_status: videos.find(v => v.id === videoId)?.update_status,
+          old_status: videos.find(v => v.id === videoId)?.configuration?.update_status,
           new_status: newStatus
         },
         severity: 'LOW'
@@ -51,14 +48,9 @@ export function useVideoActions() {
     }
   }
 
-  const handleIgnoreVideo = async (video: Video) => {
+  const handleIgnoreVideo = async (video: VideoWithRelations) => {
     try {
-      const { error } = await supabase
-        .from('videos')
-        .update({ update_status: 'IGNORED' })
-        .eq('id', video.id)
-
-      if (error) throw error
+      await VideoConfigurationService.updateStatus(video.id, undefined, 'IGNORED')
 
       await logEvent({
         event_type: 'VIDEO_UPDATE',
@@ -89,14 +81,9 @@ export function useVideoActions() {
     }
   }
 
-  const handleUnignoreVideo = async (video: Video) => {
+  const handleUnignoreVideo = async (video: VideoWithRelations) => {
     try {
-      const { error } = await supabase
-        .from('videos')
-        .update({ update_status: 'ACTIVE_FOR_UPDATE' })
-        .eq('id', video.id)
-
-      if (error) throw error
+      await VideoConfigurationService.updateStatus(video.id, undefined, 'ACTIVE_FOR_UPDATE')
 
       await logEvent({
         event_type: 'VIDEO_UPDATE',
@@ -127,7 +114,7 @@ export function useVideoActions() {
     }
   }
 
-  const handleEditVideo = async (video: Video) => {
+  const handleEditVideo = async (video: VideoWithRelations) => {
     await logEvent({
       event_type: 'VIDEO_UPDATE',
       description: `Started editing video: ${video.title}`,
@@ -136,25 +123,19 @@ export function useVideoActions() {
     })
   }
 
-  const handleSaveVideo = async (editingVideo: Video | null, data: VideoFormData) => {
+  const handleSaveVideo = async (editingVideo: VideoWithRelations | null, data: VideoFormData) => {
     if (!editingVideo) return
 
     try {
-      // Preparar dados para atualização
-      const updateData: any = {
-        category_id: data.category_id || null,
-        update_status: data.update_status,
-        transcription: data.transcription || null,
-        updated_at: new Date().toISOString()
+      // Update core video data
+      await VideoService.updateVideo(editingVideo.id, {
+        category_id: data.category_id || undefined
+      })
+
+      // Update configuration if needed
+      if (data.update_status) {
+        await VideoConfigurationService.updateStatus(editingVideo.id, undefined, data.update_status)
       }
-
-      // Atualizar no banco de dados
-      const { error } = await supabase
-        .from('videos')
-        .update(updateData)
-        .eq('id', editingVideo.id)
-
-      if (error) throw error
 
       await logEvent({
         event_type: 'VIDEO_UPDATE',
