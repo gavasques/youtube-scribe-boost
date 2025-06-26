@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -24,7 +25,7 @@ interface VideoModalProps {
   onSave: (data: VideoFormData) => void
   video?: Video | null
   categories: Category[]
-  onVideoUpdate?: () => void // Nova prop para atualizar a lista
+  onVideoUpdate?: () => void
 }
 
 export function VideoModal({ open, onClose, onSave, video, categories, onVideoUpdate }: VideoModalProps) {
@@ -56,7 +57,9 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
   })
 
   useEffect(() => {
-    if (video) {
+    if (video && open) {
+      console.log('Setting video data:', { video, categories })
+      
       setFormData({
         title: video.title,
         youtube_url: video.youtube_url,
@@ -67,7 +70,7 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
         transcription: video.transcription || ""
       })
       setTranscriptionText(video.transcription || "")
-    } else {
+    } else if (!video && open) {
       setFormData({
         title: "",
         youtube_url: "",
@@ -133,14 +136,16 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
     if (!video) return
 
     try {
-      // Atualizar no banco de dados
+      // Atualizar na tabela video_configuration ao invés de videos
       const { error } = await supabase
-        .from('videos')
-        .update({ 
+        .from('video_configuration')
+        .upsert({ 
+          video_id: video.id,
           update_status: newStatus,
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'video_id'
         })
-        .eq('id', video.id)
 
       if (error) throw error
 
@@ -235,9 +240,18 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
 
   if (!video) return null
 
+  // Encontrar a categoria atual
+  const currentCategory = video.category_id ? categories.find(c => c.id === video.category_id) : null
+  
+  console.log('Current category lookup:', { 
+    videoCategoryId: video.category_id, 
+    categoriesCount: categories.length,
+    foundCategory: currentCategory 
+  })
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Play className="w-5 h-5" />
@@ -297,7 +311,7 @@ export function VideoModal({ open, onClose, onSave, video, categories, onVideoUp
                   </Select>
                   {formData.category_id && formData.category_id !== "none" && (
                     <p className="text-xs text-muted-foreground">
-                      Categoria atual: {categories.find(c => c.id === formData.category_id)?.name || 'Categoria não encontrada'}
+                      Categoria atual: {currentCategory?.name || 'Categoria não encontrada'}
                     </p>
                   )}
                 </div>

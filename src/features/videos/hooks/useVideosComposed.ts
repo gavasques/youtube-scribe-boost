@@ -14,20 +14,32 @@ export function useVideosComposed() {
   const { configurations, fetchConfiguration } = useVideoConfiguration()
   const { categories } = useOptimizedCategories()
 
-  // Fetch metadata, transcriptions, and configurations for all videos
+  // Fetch metadata, transcriptions, and configurations for all videos - but only once
   useEffect(() => {
-    coreVideos.forEach(video => {
+    if (coreVideos.length === 0) return
+    
+    const fetchPromises = coreVideos.map(async (video) => {
+      const promises = []
+      
       if (!metadata[video.id]) {
-        fetchMetadata(video.id)
+        promises.push(fetchMetadata(video.id))
       }
       if (!transcriptions[video.id]) {
-        fetchTranscription(video.id)
+        promises.push(fetchTranscription(video.id))
       }
       if (!configurations[video.id]) {
-        fetchConfiguration(video.id)
+        promises.push(fetchConfiguration(video.id))
+      }
+      
+      if (promises.length > 0) {
+        await Promise.all(promises)
       }
     })
-  }, [coreVideos, metadata, transcriptions, configurations, fetchMetadata, fetchTranscription, fetchConfiguration])
+    
+    Promise.all(fetchPromises).catch(error => {
+      console.error('Error fetching video data:', error)
+    })
+  }, [coreVideos.length]) // Only depend on length to avoid infinite loops
 
   // Compose videos with their related data for backward compatibility
   const videos = useMemo(() => {
