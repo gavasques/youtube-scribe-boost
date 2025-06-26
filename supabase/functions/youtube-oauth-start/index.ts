@@ -13,6 +13,10 @@ serve(async (req) => {
   }
 
   try {
+    console.log('=== YouTube OAuth Start Function Called ===')
+    console.log('Request method:', req.method)
+    console.log('Request headers:', Object.fromEntries(req.headers.entries()))
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -24,10 +28,12 @@ serve(async (req) => {
     if (authError || !user) {
       console.error('Authentication error:', authError)
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized', details: authError }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('Authenticated user ID:', user.id)
 
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
     if (!clientId) {
@@ -38,18 +44,21 @@ serve(async (req) => {
       )
     }
 
+    console.log('Google Client ID found:', clientId.substring(0, 10) + '...')
+
     // Gerar state para segurança
     const state = crypto.randomUUID()
-    
-    // Armazenar state temporariamente (em uma aplicação real, use Redis ou similar)
-    // Por simplicidade, vamos usar o user_id como parte do state
     const secureState = `${user.id}-${state}`
+    console.log('Generated state:', secureState)
 
-    // Obter a origin da requisição ou usar uma URL padrão
+    // Obter a origin da requisição
     const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/')
+    console.log('Request origin:', origin)
+    console.log('Request referer:', req.headers.get('referer'))
     
     if (!origin) {
       console.error('No origin found in request headers')
+      console.log('Available headers:', Object.fromEntries(req.headers.entries()))
       return new Response(
         JSON.stringify({ error: 'Invalid request origin' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -57,13 +66,15 @@ serve(async (req) => {
     }
 
     const redirectUri = `${origin}/auth/youtube/callback`
-    console.log('Redirect URI:', redirectUri)
+    console.log('Generated redirect URI:', redirectUri)
     
     const scopes = [
       'https://www.googleapis.com/auth/youtube.readonly',
       'https://www.googleapis.com/auth/youtube.force-ssl',
       'https://www.googleapis.com/auth/youtube.upload'
     ].join(' ')
+
+    console.log('OAuth scopes:', scopes)
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     authUrl.searchParams.set('client_id', clientId)
@@ -74,10 +85,20 @@ serve(async (req) => {
     authUrl.searchParams.set('access_type', 'offline')
     authUrl.searchParams.set('prompt', 'consent')
 
-    console.log('Generated auth URL:', authUrl.toString())
+    console.log('=== Generated OAuth URL ===')
+    console.log('Full URL:', authUrl.toString())
+    console.log('URL parameters:')
+    authUrl.searchParams.forEach((value, key) => {
+      console.log(`  ${key}: ${key === 'client_id' ? value.substring(0, 10) + '...' : value}`)
+    })
 
     return new Response(
-      JSON.stringify({ authUrl: authUrl.toString(), state: secureState }),
+      JSON.stringify({ 
+        authUrl: authUrl.toString(), 
+        state: secureState,
+        redirectUri: redirectUri,
+        clientId: clientId.substring(0, 10) + '...'
+      }),
       { 
         status: 200, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -85,7 +106,10 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in youtube-oauth-start:', error)
+    console.error('=== Error in youtube-oauth-start ===')
+    console.error('Error details:', error)
+    console.error('Error message:', error.message)
+    console.error('Error stack:', error.stack)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
