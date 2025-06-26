@@ -26,6 +26,7 @@ import { useForm } from "react-hook-form"
 import { BlockType, BlockScope } from "@/types/block"
 import { Category } from "@/types/category"
 import { CheckSquare, Square } from "lucide-react"
+import { OptimizedLoading } from "@/components/ui/optimized-loading"
 
 interface BlockFormData {
   title: string
@@ -59,9 +60,17 @@ interface BlockFormProps {
     createdAt: string
   } | null
   categories: Category[]
+  categoriesLoading?: boolean
 }
 
-export function BlockForm({ open, onClose, onSave, block, categories }: BlockFormProps) {
+export function BlockForm({ 
+  open, 
+  onClose, 
+  onSave, 
+  block, 
+  categories, 
+  categoriesLoading = false 
+}: BlockFormProps) {
   const form = useForm<BlockFormData>({
     defaultValues: {
       title: "",
@@ -90,7 +99,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
   // Resetar formulário quando o bloco mudar
   useEffect(() => {
     if (block) {
-      console.log('Carregando dados do bloco para edição:', block)
       form.reset({
         title: block.title,
         content: block.content,
@@ -103,7 +111,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
         applyToExisting: false,
       })
     } else {
-      // Resetar para valores padrão quando não há bloco (criação)
       form.reset({
         title: "",
         content: "",
@@ -119,7 +126,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
   }, [block, form])
 
   const handleSubmit = (data: BlockFormData) => {
-    console.log('Dados do formulário:', data)
     onSave(data)
     form.reset()
   }
@@ -138,10 +144,8 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
     const allSelected = allCategoryIds.every(id => selectedCategories.includes(id))
     
     if (allSelected) {
-      // Deselecionar todas
       form.setValue("categories", [])
     } else {
-      // Selecionar todas
       form.setValue("categories", allCategoryIds)
     }
   }
@@ -227,7 +231,9 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
                   Selecione as categorias onde este bloco será aplicado
                 </FormDescription>
                 
-                {categories.length === 0 ? (
+                {categoriesLoading ? (
+                  <OptimizedLoading type="categories" message="Carregando categorias..." />
+                ) : categories.length === 0 ? (
                   <div className="text-center py-4 text-muted-foreground">
                     <p>Nenhuma categoria encontrada.</p>
                     <p className="text-sm">Crie categorias primeiro para poder selecioná-las.</p>

@@ -1,32 +1,34 @@
-import { useState } from "react"
+
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { BlocksTable } from "@/components/Blocks/BlocksTable"
 import { BlockForm } from "@/components/Blocks/BlockForm"
-import { useBlocks } from "@/hooks/useBlocks"
-import { useCategories } from "@/hooks/useCategories"
+import { useOptimizedBlocks } from "@/hooks/useOptimizedBlocks"
+import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
+import { OptimizedLoading } from "@/components/ui/optimized-loading"
 import { Block } from "@/types/block"
 
 export default function Blocks() {
   const { 
     blocks, 
-    loading, 
+    loading: blocksLoading, 
     createBlock, 
     updateBlock, 
     toggleBlockActive, 
-    duplicateBlock, 
     deleteBlock,
     moveBlockUp,
     moveBlockDown
-  } = useBlocks()
+  } = useOptimizedBlocks()
   
-  const { categories, loading: categoriesLoading } = useCategories()
+  const { 
+    activeCategories, 
+    loading: categoriesLoading, 
+    fetchCategories 
+  } = useOptimizedCategories()
   
   const [showForm, setShowForm] = useState(false)
   const [editingBlock, setEditingBlock] = useState<Block | null>(null)
-
-  // Filtrar apenas categorias ativas
-  const activeCategories = categories.filter(cat => cat.is_active)
 
   const handleCreateBlock = async (data: any) => {
     const result = await createBlock(data)
@@ -59,16 +61,7 @@ export default function Blocks() {
     }
   }
 
-  const handleMoveUp = async (blockId: string) => {
-    await moveBlockUp(blockId)
-  }
-
-  const handleMoveDown = async (blockId: string) => {
-    await moveBlockDown(blockId)
-  }
-
   const handleEdit = (tableBlock: any) => {
-    // Find the original block from the database
     const originalBlock = blocks.find(b => b.id === tableBlock.id)
     if (originalBlock) {
       setEditingBlock(originalBlock)
@@ -81,49 +74,37 @@ export default function Blocks() {
     setEditingBlock(null)
   }
 
-  // Convert Block from database to the format expected by BlocksTable
-  const convertedBlocks = blocks.map(block => ({
-    id: block.id,
-    title: block.title,
-    content: block.content,
-    type: block.type as 'GLOBAL' | 'CATEGORY' | 'MANUAL',
-    scope: block.scope as 'PERMANENT' | 'SCHEDULED',
-    priority: block.priority,
-    isActive: block.is_active,
-    scheduledStart: block.scheduled_start || undefined,
-    scheduledEnd: block.scheduled_end || undefined,
-    categories: [], // Placeholder - categories would need to be implemented
-    createdAt: block.created_at,
-    videoId: block.video_id || undefined,
-    videoTitle: (block as any).videos?.title || undefined,
-    videoDescription: (block as any).videos?.current_description || (block as any).videos?.ai_description || undefined
-  }))
+  const handleFormOpen = () => {
+    // Lazy load categorias apenas quando o formulário for aberto
+    if (!categoriesLoading) {
+      fetchCategories()
+    }
+    setShowForm(true)
+  }
 
-  // Convert database Block to UI format for BlockForm
-  const convertBlockForForm = (block: Block) => ({
-    id: block.id,
-    title: block.title,
-    content: block.content,
-    type: block.type,
-    scope: block.scope,
-    priority: block.priority,
-    isActive: block.is_active,
-    scheduledStart: block.scheduled_start || undefined,
-    scheduledEnd: block.scheduled_end || undefined,
-    categories: [], // Placeholder - categories would need to be implemented
-    videosAffected: 0, // Placeholder - would need to be calculated
-    createdAt: block.created_at
-  })
+  // Converter dados do bloco para o formato do formulário
+  const convertBlockForForm = useMemo(() => {
+    if (!editingBlock) return null
+    
+    return {
+      id: editingBlock.id,
+      title: editingBlock.title,
+      content: editingBlock.content,
+      type: editingBlock.type,
+      scope: editingBlock.scope,
+      priority: editingBlock.priority,
+      isActive: editingBlock.isActive,
+      scheduledStart: editingBlock.scheduledStart,
+      scheduledEnd: editingBlock.scheduledEnd,
+      categories: editingBlock.categories || [],
+      videosAffected: 0,
+      createdAt: editingBlock.createdAt
+    }
+  }, [editingBlock])
 
-  if (loading || categoriesLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    )
+  // Loading state principal apenas para blocos
+  if (blocksLoading) {
+    return <OptimizedLoading type="blocks" />
   }
 
   return (
@@ -138,24 +119,27 @@ export default function Blocks() {
             Gerencie os blocos de conteúdo para suas descrições
           </p>
         </div>
-        <Button className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0" onClick={() => setShowForm(true)}>
+        <Button 
+          className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0" 
+          onClick={handleFormOpen}
+        >
           <Plus className="w-4 h-4" />
           Novo Bloco
         </Button>
       </div>
 
-      {/* Content - Apenas tabela */}
+      {/* Content - Tabela otimizada */}
       <BlocksTable
-        blocks={convertedBlocks}
+        blocks={blocks}
         onEdit={handleEdit}
         onToggleActive={handleToggleActive}
         onDelete={handleDeleteBlock}
-        onMoveUp={handleMoveUp}
-        onMoveDown={handleMoveDown}
+        onMoveUp={moveBlockUp}
+        onMoveDown={moveBlockDown}
       />
 
       {/* Empty State */}
-      {!loading && blocks.length === 0 && (
+      {!blocksLoading && blocks.length === 0 && (
         <div className="text-center py-12">
           <div className="mx-auto w-24 h-24 bg-gradient-to-br from-purple-100 to-violet-100 rounded-full flex items-center justify-center mb-4">
             <Plus className="w-8 h-8 text-purple-600" />
@@ -164,20 +148,21 @@ export default function Blocks() {
           <p className="text-muted-foreground mb-4">
             Comece criando seu primeiro bloco de conteúdo
           </p>
-          <Button onClick={() => setShowForm(true)} className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0">
+          <Button onClick={handleFormOpen} className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0">
             <Plus className="w-4 h-4" />
             Criar Primeiro Bloco
           </Button>
         </div>
       )}
 
-      {/* Form Modal */}
+      {/* Form Modal - com lazy loading de categorias */}
       <BlockForm
         open={showForm}
         onClose={handleCloseForm}
         onSave={editingBlock ? handleEditBlock : handleCreateBlock}
-        block={editingBlock ? convertBlockForForm(editingBlock) : null}
+        block={convertBlockForForm}
         categories={activeCategories}
+        categoriesLoading={categoriesLoading}
       />
     </div>
   )
