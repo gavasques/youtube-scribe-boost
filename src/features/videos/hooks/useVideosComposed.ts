@@ -23,7 +23,7 @@ export function useVideosComposed() {
       const category = categories.find(cat => cat.id === video.category_id)
 
       const composedVideo: VideoWithRelations = {
-        // Core video fields
+        // Core video fields (now cleaned up)
         id: video.id,
         user_id: video.user_id,
         youtube_id: video.youtube_id,
@@ -31,6 +31,7 @@ export function useVideosComposed() {
         title: video.title,
         video_type: video.video_type,
         category_id: video.category_id || null,
+        published_at: video.published_at || null,
         created_at: video.created_at,
         updated_at: video.updated_at,
         
@@ -42,7 +43,6 @@ export function useVideosComposed() {
         duration_formatted: videoMetadata?.duration_formatted || null,
         thumbnail_url: videoMetadata?.thumbnail_url || null,
         privacy_status: videoMetadata?.privacy_status || 'public',
-        published_at: videoMetadata?.published_at || null,
         
         // Description fields (required by Video interface)
         original_description: '',

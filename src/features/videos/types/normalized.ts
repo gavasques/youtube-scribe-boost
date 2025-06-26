@@ -1,4 +1,3 @@
-
 // Normalized video types following Single Responsibility principle
 
 export interface VideoCore {
@@ -9,6 +8,7 @@ export interface VideoCore {
   title: string
   video_type: 'REGULAR' | 'SHORT' | 'LIVE'
   category_id?: string
+  published_at?: string
   created_at: string
   updated_at: string
 }
