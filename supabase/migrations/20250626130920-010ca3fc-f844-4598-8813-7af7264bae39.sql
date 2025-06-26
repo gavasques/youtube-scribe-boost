@@ -8,10 +8,13 @@ DROP POLICY IF EXISTS "Users can create their own categories" ON public.categori
 DROP POLICY IF EXISTS "Users can update their own categories" ON public.categories;
 DROP POLICY IF EXISTS "Users can delete their own categories" ON public.categories;
 
+-- Remover a constraint de foreign key problemática se existir
+ALTER TABLE public.categories DROP CONSTRAINT IF EXISTS categories_user_id_fkey;
+
 -- Alterar a coluna user_id para não ser nullable (necessário para RLS)
 ALTER TABLE public.categories ALTER COLUMN user_id SET NOT NULL;
 
--- Criar políticas RLS para categorias
+-- Criar políticas RLS para categorias (sem foreign key constraint para auth.users)
 CREATE POLICY "Users can view their own categories" 
   ON public.categories 
   FOR SELECT 
