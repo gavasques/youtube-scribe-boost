@@ -44,7 +44,7 @@ function App() {
             <div className="min-h-screen bg-background">
               <Routes>
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/auth/callback" element={<YouTubeCallback />} />
+                <Route path="/auth/youtube/callback" element={<YouTubeCallback />} />
                 
                 <Route path="/" element={
                   <ProtectedRoute>

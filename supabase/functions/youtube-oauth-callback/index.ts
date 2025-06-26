@@ -20,7 +20,10 @@ serve(async (req) => {
 
     const { code, state, error: oauthError } = await req.json()
 
+    console.log('Callback received:', { code: !!code, state: !!state, error: oauthError })
+
     if (oauthError) {
+      console.error('OAuth error:', oauthError)
       return new Response(
         JSON.stringify({ error: `OAuth error: ${oauthError}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -28,6 +31,7 @@ serve(async (req) => {
     }
 
     if (!code || !state) {
+      console.error('Missing code or state:', { code: !!code, state: !!state })
       return new Response(
         JSON.stringify({ error: 'Missing authorization code or state' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -37,6 +41,7 @@ serve(async (req) => {
     // Extrair user_id do state
     const userId = state.split('-')[0]
     if (!userId) {
+      console.error('Invalid state parameter:', state)
       return new Response(
         JSON.stringify({ error: 'Invalid state parameter' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,11 +52,18 @@ serve(async (req) => {
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
 
     if (!clientId || !clientSecret) {
+      console.error('OAuth credentials not configured')
       return new Response(
         JSON.stringify({ error: 'OAuth credentials not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    // Determinar a redirect_uri baseada no origin
+    const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/')
+    const redirectUri = origin ? `${origin}/auth/youtube/callback` : `https://kmhwfdupsyobqoacjdbz.supabase.co/auth/youtube/callback`
+
+    console.log('Using redirect_uri for token exchange:', redirectUri)
 
     // Trocar code por tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -62,13 +74,17 @@ serve(async (req) => {
         client_secret: clientSecret,
         code,
         grant_type: 'authorization_code',
-        redirect_uri: `${req.headers.get('origin')}/auth/youtube/callback`
+        redirect_uri: redirectUri
       })
     })
 
     const tokenData = await tokenResponse.json()
 
+    console.log('Token response status:', tokenResponse.status)
+    console.log('Token data keys:', Object.keys(tokenData))
+
     if (!tokenResponse.ok) {
+      console.error('Token exchange failed:', tokenData)
       return new Response(
         JSON.stringify({ error: 'Failed to exchange code for tokens', details: tokenData }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -84,7 +100,17 @@ serve(async (req) => {
     )
 
     const channelData = await channelResponse.json()
+    console.log('Channel response status:', channelResponse.status)
+    
     const channel = channelData.items?.[0]
+
+    if (!channel) {
+      console.error('No channel found for user')
+      return new Response(
+        JSON.stringify({ error: 'No YouTube channel found for this account' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Calcular data de expiração
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000))
@@ -107,10 +133,12 @@ serve(async (req) => {
     if (dbError) {
       console.error('Database error:', dbError)
       return new Response(
-        JSON.stringify({ error: 'Failed to save tokens' }),
+        JSON.stringify({ error: 'Failed to save tokens', details: dbError }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('Successfully saved tokens for user:', userId)
 
     return new Response(
       JSON.stringify({ 
@@ -131,7 +159,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in youtube-oauth-callback:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
