@@ -13,13 +13,35 @@ export function useCategories() {
   const fetchCategories = async () => {
     try {
       setLoading(true)
+      
+      // Primeiro, verificar se o usuário está autenticado
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) {
+        console.error('Erro de autenticação:', authError)
+        throw authError
+      }
+
+      if (!user) {
+        console.error('Usuário não autenticado')
+        setCategories([])
+        return
+      }
+
+      console.log('Buscando categorias para o usuário:', user.id)
+
       const { data, error } = await supabase
         .from('categories')
         .select('*')
+        .eq('user_id', user.id)
         .order('name', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('Erro ao buscar categorias:', error)
+        throw error
+      }
       
+      console.log('Categorias encontradas:', data)
       setCategories((data || []) as Category[])
     } catch (error) {
       console.error('Erro ao buscar categorias:', error)
@@ -28,6 +50,7 @@ export function useCategories() {
         description: 'Erro ao carregar categorias.',
         variant: 'destructive',
       })
+      setCategories([])
     } finally {
       setLoading(false)
     }
