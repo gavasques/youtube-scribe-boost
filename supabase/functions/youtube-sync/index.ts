@@ -144,7 +144,10 @@ serve(async (req) => {
       log('Parsed request body', requestBody)
     } catch (parseError) {
       logError('Failed to parse request body', parseError)
-      requestBody = {}
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Handle test request
@@ -157,6 +160,15 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verificar se temos options no body
+    if (!requestBody.options) {
+      logError('Missing options in request body', requestBody)
+      return new Response(
+        JSON.stringify({ error: 'Missing options in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -264,6 +276,18 @@ serve(async (req) => {
     if (!searchResponse.ok) {
       const error = await searchResponse.json()
       logError('YouTube search failed', error)
+      
+      // Tratamento específico para quota exceeded
+      if (error.error?.code === 403 && error.error?.message?.includes('quota')) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'YouTube API quota exceeded. Please try again later.',
+            details: 'Quota do YouTube API foi excedida. Tente novamente em algumas horas.'
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ error: 'YouTube API error', details: error }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
