@@ -1,42 +1,37 @@
 
 import { Button } from "@/components/ui/button"
-import { Upload, RefreshCw, Youtube } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RefreshCw, Youtube } from "lucide-react"
+import { ReactNode } from "react"
 
 interface VideoHeaderProps {
   onSyncModal: () => void
   onRefresh: () => void
-  onUpload?: () => void
+  extraActions?: ReactNode
 }
 
-export function VideoHeader({ onSyncModal, onRefresh, onUpload }: VideoHeaderProps) {
+export function VideoHeader({ onSyncModal, onRefresh, extraActions }: VideoHeaderProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Vídeos</h1>
-        <p className="text-muted-foreground">
-          Gerencie seus vídeos do YouTube e suas descrições
-        </p>
-      </div>
-      <div className="flex gap-2">
-        <Button 
-          variant="outline" 
-          className="gap-2"
-          onClick={onSyncModal}
-        >
-          <Youtube className="w-4 h-4" />
-          Sincronizar com YouTube
-        </Button>
-        <Button variant="outline" className="gap-2" onClick={onRefresh}>
-          <RefreshCw className="w-4 h-4" />
-          Atualizar
-        </Button>
-        {onUpload && (
-          <Button className="gap-2" onClick={onUpload}>
-            <Upload className="w-4 h-4" />
-            Upload Transcrição
+    <Card>
+      <CardHeader>
+        <CardTitle>Gerenciamento de Vídeos</CardTitle>
+        <CardDescription>
+          Gerencie as descrições e configurações dos seus vídeos do YouTube
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onSyncModal} className="gap-2">
+            <Youtube className="w-4 h-4" />
+            Sincronizar YouTube
           </Button>
-        )}
-      </div>
-    </div>
+          <Button onClick={onRefresh} variant="outline" className="gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Atualizar Lista
+          </Button>
+          {extraActions}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { VideoModal } from "@/components/Videos/VideoModal"
@@ -15,6 +14,7 @@ import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
 import { useVideoFilters } from "@/hooks/useVideoFilters"
 import { useVideoActions } from "@/hooks/useVideoActions"
 import { useYouTubeSync } from "@/hooks/useYouTubeSync"
+import { MassUpdateButton } from "@/components/Videos/MassUpdateButton"
 
 export default function Videos() {
   const { videos, loading: videosLoading, fetchVideos } = useVideos()
@@ -95,6 +95,12 @@ export default function Videos() {
       <VideoHeader
         onSyncModal={() => setShowSyncModal(true)}
         onRefresh={fetchVideos}
+        extraActions={
+          <MassUpdateButton 
+            videos={filteredVideos as VideoWithRelations[]}
+            onUpdateComplete={handleVideoUpdate}
+          />
+        }
       />
 
       {/* Mostrar progresso da sincronização se estiver ativa */}
