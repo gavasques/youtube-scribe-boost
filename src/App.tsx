@@ -1,15 +1,14 @@
 
-// Update App.tsx to use feature-based routing
 import { Routes, Route } from "react-router-dom"
 import { Layout } from "@/components/Layout/Layout"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
-// Feature-based imports
-import { DashboardPage } from "@/features/dashboard"
-import { BlocksPage } from "@/features/blocks"
-import { CategoriesPage } from "@/features/categories"
-import { PromptsPage } from "@/features/prompts"
-import { VideosPage } from "@/features/videos"
+// Direct imports instead of barrel exports to avoid circular dependencies
+import DashboardPage from "@/features/dashboard/pages/DashboardPage"
+import BlocksPage from "@/features/blocks/pages/BlocksPage"
+import CategoriesPage from "@/features/categories/pages/CategoriesPage"
+import PromptsPage from "@/features/prompts/pages/PromptsPage"
+import VideosPage from "@/features/videos/pages/VideosPage"
 
 import Index from "@/pages/Index"
 import Auth from "@/pages/Auth"
