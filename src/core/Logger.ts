@@ -15,7 +15,7 @@ export interface LogEntry {
 }
 
 class Logger {
-  private level: LogLevel = LogLevel.INFO
+  private level: LogLevel = LogLevel.DEBUG // Mudando para DEBUG para capturar tudo
   private isDevelopment = import.meta.env.DEV
 
   setLevel(level: LogLevel) {
@@ -29,24 +29,20 @@ class Logger {
   private formatMessage(level: LogLevel, message: string, data?: any): string {
     const timestamp = new Date().toISOString()
     const levelName = LogLevel[level]
-    const dataStr = data ? ` | ${JSON.stringify(data)}` : ''
+    const dataStr = data ? ` | ${JSON.stringify(data, null, 2)}` : ''
     return `[${timestamp}] ${levelName}: ${message}${dataStr}`
   }
 
   debug(message: string, data?: any, source?: string) {
     if (!this.shouldLog(LogLevel.DEBUG)) return
     
-    if (this.isDevelopment) {
-      console.debug(this.formatMessage(LogLevel.DEBUG, message, data))
-    }
+    console.debug(this.formatMessage(LogLevel.DEBUG, message, data))
   }
 
   info(message: string, data?: any, source?: string) {
     if (!this.shouldLog(LogLevel.INFO)) return
     
-    if (this.isDevelopment) {
-      console.info(this.formatMessage(LogLevel.INFO, message, data))
-    }
+    console.info(this.formatMessage(LogLevel.INFO, message, data))
   }
 
   warn(message: string, data?: any, source?: string) {
@@ -84,5 +80,5 @@ export const logger = new Logger()
 if (import.meta.env.DEV) {
   logger.setLevel(LogLevel.DEBUG)
 } else {
-  logger.setLevel(LogLevel.WARN)
+  logger.setLevel(LogLevel.INFO) // Em produção, ainda queremos INFO para depuração
 }
