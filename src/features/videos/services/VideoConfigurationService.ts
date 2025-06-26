@@ -14,7 +14,12 @@ export class VideoConfigurationService {
       if (error.code === 'PGRST116') return null
       throw error
     }
-    return data
+    
+    return {
+      ...data,
+      configuration_status: data.configuration_status as 'NOT_CONFIGURED' | 'CONFIGURED' | 'NEEDS_ATTENTION',
+      update_status: data.update_status as 'ACTIVE_FOR_UPDATE' | 'DO_NOT_UPDATE' | 'IGNORED'
+    }
   }
 
   static async updateConfiguration(videoId: string, config: Partial<VideoConfiguration>) {
@@ -25,7 +30,12 @@ export class VideoConfigurationService {
       .single()
 
     if (error) throw error
-    return data
+    
+    return {
+      ...data,
+      configuration_status: data.configuration_status as 'NOT_CONFIGURED' | 'CONFIGURED' | 'NEEDS_ATTENTION',
+      update_status: data.update_status as 'ACTIVE_FOR_UPDATE' | 'DO_NOT_UPDATE' | 'IGNORED'
+    }
   }
 
   static async updateStatus(videoId: string, configStatus?: string, updateStatus?: string) {

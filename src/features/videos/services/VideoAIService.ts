@@ -14,7 +14,12 @@ export class VideoAIService {
       if (error.code === 'PGRST116') return null
       throw error
     }
-    return data
+    
+    return {
+      ...data,
+      ai_chapters: Array.isArray(data.ai_chapters) ? data.ai_chapters : [],
+      processing_status: data.processing_status as 'pending' | 'processing' | 'completed' | 'failed'
+    }
   }
 
   static async updateAIContent(videoId: string, content: Partial<VideoAIContent>) {
@@ -25,7 +30,12 @@ export class VideoAIService {
       .single()
 
     if (error) throw error
-    return data
+    
+    return {
+      ...data,
+      ai_chapters: Array.isArray(data.ai_chapters) ? data.ai_chapters : [],
+      processing_status: data.processing_status as 'pending' | 'processing' | 'completed' | 'failed'
+    }
   }
 
   static async updateProcessingStatus(videoId: string, status: 'pending' | 'processing' | 'completed' | 'failed') {

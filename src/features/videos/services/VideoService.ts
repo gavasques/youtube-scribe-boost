@@ -10,7 +10,11 @@ export class VideoService {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+    
+    return (data || []).map(video => ({
+      ...video,
+      video_type: video.video_type as 'REGULAR' | 'SHORT' | 'LIVE'
+    }))
   }
 
   static async getVideoById(id: string): Promise<VideoCore | null> {
@@ -21,7 +25,11 @@ export class VideoService {
       .single()
 
     if (error) throw error
-    return data
+    
+    return data ? {
+      ...data,
+      video_type: data.video_type as 'REGULAR' | 'SHORT' | 'LIVE'
+    } : null
   }
 
   static async updateVideo(id: string, updates: Partial<VideoCore>) {
@@ -33,7 +41,11 @@ export class VideoService {
       .single()
 
     if (error) throw error
-    return data
+    
+    return {
+      ...data,
+      video_type: data.video_type as 'REGULAR' | 'SHORT' | 'LIVE'
+    }
   }
 
   static async deleteVideo(id: string) {

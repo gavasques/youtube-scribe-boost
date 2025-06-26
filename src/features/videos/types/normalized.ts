@@ -84,4 +84,28 @@ export interface VideoWithRelations extends VideoCore {
   tags?: VideoTag[]
   configuration?: VideoConfiguration
   category_name?: string
+  
+  // Backward compatibility fields - flatten common fields for existing components
+  views_count: number
+  likes_count: number
+  comments_count: number
+  duration_seconds: number
+  duration_formatted?: string
+  thumbnail_url?: string
+  privacy_status: string
+  published_at?: string
+  original_description?: string
+  current_description?: string
+  compiled_description?: string
+  transcription_text?: string
+  ai_summary?: string
+  ai_description?: string
+  ai_chapters?: any[]
+  original_tags: string[]
+  current_tags: string[]
+  ai_generated_tags: string[]
+  configuration_status: 'NOT_CONFIGURED' | 'CONFIGURED' | 'NEEDS_ATTENTION'
+  update_status: 'ACTIVE_FOR_UPDATE' | 'DO_NOT_UPDATE' | 'IGNORED'
+  has_transcription: boolean
+  ai_processed: boolean
 }

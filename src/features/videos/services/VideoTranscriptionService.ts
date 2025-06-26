@@ -14,7 +14,11 @@ export class VideoTranscriptionService {
       if (error.code === 'PGRST116') return null
       throw error
     }
-    return data
+    
+    return {
+      ...data,
+      source_type: data.source_type as 'manual' | 'auto' | 'uploaded'
+    }
   }
 
   static async updateTranscription(videoId: string, transcription: string, sourceType: 'manual' | 'auto' | 'uploaded' = 'manual') {
@@ -29,7 +33,11 @@ export class VideoTranscriptionService {
       .single()
 
     if (error) throw error
-    return data
+    
+    return {
+      ...data,
+      source_type: data.source_type as 'manual' | 'auto' | 'uploaded'
+    }
   }
 
   static async deleteTranscription(videoId: string) {

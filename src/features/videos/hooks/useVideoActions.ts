@@ -20,7 +20,7 @@ export function useVideoActions() {
         description: `Video status changed to: ${UPDATE_STATUS_LABELS[newStatus as keyof typeof UPDATE_STATUS_LABELS]}`,
         metadata: {
           video_id: videoId,
-          old_status: videos.find(v => v.id === videoId)?.update_status,
+          old_status: videos.find(v => v.id === videoId)?.configuration?.update_status,
           new_status: newStatus
         },
         severity: 'LOW'

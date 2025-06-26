@@ -28,7 +28,8 @@ export function useVideosComposed() {
         transcription: videoTranscription,
         configuration: videoConfiguration,
         category_name: category?.name,
-        // Backward compatibility fields
+        
+        // Backward compatibility fields - flatten data from related tables
         views_count: videoMetadata?.views_count || 0,
         likes_count: videoMetadata?.likes_count || 0,
         comments_count: videoMetadata?.comments_count || 0,
@@ -37,9 +38,30 @@ export function useVideosComposed() {
         thumbnail_url: videoMetadata?.thumbnail_url,
         privacy_status: videoMetadata?.privacy_status || 'public',
         published_at: videoMetadata?.published_at,
-        transcription: videoTranscription?.transcription,
+        
+        // Description fields - will be handled by descriptions service later
+        original_description: '',
+        current_description: '',
+        compiled_description: '',
+        
+        // Transcription field - use the text content
+        transcription_text: videoTranscription?.transcription,
+        
+        // AI fields - will be handled by AI service later
+        ai_summary: '',
+        ai_description: '',
+        ai_chapters: [],
+        
+        // Tags arrays - will be handled by tags service later
+        original_tags: [],
+        current_tags: [],
+        ai_generated_tags: [],
+        
+        // Configuration fields
         configuration_status: videoConfiguration?.configuration_status || 'NOT_CONFIGURED',
         update_status: videoConfiguration?.update_status || 'ACTIVE_FOR_UPDATE',
+        
+        // Helper fields
         has_transcription: !!videoTranscription?.transcription,
         ai_processed: false // Will be determined by AI content hook when needed
       }
