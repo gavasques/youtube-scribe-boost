@@ -23,14 +23,14 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { useForm } from "react-hook-form"
-import { Block } from "./BlocksTable"
+import { BlockType, BlockScope } from "@/types/block"
 
 interface BlockFormData {
   title: string
   description: string
   content: string
-  type: 'GLOBAL' | 'CATEGORY'
-  scope: 'PERMANENT' | 'SCHEDULED'
+  type: BlockType
+  scope: BlockScope
   priority: number
   scheduledStart?: string
   scheduledEnd?: string
@@ -42,7 +42,21 @@ interface BlockFormProps {
   open: boolean
   onClose: () => void
   onSave: (data: BlockFormData) => void
-  block?: Block | null
+  block?: {
+    id: string
+    title: string
+    description?: string
+    content: string
+    type: BlockType
+    scope: BlockScope
+    priority: number
+    isActive: boolean
+    scheduledStart?: string
+    scheduledEnd?: string
+    categories: string[]
+    videosAffected: number
+    createdAt: string
+  } | null
   categories: string[]
 }
 
@@ -160,15 +174,15 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
                       {...field}
                     >
                       <option value="GLOBAL">Global - Aplica a todos os vídeos</option>
-                      <option value="CATEGORY">Categoria - Aplica apenas a categorias específicas</option>
+                      <option value="CATEGORY_SPECIFIC">Categoria - Aplica apenas a categorias específicas</option>
                     </select>
                   </FormControl>
                 </FormItem>
               )}
             />
 
-            {/* Categorias (se tipo for CATEGORY) */}
-            {watchedType === "CATEGORY" && (
+            {/* Categorias (se tipo for CATEGORY_SPECIFIC) */}
+            {watchedType === "CATEGORY_SPECIFIC" && (
               <FormItem>
                 <FormLabel>Categorias *</FormLabel>
                 <FormDescription>

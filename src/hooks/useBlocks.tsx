@@ -66,15 +66,12 @@ export function useBlocks() {
         throw new Error('Usuário não autenticado')
       }
 
-      // Converter tipo do formulário para o tipo do banco
-      const dbType = data.type === 'CATEGORY' ? 'CATEGORY_SPECIFIC' : data.type
-
       // Preparar dados para inserção
       const blockData = {
         title: data.title,
         description: data.description || null,
         content: data.content,
-        type: dbType,
+        type: data.type,
         scope: data.scope,
         priority: data.priority || 0,
         is_active: data.is_active !== false,
@@ -119,14 +116,11 @@ export function useBlocks() {
   // Atualizar bloco
   const updateBlock = async (id: string, data: BlockFormData) => {
     try {
-      // Converter tipo do formulário para o tipo do banco
-      const dbType = data.type === 'CATEGORY' ? 'CATEGORY_SPECIFIC' : data.type
-
       const updateData = {
         title: data.title,
         description: data.description || null,
         content: data.content,
-        type: dbType,
+        type: data.type,
         scope: data.scope,
         priority: data.priority || 0,
         is_active: data.is_active !== false,
