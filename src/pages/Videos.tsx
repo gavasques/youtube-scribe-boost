@@ -20,7 +20,7 @@ export default function Videos() {
   const { categories, loading: categoriesLoading } = useOptimizedCategories()
   const { filters, setFilters, filteredVideos } = useVideoFilters(videos)
   const { handleUpdateStatusToggle, handleEditVideo, handleSaveVideo, handleSyncComplete } = useVideoActions()
-  const { syncing, progress } = useYouTubeSync()
+  const { syncing, progress, batchSync, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSync()
   
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -75,7 +75,14 @@ export default function Videos() {
       />
 
       {/* Mostrar progresso da sincronização se estiver ativa */}
-      <SyncProgressCard progress={progress} syncing={syncing} />
+      <SyncProgressCard 
+        progress={progress} 
+        syncing={syncing}
+        batchSync={batchSync}
+        onPause={pauseBatchSync}
+        onResume={resumeBatchSync}
+        onStop={stopBatchSync}
+      />
 
       <Card>
         <CardHeader>

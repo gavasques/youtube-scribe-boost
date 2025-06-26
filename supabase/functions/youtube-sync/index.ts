@@ -13,6 +13,25 @@ interface SyncOptions {
   includeShorts: boolean
   syncMetadata: boolean
   maxVideos: number
+  pageToken?: string
+  syncAll?: boolean
+}
+
+interface SyncStats {
+  processed: number
+  new: number
+  updated: number
+  errors: number
+  totalEstimated?: number
+}
+
+interface SyncResult {
+  stats: SyncStats
+  errors?: string[]
+  nextPageToken?: string
+  hasMorePages: boolean
+  currentPage: number
+  totalPages?: number
 }
 
 function log(message: string, data?: any) {
@@ -107,7 +126,6 @@ serve(async (req) => {
   }
 
   try {
-    // Leitura mais robusta do request body
     let requestBody: any = {}
     
     try {
@@ -121,14 +139,11 @@ serve(async (req) => {
         if (bodyText.trim()) {
           requestBody = JSON.parse(bodyText)
         }
-      } else {
-        log('Non-JSON content type, using empty body')
       }
       
       log('Parsed request body', requestBody)
     } catch (parseError) {
       logError('Failed to parse request body', parseError)
-      // Usar body vazio em caso de erro
       requestBody = {}
     }
 
@@ -145,18 +160,18 @@ serve(async (req) => {
       )
     }
 
-    // Extrair opções com valores padrão
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
       includeShorts: requestBody.options?.includeShorts !== false,
       syncMetadata: requestBody.options?.syncMetadata !== false,
-      maxVideos: requestBody.options?.maxVideos || 50
+      maxVideos: requestBody.options?.maxVideos || 50,
+      pageToken: requestBody.options?.pageToken,
+      syncAll: requestBody.options?.syncAll || false
     }
     
     log('Sync options (with defaults)', options)
 
-    // Create Supabase clients
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -168,7 +183,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Verify authentication
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
       logError('Authentication failed', authError)
@@ -180,7 +194,6 @@ serve(async (req) => {
 
     log('User authenticated', { userId: user.id })
 
-    // Get YouTube tokens
     const { data: tokenData, error: tokenError } = await supabaseService
       .from('youtube_tokens')
       .select('*')
@@ -197,7 +210,6 @@ serve(async (req) => {
 
     log('YouTube tokens found', { channelId: tokenData.channel_id })
 
-    // Check and refresh token if needed
     let accessToken = tokenData.access_token
     const expiresAt = new Date(tokenData.expires_at)
     const now = new Date()
@@ -228,10 +240,15 @@ serve(async (req) => {
       log('Token refreshed successfully')
     }
 
-    // Fetch videos from YouTube
-    log('Fetching videos from YouTube', { maxVideos: options.maxVideos })
+    // Build search URL with pagination support
+    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${Math.min(options.maxVideos, 50)}`
     
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${Math.min(options.maxVideos, 50)}`
+    if (options.pageToken) {
+      searchUrl += `&pageToken=${options.pageToken}`
+      log('Using page token for pagination', { pageToken: options.pageToken })
+    }
+    
+    log('Fetching videos from YouTube', { maxVideos: options.maxVideos, pageToken: options.pageToken })
     
     const searchResponse = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -248,20 +265,30 @@ serve(async (req) => {
 
     const searchData = await searchResponse.json()
     const videoIds = searchData.items?.map((item: any) => item.id.videoId) || []
+    const nextPageToken = searchData.nextPageToken
+    const totalResults = searchData.pageInfo?.totalResults || 0
+    const resultsPerPage = searchData.pageInfo?.resultsPerPage || 50
     
-    log('Video IDs fetched', { count: videoIds.length })
+    log('Video IDs fetched', { 
+      count: videoIds.length,
+      nextPageToken,
+      totalResults,
+      resultsPerPage
+    })
 
     if (videoIds.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true,
-          stats: { processed: 0, new: 0, updated: 0, errors: 0 }
+          stats: { processed: 0, new: 0, updated: 0, errors: 0 },
+          hasMorePages: false,
+          currentPage: 1,
+          nextPageToken: null
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Get video details
     const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${videoIds.join(',')}`
     
     const detailsResponse = await fetch(detailsUrl, {
@@ -282,8 +309,7 @@ serve(async (req) => {
     
     log('Video details fetched', { count: videos.length })
 
-    // Process videos
-    const stats = { processed: 0, new: 0, updated: 0, errors: 0 }
+    const stats = { processed: 0, new: 0, updated: 0, errors: 0, totalEstimated: totalResults }
     const errors: string[] = []
 
     for (const video of videos) {
@@ -292,13 +318,11 @@ serve(async (req) => {
         const isShort = durationData.seconds <= 60
         const videoType = isShort ? 'SHORT' : 'REGULAR'
         
-        // Apply filters
         if (videoType === 'REGULAR' && !options.includeRegular) continue
         if (videoType === 'SHORT' && !options.includeShorts) continue
 
         log(`Processing video: ${video.snippet.title}`)
 
-        // Check if video exists
         const { data: existingVideo } = await supabaseService
           .from('videos')
           .select('id')
@@ -356,13 +380,34 @@ serve(async (req) => {
       }
     }
 
-    log('Sync completed', { stats, errorCount: errors.length })
+    // Calculate pagination info
+    const hasMorePages = !!nextPageToken
+    const estimatedTotalPages = Math.ceil(totalResults / resultsPerPage)
+    const currentPage = options.pageToken ? 
+      Math.floor((stats.processed || 0) / resultsPerPage) + 1 : 1
+
+    const result: SyncResult = {
+      stats,
+      errors: errors.length > 0 ? errors : undefined,
+      nextPageToken,
+      hasMorePages,
+      currentPage,
+      totalPages: estimatedTotalPages
+    }
+
+    log('Sync completed', { 
+      stats, 
+      errorCount: errors.length,
+      hasMorePages,
+      nextPageToken: nextPageToken ? 'present' : 'none',
+      currentPage,
+      totalPages: estimatedTotalPages
+    })
 
     return new Response(
       JSON.stringify({
         success: true,
-        stats,
-        errors: errors.length > 0 ? errors : undefined
+        ...result
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

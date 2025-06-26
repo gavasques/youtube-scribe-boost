@@ -2,44 +2,15 @@
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
-import { Progress } from '@/components/ui/progress'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useToast } from '@/hooks/use-toast'
-import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
 import { useYouTubeSync } from '@/hooks/useYouTubeSync'
-import { 
-  Youtube, 
-  RefreshCw, 
-  Settings, 
-  CheckCircle, 
-  XCircle,
-  Clock,
-  Video,
-  Zap,
-  AlertTriangle
-} from 'lucide-react'
-
-interface SyncOptions {
-  type: 'full' | 'incremental'
-  includeRegular: boolean
-  includeShorts: boolean
-  syncMetadata: boolean
-  maxVideos: number
-}
-
-interface SyncStats {
-  processed: number
-  new: number
-  updated: number
-  errors: number
-}
+import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
+import { Youtube, Zap, Database, AlertCircle, Infinity } from 'lucide-react'
 
 interface YouTubeSyncModalProps {
   open: boolean
@@ -48,354 +19,226 @@ interface YouTubeSyncModalProps {
 }
 
 export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncModalProps) {
-  const { toast } = useToast()
-  const { isConnected, connecting, startOAuth } = useYouTubeAuth()
-  const { syncing, progress, syncWithYouTube, resetProgress } = useYouTubeSync()
+  const { isConnected } = useYouTubeAuth()
+  const { syncWithYouTube, syncAllVideos, syncing } = useYouTubeSync()
   
-  const [stats, setStats] = useState<SyncStats | null>(null)
-  const [errors, setErrors] = useState<string[]>([])
-  const [showConfig, setShowConfig] = useState(true)
-
-  const [options, setOptions] = useState<SyncOptions>({
-    type: 'incremental',
-    includeRegular: true,
-    includeShorts: true,
-    syncMetadata: true,
-    maxVideos: 50
-  })
+  const [syncType, setSyncType] = useState<'quick' | 'full' | 'complete'>('quick')
+  const [includeRegular, setIncludeRegular] = useState(true)
+  const [includeShorts, setIncludeShorts] = useState(true)
+  const [syncMetadata, setSyncMetadata] = useState(true)
+  const [maxVideos, setMaxVideos] = useState(50)
 
   const handleSync = async () => {
-    // Verificar conexão antes de iniciar
-    if (!isConnected) {
-      toast({
-        title: 'YouTube não conectado',
-        description: 'Conecte sua conta do YouTube antes de sincronizar',
-        variant: 'destructive'
-      })
-      return
-    }
-
-    setShowConfig(false)
-    setStats(null)
-    setErrors([])
-    resetProgress()
-
     try {
-      const result = await syncWithYouTube(options)
-      setStats(result.stats)
-      
-      if (result.errors) {
-        setErrors(result.errors)
+      if (syncType === 'complete') {
+        await syncAllVideos({
+          type: 'full',
+          includeRegular,
+          includeShorts,
+          syncMetadata,
+          maxVideos: 50 // Use 50 per page for complete sync
+        })
+      } else {
+        await syncWithYouTube({
+          type: syncType === 'quick' ? 'incremental' : 'full',
+          includeRegular,
+          includeShorts,
+          syncMetadata,
+          maxVideos: syncType === 'quick' ? 50 : maxVideos
+        })
       }
-
+      
       onSyncComplete()
-
     } catch (error) {
-      console.error('Erro na sincronização:', error)
-      setErrors([error.message || 'Erro desconhecido'])
+      console.error('Sync failed:', error)
     }
   }
 
-  const handleClose = () => {
-    if (!syncing) {
-      onClose()
-      // Reset state after a delay to avoid flicker
-      setTimeout(() => {
-        setShowConfig(true)
-        setStats(null)
-        setErrors([])
-        resetProgress()
-      }, 300)
-    }
-  }
-
-  const getProgressPercentage = () => {
-    if (!progress) return 0
-    return Math.round((progress.current / progress.total) * 100)
+  if (!isConnected) {
+    return (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Youtube className="w-5 h-5 text-red-500" />
+              YouTube não conectado
+            </DialogTitle>
+            <DialogDescription>
+              Você precisa conectar sua conta do YouTube primeiro para sincronizar os vídeos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={onClose}>Entendi</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Youtube className="w-5 h-5 text-red-500" />
             Sincronizar com YouTube
           </DialogTitle>
           <DialogDescription>
-            Sincronize seus vídeos do YouTube com o banco local
+            Configure como você deseja sincronizar seus vídeos do YouTube
           </DialogDescription>
         </DialogHeader>
 
-        {/* Verificação de Conexão */}
-        {!isConnected && (
-          <Alert className="border-orange-200 bg-orange-50">
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-            <AlertDescription className="text-orange-800">
-              <div className="flex items-center justify-between">
-                <span>Você precisa conectar sua conta do YouTube primeiro.</span>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={startOAuth}
-                  disabled={connecting}
-                  className="ml-2"
-                >
-                  {connecting ? 'Conectando...' : 'Conectar YouTube'}
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {showConfig && !syncing && isConnected && (
-          <div className="space-y-6">
-            {/* Tipo de Sincronização */}
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Tipo de Sincronização</Label>
-              <div className="flex gap-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="incremental"
-                    checked={options.type === 'incremental'}
-                    onChange={() => setOptions(prev => ({ ...prev, type: 'incremental' }))}
-                  />
-                  <Label htmlFor="incremental" className="cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4" />
-                      Incremental
-                    </div>
-                    <p className="text-xs text-muted-foreground">Apenas novos vídeos</p>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="full"
-                    checked={options.type === 'full'}
-                    onChange={() => setOptions(prev => ({ ...prev, type: 'full' }))}
-                  />
-                  <Label htmlFor="full" className="cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Settings className="w-4 h-4" />
-                      Completa
-                    </div>
-                    <p className="text-xs text-muted-foreground">Todos os vídeos</p>
-                  </Label>
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Opções de Conteúdo */}
-            <div className="space-y-4">
-              <Label className="text-base font-medium">Tipos de Vídeo</Label>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Video className="w-4 h-4" />
-                  <Label htmlFor="regular">Vídeos Normais</Label>
-                </div>
-                <Switch
-                  id="regular"
-                  checked={options.includeRegular}
-                  onCheckedChange={(checked) => 
-                    setOptions(prev => ({ ...prev, includeRegular: checked }))
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  <Label htmlFor="shorts">YouTube Shorts</Label>
-                </div>
-                <Switch
-                  id="shorts"
-                  checked={options.includeShorts}
-                  onCheckedChange={(checked) => 
-                    setOptions(prev => ({ ...prev, includeShorts: checked }))
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4" />
-                  <Label htmlFor="metadata">Sincronizar Metadados</Label>
-                </div>
-                <Switch
-                  id="metadata"
-                  checked={options.syncMetadata}
-                  onCheckedChange={(checked) => 
-                    setOptions(prev => ({ ...prev, syncMetadata: checked }))
-                  }
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Limite de Vídeos */}
-            <div className="space-y-2">
-              <Label htmlFor="maxVideos">Máximo de Vídeos</Label>
-              <Input
-                id="maxVideos"
-                type="number"
-                min="1"
-                max="500"
-                value={options.maxVideos}
-                onChange={(e) => 
-                  setOptions(prev => ({ ...prev, maxVideos: parseInt(e.target.value) || 50 }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Limite de vídeos para processar (máximo: 500)
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Progress */}
-        {(syncing || progress) && (
+        <div className="space-y-6">
+          {/* Tipo de Sincronização */}
           <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  {progress?.message || 'Preparando sincronização...'}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {progress ? `${progress.current}/${progress.total}` : '0/5'}
-                </span>
-              </div>
-              <Progress value={getProgressPercentage()} className="w-full" />
-            </div>
-
-            {progress && (
-              <div className="text-center text-sm text-muted-foreground">
-                {getProgressPercentage()}% concluído
-              </div>
-            )}
-
-            {progress?.errors && progress.errors.length > 0 && (
-              <Alert className="border-red-200 bg-red-50">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <AlertDescription className="text-red-800">
-                  <div className="space-y-1">
-                    {progress.errors.map((error, index) => (
-                      <div key={index} className="text-xs">
-                        {error}
-                      </div>
-                    ))}
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        )}
-
-        {/* Results */}
-        {stats && !syncing && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    Processados
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.processed}</div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-blue-600" />
-                    Novos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-600">{stats.new}</div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4 text-orange-600" />
-                    Atualizados
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-orange-600">{stats.updated}</div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <XCircle className="w-4 h-4 text-red-600" />
-                    Erros
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">{stats.errors}</div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {errors.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-red-600">Erros Encontrados:</Label>
-                <ScrollArea className="h-24 w-full border rounded-md p-2">
-                  <div className="space-y-1">
-                    {errors.map((error, index) => (
-                      <div key={index} className="text-xs text-red-600">
-                        {error}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex justify-end gap-2 pt-4">
-          {showConfig && !syncing && (
-            <>
-              <Button variant="outline" onClick={handleClose}>
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleSync}
-                disabled={syncing || !isConnected || (!options.includeRegular && !options.includeShorts)}
-                className="gap-2"
+            <Label className="text-base font-medium">Tipo de Sincronização</Label>
+            <div className="grid gap-3">
+              {/* Quick Sync */}
+              <Card 
+                className={`cursor-pointer border-2 transition-colors ${
+                  syncType === 'quick' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setSyncType('quick')}
               >
-                <Youtube className="w-4 h-4" />
-                Iniciar Sincronização
-              </Button>
-            </>
-          )}
-          
-          {syncing && (
-            <Button variant="outline" disabled>
-              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-              Sincronizando...
-            </Button>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Zap className="w-4 h-4 text-blue-500" />
+                    Sincronização Rápida
+                    <Badge variant="secondary">Recomendado</Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Sincroniza até 50 vídeos mais recentes. Ideal para atualizações regulares.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              {/* Full Sync */}
+              <Card 
+                className={`cursor-pointer border-2 transition-colors ${
+                  syncType === 'full' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setSyncType('full')}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Database className="w-4 h-4 text-orange-500" />
+                    Sincronização Personalizada
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Escolha quantos vídeos sincronizar (até 500). Mais controle sobre o processo.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              {/* Complete Sync */}
+              <Card 
+                className={`cursor-pointer border-2 transition-colors ${
+                  syncType === 'complete' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setSyncType('complete')}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Infinity className="w-4 h-4 text-purple-500" />
+                    Sincronização Completa
+                    <Badge variant="outline" className="text-purple-600 border-purple-600">Todos os vídeos</Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Sincroniza TODOS os vídeos do seu canal. Pode levar vários minutos. Ideal para configuração inicial.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          </div>
+
+          {/* Opções Avançadas */}
+          {syncType === 'full' && (
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Configurações</Label>
+              <div className="space-y-2">
+                <Label htmlFor="maxVideos">Máximo de vídeos (1-500)</Label>
+                <Input
+                  id="maxVideos"
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={maxVideos}
+                  onChange={(e) => setMaxVideos(parseInt(e.target.value) || 50)}
+                  className="w-full"
+                />
+              </div>
+            </div>
           )}
 
-          {stats && !syncing && (
-            <Button onClick={handleClose}>
-              Fechar
-            </Button>
+          {/* Alertas */}
+          {syncType === 'complete' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                <div className="text-sm">
+                  <div className="font-medium text-yellow-800">Sincronização Completa</div>
+                  <div className="text-yellow-700 mt-1">
+                    Esta opção pode levar muito tempo se você tiver muitos vídeos. O processo será feito em lotes e você poderá pausar/retomar a qualquer momento.
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
+
+          {/* Filtros */}
+          <div className="space-y-4">
+            <Label className="text-base font-medium">Tipos de Conteúdo</Label>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Vídeos Regulares</Label>
+                  <p className="text-sm text-muted-foreground">Vídeos com mais de 60 segundos</p>
+                </div>
+                <Switch
+                  checked={includeRegular}
+                  onCheckedChange={setIncludeRegular}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>YouTube Shorts</Label>
+                  <p className="text-sm text-muted-foreground">Vídeos com 60 segundos ou menos</p>
+                </div>
+                <Switch
+                  checked={includeShorts}
+                  onCheckedChange={setIncludeShorts}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Atualizar Metadados</Label>
+                  <p className="text-sm text-muted-foreground">Views, likes, comentários dos vídeos existentes</p>
+                </div>
+                <Switch
+                  checked={syncMetadata}
+                  onCheckedChange={setSyncMetadata}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Ações */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={onClose} disabled={syncing}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSync} 
+              disabled={syncing || (!includeRegular && !includeShorts)}
+              className="flex items-center gap-2"
+            >
+              <Youtube className="w-4 h-4" />
+              {syncing ? 'Sincronizando...' : 
+               syncType === 'complete' ? 'Sincronizar Todos' :
+               syncType === 'full' ? `Sincronizar ${maxVideos} Vídeos` :
+               'Sincronização Rápida'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
