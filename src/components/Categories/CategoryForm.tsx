@@ -28,7 +28,7 @@ export function CategoryForm({
     is_active: CATEGORY_DEFAULTS.DEFAULT_ACTIVE_STATUS
   })
 
-  const [errors, setErrors] = useState<Partial<CategoryFormData>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   const isEditing = !!category
 
@@ -56,7 +56,7 @@ export function CategoryForm({
       setErrors(prev => {
         const newErrors = { ...prev }
         Object.keys(updates).forEach(key => {
-          delete newErrors[key as keyof CategoryFormData]
+          delete newErrors[key]
         })
         return newErrors
       })
@@ -68,9 +68,9 @@ export function CategoryForm({
     
     const validation = validateCategoryForm(formData)
     if (!validation.success) {
-      const fieldErrors: Partial<CategoryFormData> = {}
+      const fieldErrors: Record<string, string> = {}
       validation.error.errors.forEach(error => {
-        const field = error.path[0] as keyof CategoryFormData
+        const field = error.path[0] as string
         if (field) {
           fieldErrors[field] = error.message
         }
@@ -83,6 +83,10 @@ export function CategoryForm({
     if (!isLoading) {
       onClose()
     }
+  }
+
+  const handleActionsSubmit = () => {
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent)
   }
 
   return (
@@ -104,7 +108,7 @@ export function CategoryForm({
           <CategoryFormActions
             isEditing={isEditing}
             onCancel={onClose}
-            onSubmit={handleSubmit}
+            onSubmit={handleActionsSubmit}
             isLoading={isLoading}
           />
         </form>

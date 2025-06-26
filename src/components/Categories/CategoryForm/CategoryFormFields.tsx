@@ -9,7 +9,7 @@ import { CATEGORY_FORM_CONFIG } from "@/utils/categoryConstants"
 interface CategoryFormFieldsProps {
   formData: CategoryFormData
   onChange: (data: Partial<CategoryFormData>) => void
-  errors: Partial<CategoryFormData>
+  errors: Record<string, string>
 }
 
 export function CategoryFormFields({ formData, onChange, errors }: CategoryFormFieldsProps) {

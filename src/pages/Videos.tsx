@@ -9,13 +9,13 @@ import { VideoHeader } from "@/components/Videos/VideoHeader"
 import { VideoList } from "@/components/Videos/VideoList/VideoList"
 import { Video, VideoFormData } from "@/types/video"
 import { useVideos } from "@/hooks/useVideos"
-import { useCategories } from "@/hooks/useCategories"
+import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
 import { useVideoFilters } from "@/hooks/useVideoFilters"
 import { useVideoActions } from "@/hooks/useVideoActions"
 
 export default function Videos() {
   const { videos, loading: videosLoading, fetchVideos } = useVideos()
-  const { categories, loading: categoriesLoading } = useCategories()
+  const { categories, loading: categoriesLoading } = useOptimizedCategories()
   const { filters, setFilters, filteredVideos } = useVideoFilters(videos)
   const { handleUpdateStatusToggle, handleEditVideo, handleSaveVideo, handleSyncComplete } = useVideoActions()
   
