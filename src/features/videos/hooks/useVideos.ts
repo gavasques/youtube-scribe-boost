@@ -1,5 +1,3 @@
 
-// Move videos hook to feature folder
-import { useVideos as useVideosOriginal } from '@/hooks/useVideos'
-
-export const useVideos = useVideosOriginal
+// Updated videos hook using new normalized structure
+export { useVideosComposed as useVideos } from './useVideosComposed'
