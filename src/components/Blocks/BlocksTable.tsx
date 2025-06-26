@@ -36,27 +36,11 @@ import {
   Info,
   ArrowUpDown
 } from "lucide-react"
-
-export interface Block {
-  id: string
-  title: string
-  content: string
-  type: 'GLOBAL' | 'CATEGORY' | 'MANUAL'
-  scope: 'PERMANENT' | 'SCHEDULED'
-  priority: number
-  isActive: boolean
-  scheduledStart?: string
-  scheduledEnd?: string
-  categories: string[]
-  createdAt: string
-  videoId?: string
-  videoTitle?: string
-  videoDescription?: string
-}
+import { BlockUI } from "@/types/block"
 
 interface BlocksTableProps {
-  blocks: Block[]
-  onEdit: (block: Block) => void
+  blocks: BlockUI[]
+  onEdit: (block: BlockUI) => void
   onToggleActive: (blockId: string) => void
   onDelete: (blockId: string) => void
   onMoveUp: (blockId: string) => void
@@ -142,7 +126,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
     }
   }
 
-  const getScopeBadge = (block: Block) => {
+  const getScopeBadge = (block: BlockUI) => {
     if (block.scope === "PERMANENT") {
       return <Badge variant="secondary">Permanente</Badge>
     }
@@ -155,16 +139,16 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
     )
   }
 
-  const getBlockContent = (block: Block) => {
+  const getBlockContent = (block: BlockUI) => {
     if (block.type === 'MANUAL') {
       return 'Este bloco representa onde as descrições dos vídeos aparecem na compilação final. A posição dele na lista define onde as descrições ficam em relação aos outros blocos.'
     }
     return block.content
   }
 
-  const canEdit = (block: Block) => block.type !== 'MANUAL'
-  const canDelete = (block: Block) => block.type !== 'MANUAL'
-  const canToggleActive = (block: Block) => block.type !== 'MANUAL'
+  const canEdit = (block: BlockUI) => block.type !== 'MANUAL'
+  const canDelete = (block: BlockUI) => block.type !== 'MANUAL'
+  const canToggleActive = (block: BlockUI) => block.type !== 'MANUAL'
 
   return (
     <Card>
@@ -194,7 +178,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
           >
             <option value="all">Todos os tipos</option>
             <option value="GLOBAL">Global</option>
-            <option value="CATEGORY">Categoria</option>
+            <option value="CATEGORY_SPECIFIC">Categoria</option>
             <option value="MANUAL">Descrições dos Vídeos</option>
           </select>
           
