@@ -188,7 +188,6 @@ export function useYouTubeSync() {
       logger.info('Edge function test response', {
         hasData: !!response.data,
         hasError: !!response.error,
-        status: response.status,
         errorMessage: response.error?.message
       })
 
@@ -229,7 +228,6 @@ export function useYouTubeSync() {
     logger.info('Sync function response received', {
       hasData: !!response.data,
       hasError: !!response.error,
-      status: response.status,
       dataKeys: response.data ? Object.keys(response.data) : [],
       errorDetails: response.error
     })
