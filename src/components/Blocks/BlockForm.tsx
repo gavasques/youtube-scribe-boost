@@ -1,5 +1,5 @@
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -63,21 +63,61 @@ interface BlockFormProps {
 export function BlockForm({ open, onClose, onSave, block, categories }: BlockFormProps) {
   const form = useForm<BlockFormData>({
     defaultValues: {
-      title: block?.title || "",
-      description: block?.description || "",
-      content: block?.content || "",
-      type: block?.type || "GLOBAL",
-      scope: block?.scope || "PERMANENT",
-      priority: block?.priority || 0,
-      scheduledStart: block?.scheduledStart || "",
-      scheduledEnd: block?.scheduledEnd || "",
-      categories: block?.categories || [],
+      title: "",
+      description: "",
+      content: "",
+      type: "GLOBAL",
+      scope: "PERMANENT",
+      priority: 0,
+      scheduledStart: "",
+      scheduledEnd: "",
+      categories: [],
       applyToExisting: false,
     },
   })
 
   const watchedType = form.watch("type")
   const watchedScope = form.watch("scope")
+
+  // Função para formatar data para input date
+  const formatDateForInput = (dateString?: string) => {
+    if (!dateString) return ""
+    const date = new Date(dateString)
+    return date.toISOString().split('T')[0]
+  }
+
+  // Resetar formulário quando o bloco mudar
+  useEffect(() => {
+    if (block) {
+      console.log('Carregando dados do bloco para edição:', block)
+      form.reset({
+        title: block.title,
+        description: block.description || "",
+        content: block.content,
+        type: block.type,
+        scope: block.scope,
+        priority: block.priority,
+        scheduledStart: formatDateForInput(block.scheduledStart),
+        scheduledEnd: formatDateForInput(block.scheduledEnd),
+        categories: block.categories || [],
+        applyToExisting: false,
+      })
+    } else {
+      // Resetar para valores padrão quando não há bloco (criação)
+      form.reset({
+        title: "",
+        description: "",
+        content: "",
+        type: "GLOBAL",
+        scope: "PERMANENT",
+        priority: 0,
+        scheduledStart: "",
+        scheduledEnd: "",
+        categories: [],
+        applyToExisting: false,
+      })
+    }
+  }, [block, form])
 
   const handleSubmit = (data: BlockFormData) => {
     console.log('Dados do formulário:', data)
