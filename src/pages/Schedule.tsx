@@ -1,60 +1,86 @@
 
+import { useState } from "react"
 import { ScheduleHeader } from "@/components/Schedule/ScheduleHeader"
 import { ScheduleTaskList } from "@/components/Schedule/ScheduleTaskList"
+import { ScheduleTaskModal } from "@/components/Schedule/ScheduleTaskModal"
+import { useScheduledTasks } from "@/hooks/useScheduledTasks"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertTriangle } from "lucide-react"
 
 export default function Schedule() {
-  const tasks = [
-    {
-      id: "1",
-      name: "Ativar Promoção Black Friday", 
-      type: "activate_block",
-      scheduledFor: "2024-11-20T00:00:00",
-      status: "pending",
-      description: "Ativar bloco promocional da Black Friday"
-    },
-    {
-      id: "2",
-      name: "Desativar Promoção Black Friday",
-      type: "deactivate_block", 
-      scheduledFor: "2024-11-30T23:59:00",
-      status: "pending",
-      description: "Desativar bloco promocional da Black Friday"
-    },
-    {
-      id: "3",
-      name: "Sincronização Semanal",
-      type: "sync_videos",
-      scheduledFor: "2024-06-30T02:00:00", 
-      status: "completed",
-      description: "Sincronização automática com YouTube"
-    }
-  ]
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<string | null>(null)
+  
+  const {
+    tasks,
+    loading,
+    error,
+    refreshTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    executeTask
+  } = useScheduledTasks()
 
   const handleNewTask = () => {
-    console.log('Nova tarefa')
-  }
-
-  const handleExecuteTask = (taskId: string) => {
-    console.log('Executar tarefa:', taskId)
-  }
-
-  const handlePauseTask = (taskId: string) => {
-    console.log('Pausar tarefa:', taskId)
+    setEditingTask(null)
+    setIsModalOpen(true)
   }
 
   const handleEditTask = (taskId: string) => {
-    console.log('Editar tarefa:', taskId)
+    setEditingTask(taskId)
+    setIsModalOpen(true)
+  }
+
+  const handleExecuteTask = async (taskId: string) => {
+    await executeTask(taskId)
+  }
+
+  const handlePauseTask = async (taskId: string) => {
+    // Pausar = atualizar status para pending se estiver running
+    const task = tasks.find(t => t.id === taskId)
+    if (task?.status === 'running') {
+      await updateTask(taskId, { scheduled_for: new Date().toISOString() })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <ScheduleHeader onNewTask={handleNewTask} />
       
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            {error}
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <ScheduleTaskList
         tasks={tasks}
         onExecute={handleExecuteTask}
         onPause={handlePauseTask}
         onEdit={handleEditTask}
+        onDelete={deleteTask}
+      />
+
+      <ScheduleTaskModal
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        editingTaskId={editingTask}
+        tasks={tasks}
+        onCreateTask={createTask}
+        onUpdateTask={updateTask}
       />
     </div>
   )

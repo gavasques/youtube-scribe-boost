@@ -235,6 +235,54 @@ export type Database = {
           },
         ]
       }
+      scheduled_tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          error_message: string | null
+          executed_at: string | null
+          id: string
+          name: string
+          scheduled_for: string
+          status: Database["public"]["Enums"]["scheduled_task_status"]
+          task_data: Json | null
+          task_type: Database["public"]["Enums"]["scheduled_task_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          name: string
+          scheduled_for: string
+          status?: Database["public"]["Enums"]["scheduled_task_status"]
+          task_data?: Json | null
+          task_type: Database["public"]["Enums"]["scheduled_task_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          name?: string
+          scheduled_for?: string
+          status?: Database["public"]["Enums"]["scheduled_task_status"]
+          task_data?: Json | null
+          task_type?: Database["public"]["Enums"]["scheduled_task_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           avatar_url: string | null
@@ -438,6 +486,10 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: string
       }
+      process_scheduled_tasks: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       approval_status: "PENDING" | "APPROVED" | "REJECTED"
@@ -448,6 +500,8 @@ export type Database = {
         | "CATEGORY_CHANGE"
         | "TAG_UPDATE"
         | "SEASONAL_TEMPLATE"
+      scheduled_task_status: "pending" | "running" | "completed" | "error"
+      scheduled_task_type: "activate_block" | "deactivate_block" | "sync_videos"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -571,6 +625,12 @@ export const Constants = {
         "CATEGORY_CHANGE",
         "TAG_UPDATE",
         "SEASONAL_TEMPLATE",
+      ],
+      scheduled_task_status: ["pending", "running", "completed", "error"],
+      scheduled_task_type: [
+        "activate_block",
+        "deactivate_block",
+        "sync_videos",
       ],
     },
   },
