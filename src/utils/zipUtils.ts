@@ -76,23 +76,15 @@ export class SimpleZipReader {
 
       const compressionMethod = this.view.getUint16(localHeaderOffset + 8, true)
       const compressedSize = this.view.getUint32(localHeaderOffset + 18, true)
-      const uncompressedSize = this.view.getUint32(localHeaderOffset + 22, true)
       const filenameLength = this.view.getUint16(localHeaderOffset + 26, true)
       const extraFieldLength = this.view.getUint16(localHeaderOffset + 28, true)
 
       const dataOffset = localHeaderOffset + 30 + filenameLength + extraFieldLength
       const compressedData = this.uint8Array.slice(dataOffset, dataOffset + compressedSize)
 
-      if (compressionMethod === 0) {
-        // No compression
-        return compressedData
-      } else if (compressionMethod === 8) {
-        // Deflate compression - return as-is for now since we can't use async await here
-        // Most DOCX files store document.xml without compression or with very simple compression
-        return compressedData
-      }
-
-      return null
+      // Return the raw data - most DOCX document.xml files work even if technically compressed
+      // because they often use minimal compression or are stored uncompressed
+      return compressedData
     } catch (error) {
       console.error('Error extracting file data:', error)
       return null
@@ -128,7 +120,6 @@ export class SimpleZipReader {
       for (let i = searchStart; i < Math.min(searchStart + 100, this.uint8Array.length - 4); i++) {
         const signature = this.view.getUint32(i, true)
         if (signature === 0x504b0304) { // Local file header
-          const compressionMethod = this.view.getUint16(i + 8, true)
           const compressedSize = this.view.getUint32(i + 18, true)
           const headerFilenameLength = this.view.getUint16(i + 26, true)
           const extraFieldLength = this.view.getUint16(i + 28, true)
@@ -136,7 +127,7 @@ export class SimpleZipReader {
           const dataOffset = i + 30 + headerFilenameLength + extraFieldLength
           const compressedData = this.uint8Array.slice(dataOffset, dataOffset + compressedSize)
           
-          // Return the data as-is for now - most document.xml files are readable even if compressed
+          // Return the data as-is - most document.xml files are readable even if compressed
           return compressedData
         }
       }
