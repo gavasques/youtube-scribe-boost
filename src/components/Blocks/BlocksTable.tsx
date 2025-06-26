@@ -30,14 +30,16 @@ import {
   ChevronUp, 
   ChevronDown,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  FileText,
+  Lock
 } from "lucide-react"
 
 export interface Block {
   id: string
   title: string
   content: string
-  type: 'GLOBAL' | 'CATEGORY'
+  type: 'GLOBAL' | 'CATEGORY' | 'MANUAL'
   scope: 'PERMANENT' | 'SCHEDULED'
   priority: number
   isActive: boolean
@@ -45,6 +47,9 @@ export interface Block {
   scheduledEnd?: string
   categories: string[]
   createdAt: string
+  videoId?: string
+  videoTitle?: string
+  videoDescription?: string
 }
 
 interface BlocksTableProps {
@@ -83,17 +88,28 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
   }
 
   const getTypeBadge = (type: string) => {
-    return type === "GLOBAL" ? (
-      <Badge variant="default" className="gap-1">
-        <Globe className="w-3 h-3" />
-        Global
-      </Badge>
-    ) : (
-      <Badge variant="outline" className="gap-1">
-        <FolderTree className="w-3 h-3" />
-        Categoria
-      </Badge>
-    )
+    if (type === "GLOBAL") {
+      return (
+        <Badge variant="default" className="gap-1">
+          <Globe className="w-3 h-3" />
+          Global
+        </Badge>
+      )
+    } else if (type === "MANUAL") {
+      return (
+        <Badge variant="outline" className="gap-1 border-blue-500 text-blue-700">
+          <FileText className="w-3 h-3" />
+          Manual
+        </Badge>
+      )
+    } else {
+      return (
+        <Badge variant="outline" className="gap-1">
+          <FolderTree className="w-3 h-3" />
+          Categoria
+        </Badge>
+      )
+    }
   }
 
   const getScopeBadge = (block: Block) => {
@@ -108,6 +124,17 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
       </Badge>
     )
   }
+
+  const getBlockContent = (block: Block) => {
+    if (block.type === 'MANUAL') {
+      return block.videoDescription || 'Descrição do vídeo não disponível'
+    }
+    return block.content
+  }
+
+  const canEdit = (block: Block) => block.type !== 'MANUAL'
+  const canDelete = (block: Block) => block.type !== 'MANUAL'
+  const canToggleActive = (block: Block) => block.type !== 'MANUAL'
 
   return (
     <Card>
@@ -138,6 +165,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
             <option value="all">Todos os tipos</option>
             <option value="GLOBAL">Global</option>
             <option value="CATEGORY">Categoria</option>
+            <option value="MANUAL">Manual</option>
           </select>
           
           <select
@@ -168,7 +196,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
             <TableBody>
               {filteredBlocks.map((block, index) => (
                 <>
-                  <TableRow key={block.id}>
+                  <TableRow key={block.id} className={block.type === 'MANUAL' ? 'bg-blue-50/50' : ''}>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -184,24 +212,38 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{block.title}</div>
-                        {block.categories.length > 0 && (
-                          <div className="flex gap-1 mt-1">
-                            {block.categories.map((category) => (
-                              <Badge key={category} variant="outline" className="text-xs">
-                                {category}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-2">
+                        {block.type === 'MANUAL' && <Lock className="w-4 h-4 text-gray-500" />}
+                        <div>
+                          <div className="font-medium">{block.title}</div>
+                          {block.type === 'MANUAL' && block.videoTitle && (
+                            <div className="text-sm text-gray-500">
+                              Vídeo: {block.videoTitle}
+                            </div>
+                          )}
+                          {block.categories.length > 0 && (
+                            <div className="flex gap-1 mt-1">
+                              {block.categories.map((category) => (
+                                <Badge key={category} variant="outline" className="text-xs">
+                                  {category}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{getTypeBadge(block.type)}</TableCell>
                     <TableCell>
-                      <Badge variant={block.isActive ? "default" : "secondary"}>
-                        {block.isActive ? "Ativo" : "Inativo"}
-                      </Badge>
+                      {block.type === 'MANUAL' ? (
+                        <Badge variant="default" className="bg-blue-600">
+                          Sempre Ativo
+                        </Badge>
+                      ) : (
+                        <Badge variant={block.isActive ? "default" : "secondary"}>
+                          {block.isActive ? "Ativo" : "Inativo"}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>{getScopeBadge(block)}</TableCell>
                     <TableCell>
@@ -234,21 +276,33 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onEdit(block)}>
-                            <Edit className="w-4 h-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onToggleActive(block.id)}>
-                            <Power className="w-4 h-4 mr-2" />
-                            {block.isActive ? "Desativar" : "Ativar"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => onDelete(block.id)}
-                            className="text-destructive"
-                          >
-                            <Trash className="w-4 h-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
+                          {canEdit(block) && (
+                            <DropdownMenuItem onClick={() => onEdit(block)}>
+                              <Edit className="w-4 h-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                          )}
+                          {canToggleActive(block) && (
+                            <DropdownMenuItem onClick={() => onToggleActive(block.id)}>
+                              <Power className="w-4 h-4 mr-2" />
+                              {block.isActive ? "Desativar" : "Ativar"}
+                            </DropdownMenuItem>
+                          )}
+                          {canDelete(block) && (
+                            <DropdownMenuItem 
+                              onClick={() => onDelete(block.id)}
+                              className="text-destructive"
+                            >
+                              <Trash className="w-4 h-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          )}
+                          {block.type === 'MANUAL' && (
+                            <DropdownMenuItem disabled>
+                              <Lock className="w-4 h-4 mr-2" />
+                              Bloco protegido
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -257,11 +311,18 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                     <TableRow>
                       <TableCell></TableCell>
                       <TableCell colSpan={6}>
-                        <div className="bg-gray-50 p-4 rounded-md">
-                          <div className="text-sm font-medium text-gray-700 mb-2">Conteúdo do Bloco:</div>
-                          <div className="text-sm text-gray-600 whitespace-pre-wrap border p-3 bg-white rounded">
-                            {block.content}
+                        <div className={`p-4 rounded-md ${block.type === 'MANUAL' ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                          <div className="text-sm font-medium text-gray-700 mb-2">
+                            {block.type === 'MANUAL' ? 'Conteúdo da Descrição do Vídeo:' : 'Conteúdo do Bloco:'}
                           </div>
+                          <div className="text-sm text-gray-600 whitespace-pre-wrap border p-3 bg-white rounded">
+                            {getBlockContent(block)}
+                          </div>
+                          {block.type === 'MANUAL' && (
+                            <div className="text-xs text-blue-600 mt-2">
+                              ℹ️ Este bloco representa a descrição atual do vídeo vinculado
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

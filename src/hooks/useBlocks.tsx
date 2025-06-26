@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { Block, BlockFormData } from '@/types/block'
@@ -31,7 +32,15 @@ export function useBlocks() {
 
       const { data, error } = await supabase
         .from('blocks')
-        .select('*')
+        .select(`
+          *,
+          videos!blocks_video_id_fkey (
+            id,
+            title,
+            current_description,
+            ai_description
+          )
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
@@ -54,10 +63,15 @@ export function useBlocks() {
     }
   }
 
-  // Criar novo bloco
+  // Criar novo bloco (não permite criar blocos MANUAL diretamente)
   const createBlock = async (data: BlockFormData) => {
     try {
       console.log('Criando bloco com dados:', data)
+      
+      // Verificar se está tentando criar um bloco MANUAL
+      if (data.type === 'MANUAL') {
+        throw new Error('Blocos do tipo MANUAL não podem ser criados manualmente')
+      }
       
       // Obter usuário atual
       const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -76,6 +90,7 @@ export function useBlocks() {
         is_active: data.is_active !== false,
         scheduled_start: data.scheduled_start || null,
         scheduled_end: data.scheduled_end || null,
+        video_id: data.video_id || null,
         user_id: user.id
       }
 
@@ -112,9 +127,15 @@ export function useBlocks() {
     }
   }
 
-  // Atualizar bloco
+  // Atualizar bloco (não permite editar blocos MANUAL)
   const updateBlock = async (id: string, data: BlockFormData) => {
     try {
+      // Verificar se é um bloco MANUAL
+      const blockToUpdate = blocks.find(b => b.id === id)
+      if (blockToUpdate?.type === 'MANUAL') {
+        throw new Error('Blocos do tipo MANUAL não podem ser editados')
+      }
+
       const updateData = {
         title: data.title,
         content: data.content,
@@ -147,7 +168,48 @@ export function useBlocks() {
       console.error('Erro ao atualizar bloco:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao atualizar bloco.',
+        description: error instanceof Error ? error.message : 'Erro ao atualizar bloco.',
+        variant: 'destructive',
+      })
+      return { data: null, error }
+    }
+  }
+
+  // Criar bloco MANUAL para um vídeo específico
+  const createManualBlock = async (videoId: string, videoTitle: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Usuário não autenticado')
+
+      const { data: manualBlock, error } = await supabase
+        .from('blocks')
+        .insert([{
+          title: `Descrição do vídeo: ${videoTitle}`,
+          content: '', // Conteúdo vazio pois será puxado da descrição do vídeo
+          type: 'MANUAL',
+          scope: 'PERMANENT',
+          priority: 0,
+          is_active: true,
+          video_id: videoId,
+          user_id: user.id
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setBlocks(prev => [manualBlock as Block, ...prev])
+      toast({
+        title: 'Bloco manual criado',
+        description: `Bloco manual criado para o vídeo "${videoTitle}".`,
+      })
+      
+      return { data: manualBlock, error: null }
+    } catch (error) {
+      console.error('Erro ao criar bloco manual:', error)
+      toast({
+        title: 'Erro',
+        description: 'Erro ao criar bloco manual.',
         variant: 'destructive',
       })
       return { data: null, error }
@@ -226,9 +288,13 @@ export function useBlocks() {
     }
   }
 
-  // Ativar/desativar bloco
+  // Ativar/desativar bloco (não permite para blocos MANUAL)
   const toggleBlockActive = async (block: Block) => {
     try {
+      if (block.type === 'MANUAL') {
+        throw new Error('Blocos do tipo MANUAL não podem ser desativados')
+      }
+
       const { data: updatedBlock, error } = await supabase
         .from('blocks')
         .update({ is_active: !block.is_active })
@@ -252,16 +318,20 @@ export function useBlocks() {
       console.error('Erro ao alterar status do bloco:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao alterar status do bloco.',
+        description: error instanceof Error ? error.message : 'Erro ao alterar status do bloco.',
         variant: 'destructive',
       })
       return { data: null, error }
     }
   }
 
-  // Duplicar bloco
+  // Duplicar bloco (não permite para blocos MANUAL)
   const duplicateBlock = async (block: Block) => {
     try {
+      if (block.type === 'MANUAL') {
+        throw new Error('Blocos do tipo MANUAL não podem ser duplicados')
+      }
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuário não autenticado')
 
@@ -299,9 +369,13 @@ export function useBlocks() {
     }
   }
 
-  // Remover bloco
+  // Remover bloco (não permite para blocos MANUAL)
   const deleteBlock = async (block: Block) => {
     try {
+      if (block.type === 'MANUAL') {
+        throw new Error('Blocos do tipo MANUAL não podem ser removidos')
+      }
+
       const { error } = await supabase
         .from('blocks')
         .delete()
@@ -320,7 +394,7 @@ export function useBlocks() {
       console.error('Erro ao remover bloco:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao remover bloco.',
+        description: error instanceof Error ? error.message : 'Erro ao remover bloco.',
         variant: 'destructive',
       })
       return { error }
@@ -335,6 +409,7 @@ export function useBlocks() {
     blocks,
     loading,
     createBlock,
+    createManualBlock,
     updateBlock,
     toggleBlockActive,
     duplicateBlock,

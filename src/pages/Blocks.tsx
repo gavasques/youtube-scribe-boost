@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
@@ -82,14 +83,17 @@ export default function Blocks() {
     id: block.id,
     title: block.title,
     content: block.content,
-    type: block.type as 'GLOBAL' | 'CATEGORY',
+    type: block.type as 'GLOBAL' | 'CATEGORY' | 'MANUAL',
     scope: block.scope as 'PERMANENT' | 'SCHEDULED',
     priority: block.priority,
     isActive: block.is_active,
     scheduledStart: block.scheduled_start || undefined,
     scheduledEnd: block.scheduled_end || undefined,
     categories: [], // Placeholder - categories would need to be implemented
-    createdAt: block.created_at
+    createdAt: block.created_at,
+    videoId: block.video_id || undefined,
+    videoTitle: (block as any).videos?.title || undefined,
+    videoDescription: (block as any).videos?.current_description || (block as any).videos?.ai_description || undefined
   }))
 
   // Convert database Block to UI format for BlockForm

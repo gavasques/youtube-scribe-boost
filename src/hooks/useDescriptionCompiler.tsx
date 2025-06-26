@@ -47,9 +47,17 @@ export function useDescriptionCompiler() {
     try {
       const { data: blocks, error } = await supabase
         .from('blocks')
-        .select('*')
+        .select(`
+          *,
+          videos!blocks_video_id_fkey (
+            id,
+            title,
+            current_description,
+            ai_description
+          )
+        `)
         .eq('is_active', true)
-        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) throw error
 
@@ -67,6 +75,11 @@ export function useDescriptionCompiler() {
             if (endDate && now > endDate) return false
           }
           return true
+        }
+        
+        // Filtrar blocos manuais específicos do vídeo
+        if (block.type === 'MANUAL') {
+          return block.video_id === video.id
         }
         
         // Filtrar blocos de categoria específica
@@ -87,6 +100,17 @@ export function useDescriptionCompiler() {
     }
   }, [])
 
+  // Obter conteúdo do bloco (considerando blocos manuais)
+  const getBlockContent = useCallback((block: Block, video: Video): string => {
+    if (block.type === 'MANUAL') {
+      // Para blocos manuais, usar a descrição atual do vídeo
+      return video.current_description || video.ai_description || video.original_description || ''
+    }
+    
+    // Para outros tipos de bloco, usar o conteúdo do bloco com variáveis substituídas
+    return replaceVariables(block.content, video)
+  }, [replaceVariables])
+
   // Compilar descrição completa
   const compileDescription = useCallback(async (
     video: Video, 
@@ -99,20 +123,31 @@ export function useDescriptionCompiler() {
       // Buscar blocos aplicáveis
       const applicableBlocks = await getApplicableBlocks(video)
       
+      // Separar blocos por tipo para ordenação
+      const globalBlocks = applicableBlocks.filter(b => b.type === 'GLOBAL')
+      const manualBlocks = applicableBlocks.filter(b => b.type === 'MANUAL')
+      const categoryBlocks = applicableBlocks.filter(b => b.type === 'CATEGORY_SPECIFIC')
+      
       // Montar seções da descrição
       const sections: string[] = []
       
-      // 1. Descrição gerada por IA (se disponível)
-      if (video.ai_description) {
+      // 1. Descrição gerada por IA (se disponível e não há bloco manual)
+      if (video.ai_description && manualBlocks.length === 0) {
         sections.push(video.ai_description)
         sections.push('') // linha em branco
       }
       
-      // 2. Blocos ordenados por prioridade
-      applicableBlocks.forEach(block => {
-        const processedContent = replaceVariables(block.content, video)
-        sections.push(processedContent)
-        sections.push('') // linha em branco entre blocos
+      // 2. Blocos ordenados por prioridade e tipo
+      // Primeiro os blocos manuais, depois globais, depois categoria
+      const orderedBlocks = [...manualBlocks, ...globalBlocks, ...categoryBlocks]
+        .sort((a, b) => b.priority - a.priority)
+      
+      orderedBlocks.forEach(block => {
+        const processedContent = getBlockContent(block, video)
+        if (processedContent.trim()) {
+          sections.push(processedContent)
+          sections.push('') // linha em branco entre blocos
+        }
       })
       
       // 3. Capítulos (se disponíveis)
@@ -155,7 +190,7 @@ export function useDescriptionCompiler() {
     } finally {
       setCompiling(false)
     }
-  }, [getApplicableBlocks, replaceVariables])
+  }, [getApplicableBlocks, getBlockContent])
 
   // Aplicar descrição compilada no YouTube
   const applyToYouTube = useCallback(async (video: Video, compiledDescription: string) => {

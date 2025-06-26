@@ -111,6 +111,7 @@ export type Database = {
           type: string | null
           updated_at: string | null
           user_id: string | null
+          video_id: string | null
         }
         Insert: {
           content: string
@@ -126,6 +127,7 @@ export type Database = {
           type?: string | null
           updated_at?: string | null
           user_id?: string | null
+          video_id?: string | null
         }
         Update: {
           content?: string
@@ -141,8 +143,17 @@ export type Database = {
           type?: string | null
           updated_at?: string | null
           user_id?: string | null
+          video_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "blocks_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
