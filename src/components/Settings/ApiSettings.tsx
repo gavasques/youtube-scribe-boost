@@ -30,7 +30,7 @@ export function ApiSettings() {
   const [config, setConfig] = useLocalStorage<ApiConfig>("apiConfig", {
     openai: {
       enabled: true,
-      model: "gpt-4o-mini", // Modelo padrão válido
+      model: "gpt-4o-mini",
       temperature: 0.7,
       maxTokens: 2000,
       status: 'disconnected'
@@ -51,6 +51,7 @@ export function ApiSettings() {
     key: T,
     value: ApiConfig['openai'][T]
   ) => {
+    console.log('ApiSettings: Updating OpenAI config:', key, value)
     setConfig(prev => ({
       ...prev,
       openai: {
@@ -64,6 +65,7 @@ export function ApiSettings() {
     key: T,
     value: ApiConfig['bitly'][T]
   ) => {
+    console.log('ApiSettings: Updating Bitly config:', key, value)
     setConfig(prev => ({
       ...prev,
       bitly: {
@@ -87,10 +89,11 @@ export function ApiSettings() {
   }
 
   const handleResetDefaults = () => {
+    console.log('ApiSettings: Resetting to defaults')
     setConfig({
       openai: {
         enabled: true,
-        model: "gpt-4o-mini", // Modelo padrão válido
+        model: "gpt-4o-mini",
         temperature: 0.7,
         maxTokens: 2000,
         status: 'disconnected'

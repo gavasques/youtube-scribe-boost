@@ -22,18 +22,36 @@ interface BitlySettingsProps {
 }
 
 export function BitlySettings({ config, onUpdate }: BitlySettingsProps) {
-  const { getApiKey } = useApiKeys()
+  const { getApiKey, decryptApiKey } = useApiKeys()
   const apiKey = getApiKey('bitly')
   
-  // Update status based on database state
+  // Update status based on database state with proper validation
   React.useEffect(() => {
-    const newStatus = apiKey ? 'connected' : 'disconnected'
+    console.log('BitlySettings: Checking API key status...', { apiKey: !!apiKey })
+    
+    let newStatus: 'connected' | 'disconnected' | 'error' = 'disconnected'
+    
+    if (apiKey) {
+      // Decrypt and validate the API key
+      const decryptedKey = decryptApiKey(apiKey.encrypted_key)
+      console.log('BitlySettings: Decrypted key exists:', !!decryptedKey)
+      
+      if (decryptedKey && decryptedKey.trim().length > 0) {
+        newStatus = 'connected'
+      } else {
+        newStatus = 'error'
+      }
+    }
+    
+    console.log('BitlySettings: Setting status to:', newStatus)
+    
     if (config.status !== newStatus) {
       onUpdate('status', newStatus)
     }
-  }, [apiKey, config.status, onUpdate])
+  }, [apiKey, config.status, onUpdate, decryptApiKey])
 
   const handleStatusChange = (status: 'connected' | 'disconnected' | 'error') => {
+    console.log('BitlySettings: Manual status change to:', status)
     onUpdate('status', status)
   }
 
