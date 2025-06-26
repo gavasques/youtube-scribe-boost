@@ -1,7 +1,9 @@
 
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Shield } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Search, Shield, EyeOff } from "lucide-react"
 import { VideoFilters as VideoFiltersType } from "@/types/video"
 import { Category } from "@/types/category"
 import { Badge } from "@/components/ui/badge"
@@ -27,9 +29,11 @@ interface VideoFiltersProps {
   filters: VideoFiltersType
   onFiltersChange: (filters: VideoFiltersType) => void
   categories: Category[]
+  showIgnored: boolean
+  onShowIgnoredChange: (show: boolean) => void
 }
 
-export function VideoFilters({ filters, onFiltersChange, categories }: VideoFiltersProps) {
+export function VideoFilters({ filters, onFiltersChange, categories, showIgnored, onShowIgnoredChange }: VideoFiltersProps) {
   // Convert VideoFiltersType to the form schema type
   const formDefaults: VideoFiltersForm = {
     search: filters.search,
@@ -139,6 +143,18 @@ export function VideoFilters({ filters, onFiltersChange, categories }: VideoFilt
             <SelectItem value="SHORT">Short</SelectItem>
           </SelectContent>
         </Select>
+
+        <div className="flex items-center space-x-2 border rounded-md p-2">
+          <Checkbox 
+            id="show-ignored" 
+            checked={showIgnored}
+            onCheckedChange={onShowIgnoredChange}
+          />
+          <Label htmlFor="show-ignored" className="flex items-center gap-2 text-sm">
+            <EyeOff className="w-4 h-4" />
+            Ver Ignorados
+          </Label>
+        </div>
       </div>
 
       {/* Security indicator */}

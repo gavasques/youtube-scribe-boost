@@ -10,6 +10,8 @@ interface VideoListProps {
   onEditVideo: (video: Video) => void
   onPreviewVideo: (video: Video) => void
   onUpdateStatusToggle: (videoId: string, newStatus: string) => void
+  onIgnoreVideo: (video: Video) => void
+  onUnignoreVideo: (video: Video) => void
 }
 
 export function VideoList({ 
@@ -17,7 +19,9 @@ export function VideoList({
   loading, 
   onEditVideo, 
   onPreviewVideo, 
-  onUpdateStatusToggle 
+  onUpdateStatusToggle,
+  onIgnoreVideo,
+  onUnignoreVideo
 }: VideoListProps) {
   if (loading) {
     return (
@@ -51,6 +55,8 @@ export function VideoList({
             onEditVideo={onEditVideo}
             onPreviewVideo={onPreviewVideo}
             onUpdateStatusToggle={onUpdateStatusToggle}
+            onIgnoreVideo={onIgnoreVideo}
+            onUnignoreVideo={onUnignoreVideo}
           />
         )}
       </CardContent>

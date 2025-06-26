@@ -11,6 +11,8 @@ export function useVideoFilters(videos: Video[]) {
     video_type: "all"
   })
 
+  const [showIgnored, setShowIgnored] = useState(false)
+
   const filteredVideos = useMemo(() => {
     return videos.filter(video => {
       const matchesSearch = video.title.toLowerCase().includes(filters.search.toLowerCase())
@@ -21,13 +23,18 @@ export function useVideoFilters(videos: Video[]) {
         video.category_id === filters.category_id
       const matchesType = filters.video_type === "all" || video.video_type === filters.video_type
 
-      return matchesSearch && matchesConfigStatus && matchesUpdateStatus && matchesCategory && matchesType
+      // Se showIgnored for false, esconde vídeos ignorados
+      const matchesIgnoreFilter = showIgnored || video.update_status !== 'IGNORED'
+
+      return matchesSearch && matchesConfigStatus && matchesUpdateStatus && matchesCategory && matchesType && matchesIgnoreFilter
     })
-  }, [videos, filters])
+  }, [videos, filters, showIgnored])
 
   return {
     filters,
     setFilters,
-    filteredVideos
+    filteredVideos,
+    showIgnored,
+    setShowIgnored
   }
 }

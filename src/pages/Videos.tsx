@@ -18,8 +18,15 @@ import { useYouTubeSync } from "@/hooks/useYouTubeSync"
 export default function Videos() {
   const { videos, loading: videosLoading, fetchVideos } = useVideos()
   const { categories, loading: categoriesLoading } = useOptimizedCategories()
-  const { filters, setFilters, filteredVideos } = useVideoFilters(videos)
-  const { handleUpdateStatusToggle, handleEditVideo, handleSaveVideo, handleSyncComplete } = useVideoActions()
+  const { filters, setFilters, filteredVideos, showIgnored, setShowIgnored } = useVideoFilters(videos)
+  const { 
+    handleUpdateStatusToggle, 
+    handleEditVideo, 
+    handleSaveVideo, 
+    handleSyncComplete,
+    handleIgnoreVideo,
+    handleUnignoreVideo
+  } = useVideoActions()
   const { syncing, progress, batchSync, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSync()
   
   const [showModal, setShowModal] = useState(false)
@@ -67,6 +74,16 @@ export default function Videos() {
     handleUpdateStatusToggle(videoId, newStatus, videos)
   }
 
+  const onIgnoreVideo = async (video: Video) => {
+    await handleIgnoreVideo(video)
+    fetchVideos()
+  }
+
+  const onUnignoreVideo = async (video: Video) => {
+    await handleUnignoreVideo(video)
+    fetchVideos()
+  }
+
   // Função para atualizar a lista após mudanças no modal
   const handleVideoUpdate = () => {
     fetchVideos()
@@ -101,6 +118,8 @@ export default function Videos() {
             filters={filters}
             onFiltersChange={setFilters}
             categories={categories}
+            showIgnored={showIgnored}
+            onShowIgnoredChange={setShowIgnored}
           />
         </CardContent>
       </Card>
@@ -111,6 +130,8 @@ export default function Videos() {
         onEditVideo={onEditVideo}
         onPreviewVideo={onPreviewVideo}
         onUpdateStatusToggle={onUpdateStatusToggle}
+        onIgnoreVideo={onIgnoreVideo}
+        onUnignoreVideo={onUnignoreVideo}
       />
 
       <VideoModal

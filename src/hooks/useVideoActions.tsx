@@ -1,4 +1,3 @@
-
 import { useToast } from "@/hooks/use-toast"
 import { useAuditLog } from "@/hooks/useAuditLog"
 import { supabase } from "@/integrations/supabase/client"
@@ -47,6 +46,82 @@ export function useVideoActions() {
       toast({
         title: "Erro ao atualizar",
         description: "Não foi possível atualizar o status do vídeo",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleIgnoreVideo = async (video: Video) => {
+    try {
+      const { error } = await supabase
+        .from('videos')
+        .update({ update_status: 'IGNORED' })
+        .eq('id', video.id)
+
+      if (error) throw error
+
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Video ignored: ${video.title}`,
+        metadata: { video_id: video.id, action: 'ignore' },
+        severity: 'LOW'
+      })
+
+      toast({
+        title: "Vídeo ignorado!",
+        description: `O vídeo "${video.title}" foi ignorado e não aparecerá mais na lista.`,
+      })
+    } catch (error) {
+      console.error('Erro ao ignorar vídeo:', error)
+      
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Failed to ignore video: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        metadata: { video_id: video.id, error: String(error) },
+        severity: 'MEDIUM'
+      })
+
+      toast({
+        title: "Erro ao ignorar",
+        description: "Não foi possível ignorar o vídeo",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleUnignoreVideo = async (video: Video) => {
+    try {
+      const { error } = await supabase
+        .from('videos')
+        .update({ update_status: 'ACTIVE_FOR_UPDATE' })
+        .eq('id', video.id)
+
+      if (error) throw error
+
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Video unignored: ${video.title}`,
+        metadata: { video_id: video.id, action: 'unignore' },
+        severity: 'LOW'
+      })
+
+      toast({
+        title: "Vídeo designorado!",
+        description: `O vídeo "${video.title}" voltou a aparecer na lista.`,
+      })
+    } catch (error) {
+      console.error('Erro ao designorar vídeo:', error)
+      
+      await logEvent({
+        event_type: 'VIDEO_UPDATE',
+        description: `Failed to unignore video: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        metadata: { video_id: video.id, error: String(error) },
+        severity: 'MEDIUM'
+      })
+
+      toast({
+        title: "Erro ao designorar",
+        description: "Não foi possível designorar o vídeo",
         variant: "destructive"
       })
     }
@@ -125,6 +200,8 @@ export function useVideoActions() {
 
   return {
     handleUpdateStatusToggle,
+    handleIgnoreVideo,
+    handleUnignoreVideo,
     handleEditVideo,
     handleSaveVideo,
     handleSyncComplete
