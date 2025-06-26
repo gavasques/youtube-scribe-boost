@@ -8,7 +8,8 @@ import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 import { VideoHeader } from "@/components/Videos/VideoHeader"
 import { VideoList } from "@/components/Videos/VideoList/VideoList"
 import { SyncProgressCard } from "@/components/Videos/SyncProgressCard"
-import { Video, VideoFormData } from "@/types/video"
+import { VideoFormData } from "@/types/video"
+import { VideoWithRelations } from "@/features/videos/types/normalized"
 import { useVideos } from "@/hooks/useVideos"
 import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
 import { useVideoFilters } from "@/hooks/useVideoFilters"
@@ -18,7 +19,7 @@ import { useYouTubeSync } from "@/hooks/useYouTubeSync"
 export default function Videos() {
   const { videos, loading: videosLoading, fetchVideos } = useVideos()
   const { categories, loading: categoriesLoading } = useOptimizedCategories()
-  const { filters, setFilters, filteredVideos, showIgnored, setShowIgnored } = useVideoFilters(videos)
+  const { filters, setFilters, filteredVideos, showIgnored, setShowIgnored } = useVideoFilters(videos as VideoWithRelations[])
   const { 
     handleUpdateStatusToggle, 
     handleEditVideo, 
@@ -32,12 +33,12 @@ export default function Videos() {
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [editingVideo, setEditingVideo] = useState<Video | null>(null)
-  const [previewingVideo, setPreviewingVideo] = useState<Video | null>(null)
+  const [editingVideo, setEditingVideo] = useState<VideoWithRelations | null>(null)
+  const [previewingVideo, setPreviewingVideo] = useState<VideoWithRelations | null>(null)
 
   const loading = videosLoading || categoriesLoading
 
-  const onEditVideo = async (video: Video) => {
+  const onEditVideo = async (video: VideoWithRelations) => {
     await handleEditVideo(video)
     setEditingVideo(video)
     setShowModal(true)
@@ -54,7 +55,7 @@ export default function Videos() {
     setEditingVideo(null)
   }
 
-  const onPreviewVideo = (video: Video) => {
+  const onPreviewVideo = (video: VideoWithRelations) => {
     setPreviewingVideo(video)
     setShowPreviewModal(true)
   }
@@ -71,15 +72,15 @@ export default function Videos() {
   }
 
   const onUpdateStatusToggle = (videoId: string, newStatus: string) => {
-    handleUpdateStatusToggle(videoId, newStatus, videos)
+    handleUpdateStatusToggle(videoId, newStatus, videos as VideoWithRelations[])
   }
 
-  const onIgnoreVideo = async (video: Video) => {
+  const onIgnoreVideo = async (video: VideoWithRelations) => {
     await handleIgnoreVideo(video)
     fetchVideos()
   }
 
-  const onUnignoreVideo = async (video: Video) => {
+  const onUnignoreVideo = async (video: VideoWithRelations) => {
     await handleUnignoreVideo(video)
     fetchVideos()
   }
@@ -125,7 +126,7 @@ export default function Videos() {
       </Card>
 
       <VideoList
-        videos={filteredVideos}
+        videos={filteredVideos as VideoWithRelations[]}
         loading={loading}
         onEditVideo={onEditVideo}
         onPreviewVideo={onPreviewVideo}

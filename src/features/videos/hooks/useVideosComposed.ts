@@ -23,47 +23,65 @@ export function useVideosComposed() {
       const category = categories.find(cat => cat.id === video.category_id)
 
       const composedVideo: VideoWithRelations = {
-        ...video,
-        metadata: videoMetadata,
-        transcription: videoTranscription,
-        configuration: videoConfiguration,
-        category_name: category?.name,
+        // Core video fields
+        id: video.id,
+        user_id: video.user_id,
+        youtube_id: video.youtube_id,
+        youtube_url: video.youtube_url,
+        title: video.title,
+        video_type: video.video_type,
+        category_id: video.category_id || null,
+        created_at: video.created_at,
+        updated_at: video.updated_at,
         
-        // Backward compatibility fields - flatten data from related tables
+        // Metadata fields (required by Video interface)
         views_count: videoMetadata?.views_count || 0,
         likes_count: videoMetadata?.likes_count || 0,
         comments_count: videoMetadata?.comments_count || 0,
         duration_seconds: videoMetadata?.duration_seconds || 0,
-        duration_formatted: videoMetadata?.duration_formatted,
-        thumbnail_url: videoMetadata?.thumbnail_url,
+        duration_formatted: videoMetadata?.duration_formatted || null,
+        thumbnail_url: videoMetadata?.thumbnail_url || null,
         privacy_status: videoMetadata?.privacy_status || 'public',
-        published_at: videoMetadata?.published_at,
+        published_at: videoMetadata?.published_at || null,
         
-        // Description fields - will be handled by descriptions service later
+        // Description fields (required by Video interface)
         original_description: '',
         current_description: '',
         compiled_description: '',
         
-        // Transcription field - use the text content
-        transcription_text: videoTranscription?.transcription,
-        
-        // AI fields - will be handled by AI service later
-        ai_summary: '',
-        ai_description: '',
-        ai_chapters: [],
-        
-        // Tags arrays - will be handled by tags service later
+        // Tags arrays (required by Video interface)
         original_tags: [],
         current_tags: [],
         ai_generated_tags: [],
         
-        // Configuration fields
+        // Transcription field (required by Video interface - use string)
+        transcription: videoTranscription?.transcription || null,
+        
+        // AI fields (required by Video interface)
+        ai_summary: '',
+        ai_description: '',
+        ai_chapters: null,
+        
+        // Configuration fields (required by Video interface)
         configuration_status: videoConfiguration?.configuration_status || 'NOT_CONFIGURED',
         update_status: videoConfiguration?.update_status || 'ACTIVE_FOR_UPDATE',
         
+        // Additional normalized data references
+        metadata: videoMetadata,
+        descriptions: undefined, // Will be populated later when descriptions service is implemented
+        transcription_data: videoTranscription,
+        ai_content: undefined, // Will be populated later when AI service is implemented
+        tags: [], // Will be populated later when tags service is implemented
+        configuration: videoConfiguration,
+        category_name: category?.name,
+        
         // Helper fields
         has_transcription: !!videoTranscription?.transcription,
-        ai_processed: false // Will be determined by AI content hook when needed
+        ai_processed: false, // Will be determined by AI content hook when needed
+        
+        // Computed fields for backward compatibility
+        views: videoMetadata?.views_count?.toString(),
+        duration: videoMetadata?.duration_formatted
       }
 
       return composedVideo

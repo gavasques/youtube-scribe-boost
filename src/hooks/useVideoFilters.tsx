@@ -1,8 +1,9 @@
 
 import { useState, useMemo } from "react"
-import { VideoFilters as VideoFiltersType, Video } from "@/types/video"
+import { VideoFilters as VideoFiltersType } from "@/types/video"
+import { VideoWithRelations } from "@/features/videos/types/normalized"
 
-export function useVideoFilters(videos: Video[]) {
+export function useVideoFilters(videos: VideoWithRelations[]) {
   const [filters, setFilters] = useState<VideoFiltersType>({
     search: "",
     configuration_status: "all",

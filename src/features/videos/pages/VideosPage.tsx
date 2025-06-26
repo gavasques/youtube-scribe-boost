@@ -108,7 +108,7 @@ export default function VideosPage() {
       </Card>
 
       <VideoList
-        videos={filteredVideos as any[]}
+        videos={filteredVideos as VideoWithRelations[]}
         loading={loading}
         onEditVideo={onEditVideo}
         onPreviewVideo={onPreviewVideo}

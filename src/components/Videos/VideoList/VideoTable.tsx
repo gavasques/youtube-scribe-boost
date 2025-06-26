@@ -6,15 +6,15 @@ import { VideoDataIndicators } from "./VideoDataIndicators"
 import { VideoStatusBadges } from "./VideoStatusBadges"
 import { VideoUpdateStatus } from "./VideoUpdateStatus"
 import { VideoActions } from "./VideoActions"
-import { Video } from "@/types/video"
+import { VideoWithRelations } from "@/features/videos/types/normalized"
 
 interface VideoTableProps {
-  videos: Video[]
-  onEditVideo: (video: Video) => void
-  onPreviewVideo: (video: Video) => void
+  videos: VideoWithRelations[]
+  onEditVideo: (video: VideoWithRelations) => void
+  onPreviewVideo: (video: VideoWithRelations) => void
   onUpdateStatusToggle: (videoId: string, newStatus: string) => void
-  onIgnoreVideo: (video: Video) => void
-  onUnignoreVideo: (video: Video) => void
+  onIgnoreVideo: (video: VideoWithRelations) => void
+  onUnignoreVideo: (video: VideoWithRelations) => void
 }
 
 export function VideoTable({ 
