@@ -1,318 +1,59 @@
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/integrations/supabase/client'
-import { Prompt, PromptFormData } from '@/types/prompt'
-import { useToast } from '@/hooks/use-toast'
+import { useOptimizedPrompts } from './useOptimizedPrompts'
+import { usePromptActions } from './usePromptActions'
 
 export function usePrompts() {
-  const [prompts, setPrompts] = useState<Prompt[]>([])
-  const [loading, setLoading] = useState(true)
-  const { toast } = useToast()
+  const { prompts, loading, fetchPrompts, setPrompts } = useOptimizedPrompts()
+  const { createPrompt, updatePrompt, togglePromptActive, duplicatePrompt, deletePrompt } = usePromptActions()
 
-  // Buscar prompts do usuário e prompts globais
-  const fetchPrompts = async () => {
-    try {
-      setLoading(true)
-      console.log('Fetching prompts...')
-      
-      // Buscar todos os prompts (globais e do usuário)
-      const { data, error } = await supabase
-        .from('prompts')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error fetching prompts:', error)
-        throw error
-      }
-      
-      console.log('Prompts fetched:', data)
-      setPrompts((data || []) as Prompt[])
-    } catch (error) {
-      console.error('Erro ao buscar prompts:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao carregar prompts.',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
+  const handleCreatePrompt = async (data: any) => {
+    const result = await createPrompt(data)
+    if (result.data) {
+      setPrompts(prev => [result.data, ...prev])
     }
+    return result
   }
 
-  // Criar novo prompt
-  const createPrompt = async (data: PromptFormData) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        toast({
-          title: 'Erro',
-          description: 'Você precisa estar logado para criar prompts.',
-          variant: 'destructive',
-        })
-        return { data: null, error: 'User not authenticated' }
-      }
-
-      const { data: newPrompt, error } = await supabase
-        .from('prompts')
-        .insert([{
-          ...data,
-          user_id: user.id,
-          is_active: false // Novos prompts criados pelo usuário começam inativos
-        }])
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setPrompts(prev => [newPrompt as Prompt, ...prev])
-      toast({
-        title: 'Prompt criado',
-        description: 'O prompt foi criado com sucesso.',
-      })
-      
-      return { data: newPrompt, error: null }
-    } catch (error) {
-      console.error('Erro ao criar prompt:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao criar prompt.',
-        variant: 'destructive',
-      })
-      return { data: null, error }
+  const handleUpdatePrompt = async (id: string, data: any) => {
+    const result = await updatePrompt(id, data)
+    if (result.data) {
+      setPrompts(prev => prev.map(p => p.id === id ? result.data : p))
     }
+    return result
   }
 
-  // Atualizar prompt (só permite editar prompts do próprio usuário)
-  const updatePrompt = async (id: string, data: PromptFormData) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        toast({
-          title: 'Erro',
-          description: 'Você precisa estar logado para editar prompts.',
-          variant: 'destructive',
-        })
-        return { data: null, error: 'User not authenticated' }
-      }
-
-      // Verificar se o prompt pertence ao usuário
-      const promptToUpdate = prompts.find(p => p.id === id)
-      if (promptToUpdate?.user_id && promptToUpdate.user_id !== user.id) {
-        toast({
-          title: 'Erro',
-          description: 'Você só pode editar seus próprios prompts.',
-          variant: 'destructive',
-        })
-        return { data: null, error: 'Permission denied' }
-      }
-
-      const { data: updatedPrompt, error } = await supabase
-        .from('prompts')
-        .update({
-          ...data,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setPrompts(prev => prev.map(p => p.id === id ? updatedPrompt as Prompt : p))
-      toast({
-        title: 'Prompt atualizado',
-        description: 'O prompt foi atualizado com sucesso.',
-      })
-      
-      return { data: updatedPrompt, error: null }
-    } catch (error) {
-      console.error('Erro ao atualizar prompt:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao atualizar prompt.',
-        variant: 'destructive',
-      })
-      return { data: null, error }
+  const handleTogglePromptActive = async (prompt: any) => {
+    const result = await togglePromptActive(prompt)
+    if (result.data) {
+      setPrompts(prev => prev.map(p => p.id === prompt.id ? result.data : p))
     }
+    return result
   }
 
-  // Ativar/desativar prompt (só permite para prompts do próprio usuário)
-  const togglePromptActive = async (prompt: Prompt) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        toast({
-          title: 'Erro',
-          description: 'Você precisa estar logado para alterar status de prompts.',
-          variant: 'destructive',
-        })
-        return { data: null, error: 'User not authenticated' }
-      }
-
-      // Verificar se o prompt pertence ao usuário
-      if (prompt.user_id && prompt.user_id !== user.id) {
-        toast({
-          title: 'Erro',
-          description: 'Você só pode alterar status de seus próprios prompts.',
-          variant: 'destructive',
-        })
-        return { data: null, error: 'Permission denied' }
-      }
-
-      const { data: updatedPrompt, error } = await supabase
-        .from('prompts')
-        .update({ is_active: !prompt.is_active })
-        .eq('id', prompt.id)
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setPrompts(prev => prev.map(p => 
-        p.id === prompt.id ? updatedPrompt as Prompt : p
-      ))
-
-      toast({
-        title: prompt.is_active ? 'Prompt desativado' : 'Prompt ativado',
-        description: 'Status do prompt alterado com sucesso.',
-      })
-      
-      return { data: updatedPrompt, error: null }
-    } catch (error) {
-      console.error('Erro ao alterar status do prompt:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao alterar status do prompt.',
-        variant: 'destructive',
-      })
-      return { data: null, error }
+  const handleDuplicatePrompt = async (prompt: any) => {
+    const result = await duplicatePrompt(prompt)
+    if (result.data) {
+      setPrompts(prev => [result.data, ...prev])
     }
+    return result
   }
 
-  // Duplicar prompt
-  const duplicatePrompt = async (prompt: Prompt) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        toast({
-          title: 'Erro',
-          description: 'Você precisa estar logado para duplicar prompts.',
-          variant: 'destructive',
-        })
-        return { data: null, error: 'User not authenticated' }
-      }
-
-      const { data: duplicatedPrompt, error } = await supabase
-        .from('prompts')
-        .insert([{
-          name: `${prompt.name} (Cópia)`,
-          description: prompt.description,
-          prompt: prompt.prompt,
-          temperature: prompt.temperature,
-          max_tokens: prompt.max_tokens,
-          top_p: prompt.top_p,
-          is_active: false,
-          user_id: user.id
-        }])
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setPrompts(prev => [duplicatedPrompt as Prompt, ...prev])
-      toast({
-        title: 'Prompt duplicado',
-        description: 'Uma cópia do prompt foi criada e está inativa.',
-      })
-      
-      return { data: duplicatedPrompt, error: null }
-    } catch (error) {
-      console.error('Erro ao duplicar prompt:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao duplicar prompt.',
-        variant: 'destructive',
-      })
-      return { data: null, error }
-    }
-  }
-
-  // Remover prompt (só permite para prompts do próprio usuário)
-  const deletePrompt = async (prompt: Prompt) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        toast({
-          title: 'Erro',
-          description: 'Você precisa estar logado para remover prompts.',
-          variant: 'destructive',
-        })
-        return { error: 'User not authenticated' }
-      }
-
-      // Verificar se o prompt pertence ao usuário
-      if (prompt.user_id && prompt.user_id !== user.id) {
-        toast({
-          title: 'Erro',
-          description: 'Você só pode remover seus próprios prompts.',
-          variant: 'destructive',
-        })
-        return { error: 'Permission denied' }
-      }
-
-      // Não permitir remoção de prompts globais
-      if (!prompt.user_id) {
-        toast({
-          title: 'Erro',
-          description: 'Prompts globais não podem ser removidos.',
-          variant: 'destructive',
-        })
-        return { error: 'Cannot delete global prompt' }
-      }
-
-      const { error } = await supabase
-        .from('prompts')
-        .delete()
-        .eq('id', prompt.id)
-
-      if (error) throw error
-
+  const handleDeletePrompt = async (prompt: any) => {
+    const result = await deletePrompt(prompt)
+    if (!result.error) {
       setPrompts(prev => prev.filter(p => p.id !== prompt.id))
-      toast({
-        title: 'Prompt removido',
-        description: `O prompt "${prompt.name}" foi removido com sucesso.`,
-      })
-      
-      return { error: null }
-    } catch (error) {
-      console.error('Erro ao remover prompt:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao remover prompt.',
-        variant: 'destructive',
-      })
-      return { error }
     }
+    return result
   }
-
-  useEffect(() => {
-    fetchPrompts()
-  }, [])
 
   return {
     prompts,
     loading,
-    createPrompt,
-    updatePrompt,
-    togglePromptActive,
-    duplicatePrompt,
-    deletePrompt,
+    createPrompt: handleCreatePrompt,
+    updatePrompt: handleUpdatePrompt,
+    togglePromptActive: handleTogglePromptActive,
+    duplicatePrompt: handleDuplicatePrompt,
+    deletePrompt: handleDeletePrompt,
     fetchPrompts
   }
 }

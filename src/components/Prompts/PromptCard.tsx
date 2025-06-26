@@ -7,6 +7,7 @@ import { Brain, Edit, Copy, Power, PowerOff, Trash2, Globe } from "lucide-react"
 import { Prompt } from "@/types/prompt"
 import { supabase } from "@/integrations/supabase/client"
 import { useState, useEffect } from "react"
+import { formatPromptDate, formatPromptParameters, getPromptStatusText } from "@/utils/promptFormatters"
 
 interface PromptCardProps {
   prompt: Prompt
@@ -29,8 +30,8 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
 
   const isGlobalPrompt = !prompt.user_id
   const isOwner = currentUserId && prompt.user_id === currentUserId
-  const canToggle = isOwner // Apenas donos podem ativar/desativar seus prompts
-  const canEdit = isOwner || isGlobalPrompt // Donos e prompts globais podem ser editados
+  const canToggle = isOwner
+  const canEdit = isOwner || isGlobalPrompt
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -46,7 +47,7 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
             </CardTitle>
             <div className="flex gap-2">
               <Badge variant={prompt.is_active ? "default" : "secondary"}>
-                {prompt.is_active ? "Ativo" : "Inativo"}
+                {getPromptStatusText(prompt.is_active)}
               </Badge>
               {isGlobalPrompt && (
                 <Badge variant="outline" className="text-amber-600 border-amber-300">
@@ -134,9 +135,9 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
           </p>
         </div>
         <div className="text-xs text-muted-foreground">
-          <div>Atualizado em: {new Date(prompt.updated_at).toLocaleDateString('pt-BR')}</div>
+          <div>Atualizado em: {formatPromptDate(prompt.updated_at)}</div>
           <div className="mt-1">
-            Parâmetros: Temp {prompt.temperature} • Tokens {prompt.max_tokens} • Top-P {prompt.top_p}
+            Parâmetros: {formatPromptParameters(prompt)}
           </div>
           {isGlobalPrompt && (
             <div className="mt-1 text-amber-600">
