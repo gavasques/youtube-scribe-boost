@@ -19,23 +19,18 @@ export function useVideoTranscription() {
       return data
     } catch (error) {
       console.error('Error fetching transcription:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao carregar transcrição.',
-        variant: 'destructive',
-      })
     } finally {
       setLoading(prev => ({ ...prev, [videoId]: false }))
     }
-  }, [toast])
+  }, [])
 
-  const updateTranscription = useCallback(async (videoId: string, transcription: string, sourceType?: 'manual' | 'auto' | 'uploaded') => {
+  const updateTranscription = useCallback(async (videoId: string, updates: Partial<VideoTranscription>) => {
     try {
-      const updated = await VideoTranscriptionService.updateTranscription(videoId, transcription, sourceType)
+      const updated = await VideoTranscriptionService.updateVideoTranscription(videoId, updates)
       setTranscriptions(prev => ({ ...prev, [videoId]: updated }))
       toast({
-        title: 'Sucesso',
-        description: 'Transcrição atualizada com sucesso.',
+        title: 'Transcrição atualizada',
+        description: 'Transcrição foi atualizada com sucesso.',
       })
       return updated
     } catch (error) {

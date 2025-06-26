@@ -1,5 +1,5 @@
 
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { useVideoCore } from './useVideoCore'
 import { useVideoMetadata } from './useVideoMetadata'
 import { useVideoTranscription } from './useVideoTranscription'
@@ -9,10 +9,25 @@ import { VideoWithRelations } from '../types/normalized'
 
 export function useVideosComposed() {
   const { videos: coreVideos, loading: coreLoading, fetchVideos, updateVideo } = useVideoCore()
-  const { metadata } = useVideoMetadata()
-  const { transcriptions } = useVideoTranscription()
-  const { configurations } = useVideoConfiguration()
+  const { metadata, fetchMetadata } = useVideoMetadata()
+  const { transcriptions, fetchTranscription } = useVideoTranscription()
+  const { configurations, fetchConfiguration } = useVideoConfiguration()
   const { categories } = useOptimizedCategories()
+
+  // Fetch metadata, transcriptions, and configurations for all videos
+  useEffect(() => {
+    coreVideos.forEach(video => {
+      if (!metadata[video.id]) {
+        fetchMetadata(video.id)
+      }
+      if (!transcriptions[video.id]) {
+        fetchTranscription(video.id)
+      }
+      if (!configurations[video.id]) {
+        fetchConfiguration(video.id)
+      }
+    })
+  }, [coreVideos, metadata, transcriptions, configurations, fetchMetadata, fetchTranscription, fetchConfiguration])
 
   // Compose videos with their related data for backward compatibility
   const videos = useMemo(() => {

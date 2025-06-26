@@ -19,15 +19,10 @@ export function useVideoMetadata() {
       return data
     } catch (error) {
       console.error('Error fetching metadata:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao carregar metadados do vídeo.',
-        variant: 'destructive',
-      })
     } finally {
       setLoading(prev => ({ ...prev, [videoId]: false }))
     }
-  }, [toast])
+  }, [])
 
   const updateMetadata = useCallback(async (videoId: string, updates: Partial<VideoMetadata>) => {
     try {
