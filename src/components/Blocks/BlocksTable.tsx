@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -32,7 +33,8 @@ import {
   ChevronLeft,
   FileText,
   Lock,
-  Info
+  Info,
+  ArrowUpDown
 } from "lucide-react"
 
 export interface Block {
@@ -65,6 +67,8 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<'priority' | 'name'>('priority')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set())
 
   const filteredBlocks = blocks.filter(block => {
@@ -76,6 +80,32 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
     
     return matchesSearch && matchesType && matchesStatus
   })
+
+  const sortedBlocks = [...filteredBlocks].sort((a, b) => {
+    let comparison = 0
+    
+    if (sortBy === 'priority') {
+      comparison = a.priority - b.priority
+    } else if (sortBy === 'name') {
+      comparison = a.title.localeCompare(b.title)
+    }
+    
+    return sortOrder === 'asc' ? comparison : -comparison
+  })
+
+  const toggleSort = (field: 'priority' | 'name') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+  }
+
+  const getSortIcon = (field: 'priority' | 'name') => {
+    if (sortBy !== field) return <ArrowUpDown className="w-4 h-4 text-gray-400" />
+    return sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+  }
 
   const toggleBlockExpansion = (blockId: string) => {
     const newExpanded = new Set(expandedBlocks)
@@ -141,7 +171,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
       <CardHeader>
         <CardTitle>Gerenciar Blocos</CardTitle>
         <CardDescription>
-          {filteredBlocks.length} de {blocks.length} blocos
+          {sortedBlocks.length} de {blocks.length} blocos
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -177,6 +207,21 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
             <option value="active">Ativo</option>
             <option value="inactive">Inativo</option>
           </select>
+
+          <select
+            className="px-3 py-2 border rounded-md"
+            value={`${sortBy}-${sortOrder}`}
+            onChange={(e) => {
+              const [field, order] = e.target.value.split('-')
+              setSortBy(field as 'priority' | 'name')
+              setSortOrder(order as 'asc' | 'desc')
+            }}
+          >
+            <option value="priority-asc">Prioridade (Crescente)</option>
+            <option value="priority-desc">Prioridade (Decrescente)</option>
+            <option value="name-asc">Nome (A-Z)</option>
+            <option value="name-desc">Nome (Z-A)</option>
+          </select>
         </div>
 
         {/* Tabela */}
@@ -185,16 +230,36 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12"></TableHead>
-                <TableHead>Nome</TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleSort('name')}
+                    className="h-auto p-0 font-medium hover:bg-transparent"
+                  >
+                    Nome
+                    {getSortIcon('name')}
+                  </Button>
+                </TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Escopo</TableHead>
-                <TableHead>Prioridade</TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleSort('priority')}
+                    className="h-auto p-0 font-medium hover:bg-transparent"
+                  >
+                    Prioridade
+                    {getSortIcon('priority')}
+                  </Button>
+                </TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredBlocks.map((block, index) => (
+              {sortedBlocks.map((block, index) => (
                 <>
                   <TableRow key={block.id} className={block.type === 'MANUAL' ? 'bg-blue-50/50' : ''}>
                     <TableCell>
@@ -334,7 +399,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
           </Table>
         </div>
 
-        {filteredBlocks.length === 0 && (
+        {sortedBlocks.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             Nenhum bloco encontrado
           </div>
