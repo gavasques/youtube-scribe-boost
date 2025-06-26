@@ -11,9 +11,9 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
+import { useYouTubeSync } from '@/hooks/useYouTubeSync'
 import { 
   Youtube, 
   RefreshCw, 
@@ -41,14 +41,6 @@ interface SyncStats {
   errors: number
 }
 
-interface SyncProgress {
-  step: string
-  current: number
-  total: number
-  message: string
-  errors?: string[]
-}
-
 interface YouTubeSyncModalProps {
   open: boolean
   onClose: () => void
@@ -58,8 +50,8 @@ interface YouTubeSyncModalProps {
 export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncModalProps) {
   const { toast } = useToast()
   const { isConnected, connecting, startOAuth } = useYouTubeAuth()
-  const [syncing, setSyncing] = useState(false)
-  const [progress, setProgress] = useState<SyncProgress | null>(null)
+  const { syncing, progress, syncWithYouTube, resetProgress } = useYouTubeSync()
+  
   const [stats, setStats] = useState<SyncStats | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [showConfig, setShowConfig] = useState(true)
@@ -83,51 +75,24 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
       return
     }
 
-    setSyncing(true)
     setShowConfig(false)
-    setProgress(null)
     setStats(null)
     setErrors([])
+    resetProgress()
 
     try {
-      const { data: authData } = await supabase.auth.getSession()
-      if (!authData.session) {
-        throw new Error('Não autenticado')
+      const result = await syncWithYouTube(options)
+      setStats(result.stats)
+      
+      if (result.errors) {
+        setErrors(result.errors)
       }
-
-      const response = await supabase.functions.invoke('youtube-sync', {
-        body: { options },
-        headers: {
-          Authorization: `Bearer ${authData.session.access_token}`
-        }
-      })
-
-      if (response.error) {
-        throw new Error(response.error.message)
-      }
-
-      setStats(response.data.stats)
-      if (response.data.errors) {
-        setErrors(response.data.errors)
-      }
-
-      toast({
-        title: 'Sincronização concluída!',
-        description: `${response.data.stats.processed} vídeos processados. ${response.data.stats.new} novos, ${response.data.stats.updated} atualizados.`,
-      })
 
       onSyncComplete()
 
     } catch (error) {
       console.error('Erro na sincronização:', error)
-      toast({
-        title: 'Erro na sincronização',
-        description: 'Não foi possível sincronizar com o YouTube',
-        variant: 'destructive'
-      })
-      setErrors([error.message])
-    } finally {
-      setSyncing(false)
+      setErrors([error.message || 'Erro desconhecido'])
     }
   }
 
@@ -137,9 +102,9 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
       // Reset state after a delay to avoid flicker
       setTimeout(() => {
         setShowConfig(true)
-        setProgress(null)
         setStats(null)
         setErrors([])
+        resetProgress()
       }, 300)
     }
   }
@@ -294,12 +259,12 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
         )}
 
         {/* Progress */}
-        {syncing && (
+        {(syncing || progress) && (
           <div className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">
-                  {progress?.message || 'Iniciando sincronização...'}
+                  {progress?.message || 'Preparando sincronização...'}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   {progress ? `${progress.current}/${progress.total}` : '0/5'}
@@ -312,6 +277,21 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
               <div className="text-center text-sm text-muted-foreground">
                 {getProgressPercentage()}% concluído
               </div>
+            )}
+
+            {progress?.errors && progress.errors.length > 0 && (
+              <Alert className="border-red-200 bg-red-50">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  <div className="space-y-1">
+                    {progress.errors.map((error, index) => (
+                      <div key={index} className="text-xs">
+                        {error}
+                      </div>
+                    ))}
+                  </div>
+                </AlertDescription>
+              </Alert>
             )}
           </div>
         )}

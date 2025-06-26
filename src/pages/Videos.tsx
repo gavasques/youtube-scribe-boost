@@ -7,17 +7,20 @@ import { YouTubeSyncModal } from "@/components/Videos/YouTubeSyncModal"
 import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 import { VideoHeader } from "@/components/Videos/VideoHeader"
 import { VideoList } from "@/components/Videos/VideoList/VideoList"
+import { SyncProgressCard } from "@/components/Videos/SyncProgressCard"
 import { Video, VideoFormData } from "@/types/video"
 import { useVideos } from "@/hooks/useVideos"
 import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
 import { useVideoFilters } from "@/hooks/useVideoFilters"
 import { useVideoActions } from "@/hooks/useVideoActions"
+import { useYouTubeSync } from "@/hooks/useYouTubeSync"
 
 export default function Videos() {
   const { videos, loading: videosLoading, fetchVideos } = useVideos()
   const { categories, loading: categoriesLoading } = useOptimizedCategories()
   const { filters, setFilters, filteredVideos } = useVideoFilters(videos)
   const { handleUpdateStatusToggle, handleEditVideo, handleSaveVideo, handleSyncComplete } = useVideoActions()
+  const { syncing, progress } = useYouTubeSync()
   
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -70,6 +73,9 @@ export default function Videos() {
         onSyncModal={() => setShowSyncModal(true)}
         onRefresh={fetchVideos}
       />
+
+      {/* Mostrar progresso da sincronização se estiver ativa */}
+      <SyncProgressCard progress={progress} syncing={syncing} />
 
       <Card>
         <CardHeader>
