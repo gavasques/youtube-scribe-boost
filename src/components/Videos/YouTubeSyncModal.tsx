@@ -10,8 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
+import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
 import { 
   Youtube, 
   RefreshCw, 
@@ -20,7 +22,8 @@ import {
   XCircle,
   Clock,
   Video,
-  Zap
+  Zap,
+  AlertTriangle
 } from 'lucide-react'
 
 interface SyncOptions {
@@ -54,6 +57,7 @@ interface YouTubeSyncModalProps {
 
 export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncModalProps) {
   const { toast } = useToast()
+  const { isConnected, connecting, startOAuth } = useYouTubeAuth()
   const [syncing, setSyncing] = useState(false)
   const [progress, setProgress] = useState<SyncProgress | null>(null)
   const [stats, setStats] = useState<SyncStats | null>(null)
@@ -69,6 +73,16 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
   })
 
   const handleSync = async () => {
+    // Verificar conexão antes de iniciar
+    if (!isConnected) {
+      toast({
+        title: 'YouTube não conectado',
+        description: 'Conecte sua conta do YouTube antes de sincronizar',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setSyncing(true)
     setShowConfig(false)
     setProgress(null)
@@ -148,7 +162,28 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
           </DialogDescription>
         </DialogHeader>
 
-        {showConfig && !syncing && (
+        {/* Verificação de Conexão */}
+        {!isConnected && (
+          <Alert className="border-orange-200 bg-orange-50">
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="text-orange-800">
+              <div className="flex items-center justify-between">
+                <span>Você precisa conectar sua conta do YouTube primeiro.</span>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={startOAuth}
+                  disabled={connecting}
+                  className="ml-2"
+                >
+                  {connecting ? 'Conectando...' : 'Conectar YouTube'}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {showConfig && !syncing && isConnected && (
           <div className="space-y-6">
             {/* Tipo de Sincronização */}
             <div className="space-y-3">
@@ -360,7 +395,7 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
               </Button>
               <Button 
                 onClick={handleSync}
-                disabled={syncing || (!options.includeRegular && !options.includeShorts)}
+                disabled={syncing || !isConnected || (!options.includeRegular && !options.includeShorts)}
                 className="gap-2"
               >
                 <Youtube className="w-4 h-4" />
