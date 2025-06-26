@@ -8,6 +8,9 @@ DROP POLICY IF EXISTS "Users can create their own categories" ON public.categori
 DROP POLICY IF EXISTS "Users can update their own categories" ON public.categories;
 DROP POLICY IF EXISTS "Users can delete their own categories" ON public.categories;
 
+-- Alterar a coluna user_id para não ser nullable (necessário para RLS)
+ALTER TABLE public.categories ALTER COLUMN user_id SET NOT NULL;
+
 -- Criar políticas RLS para categorias
 CREATE POLICY "Users can view their own categories" 
   ON public.categories 
