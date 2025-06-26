@@ -4,23 +4,16 @@ export interface Category {
   user_id: string
   name: string
   description: string | null
-  icon: string | null
-  color: string | null
-  parent_id: string | null
   is_active: boolean
   created_at: string
   updated_at: string
   
-  // Propriedades computadas/extras para UI
+  // Propriedade computada para UI
   video_count?: number
-  children?: Category[]
 }
 
 export interface CategoryFormData {
   name: string
   description?: string
-  icon?: string
-  color?: string
-  parent_id?: string
   is_active?: boolean
 }

@@ -9,111 +9,6 @@ export function useCategories() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  // Inserir categorias iniciais se não existirem
-  const insertInitialCategories = async () => {
-    try {
-      const { data: existingCategories } = await supabase
-        .from('categories')
-        .select('id')
-        .limit(1)
-
-      if (existingCategories && existingCategories.length === 0) {
-        const { data: user } = await supabase.auth.getUser()
-        if (!user.user) return
-
-        // Inserir categorias principais
-        const { data: mainCategories, error: mainError } = await supabase
-          .from('categories')
-          .insert([
-            {
-              user_id: user.user.id,
-              name: 'Importação',
-              description: 'Vídeos sobre importação de produtos',
-              icon: 'package',
-              color: '#f97316',
-              parent_id: null,
-              is_active: true
-            },
-            {
-              user_id: user.user.id,
-              name: 'Internacionalização',
-              description: 'Expansão internacional de negócios',
-              icon: 'globe',
-              color: '#22c55e',
-              parent_id: null,
-              is_active: true
-            },
-            {
-              user_id: user.user.id,
-              name: 'Amazon',
-              description: 'Vendas na plataforma Amazon',
-              icon: 'shopping-cart',
-              color: '#3b82f6',
-              parent_id: null,
-              is_active: true
-            },
-            {
-              user_id: user.user.id,
-              name: 'Sem Categoria',
-              description: 'Vídeos não categorizados',
-              icon: 'folder',
-              color: '#6b7280',
-              parent_id: null,
-              is_active: true
-            }
-          ])
-          .select()
-
-        if (mainError) throw mainError
-
-        // Encontrar IDs das categorias principais
-        const amazonCategory = mainCategories?.find(cat => cat.name === 'Amazon')
-        const importacaoCategory = mainCategories?.find(cat => cat.name === 'Importação')
-
-        // Inserir subcategorias
-        if (amazonCategory && importacaoCategory) {
-          const { error: subError } = await supabase
-            .from('categories')
-            .insert([
-              {
-                user_id: user.user.id,
-                name: 'FBA',
-                description: 'Fulfillment by Amazon',
-                icon: 'shopping-cart',
-                color: '#3b82f6',
-                parent_id: amazonCategory.id,
-                is_active: true
-              },
-              {
-                user_id: user.user.id,
-                name: 'PPC',
-                description: 'Anúncios pagos Amazon',
-                icon: 'shopping-cart',
-                color: '#3b82f6',
-                parent_id: amazonCategory.id,
-                is_active: true
-              },
-              {
-                user_id: user.user.id,
-                name: 'AliExpress',
-                description: 'Importação via AliExpress',
-                icon: 'package',
-                color: '#f97316',
-                parent_id: importacaoCategory.id,
-                is_active: true
-              }
-            ])
-
-          if (subError) throw subError
-        }
-
-        console.log('Categorias iniciais inseridas com sucesso')
-      }
-    } catch (error) {
-      console.error('Erro ao inserir categorias iniciais:', error)
-    }
-  }
-
   // Buscar categorias do usuário
   const fetchCategories = async () => {
     try {
@@ -141,11 +36,14 @@ export function useCategories() {
   // Criar nova categoria
   const createCategory = async (data: CategoryFormData) => {
     try {
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) throw new Error('Usuário não autenticado')
+
       const { data: newCategory, error } = await supabase
         .from('categories')
         .insert([{
           ...data,
-          user_id: (await supabase.auth.getUser()).data.user?.id
+          user_id: user.user.id
         }])
         .select()
         .single()
@@ -265,12 +163,7 @@ export function useCategories() {
   }
 
   useEffect(() => {
-    const initializeCategories = async () => {
-      await insertInitialCategories()
-      await fetchCategories()
-    }
-    
-    initializeCategories()
+    fetchCategories()
   }, [])
 
   return {

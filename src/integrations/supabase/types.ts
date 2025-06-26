@@ -157,49 +157,33 @@ export type Database = {
       }
       categories: {
         Row: {
-          color: string | null
           created_at: string | null
           description: string | null
-          icon: string | null
           id: string
           is_active: boolean | null
           name: string
-          parent_id: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
-          color?: string | null
           created_at?: string | null
           description?: string | null
-          icon?: string | null
           id?: string
           is_active?: boolean | null
           name: string
-          parent_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
-          color?: string | null
           created_at?: string | null
           description?: string | null
-          icon?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
-          parent_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "categories_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "categories_user_id_fkey"
             columns: ["user_id"]
