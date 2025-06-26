@@ -1,6 +1,7 @@
 
 // Unit tests for useOptimizedCategories hook
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook } from '@testing-library/react'
+import { waitFor } from '@testing-library/dom'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { useOptimizedCategories } from '@/features/categories/hooks/useOptimizedCategories'
 

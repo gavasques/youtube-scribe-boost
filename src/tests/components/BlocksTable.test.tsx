@@ -1,6 +1,7 @@
 
 // Integration tests for BlocksTable component
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
+import { screen } from '@testing-library/dom'
 import { vi, describe, it, expect } from 'vitest'
 import { BlocksTable } from '@/components/Blocks/BlocksTable'
 
