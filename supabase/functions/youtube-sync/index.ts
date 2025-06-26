@@ -94,6 +94,15 @@ serve(async (req) => {
     console.log('=== YouTube Sync Function Called ===')
     console.log('Request method:', req.method)
 
+    // Verificar se é método POST
+    if (req.method !== 'POST') {
+      console.error('Invalid method:', req.method)
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -112,8 +121,59 @@ serve(async (req) => {
 
     console.log('Authenticated user ID:', user.id)
 
-    const { options }: { options: SyncOptions } = await req.json()
-    console.log('Sync options:', options)
+    // Validar e fazer parse do body com tratamento de erro
+    let requestBody;
+    let options: SyncOptions;
+    
+    try {
+      const contentType = req.headers.get('content-type')
+      console.log('Content-Type:', contentType)
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Invalid content-type. Expected application/json')
+      }
+
+      const bodyText = await req.text()
+      console.log('Raw body received:', bodyText)
+      
+      if (!bodyText || bodyText.trim() === '') {
+        throw new Error('Empty request body')
+      }
+
+      requestBody = JSON.parse(bodyText)
+      console.log('Parsed request body:', requestBody)
+
+      // Extrair options do body
+      if (!requestBody.options) {
+        throw new Error('Missing options in request body')
+      }
+
+      options = requestBody.options as SyncOptions
+      console.log('Sync options extracted:', options)
+
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid JSON in request body', 
+          details: jsonError.message,
+          received: await req.text()
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validar options
+    if (!options.hasOwnProperty('type') || !options.hasOwnProperty('maxVideos')) {
+      console.error('Invalid options structure:', options)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid options structure',
+          details: 'Missing required fields: type, maxVideos'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Função para enviar progresso
     const sendProgress = (progress: SyncProgress) => {
