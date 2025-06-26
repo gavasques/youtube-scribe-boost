@@ -95,7 +95,7 @@ export default function Categories() {
       ) : (
         <CategoryEmptyState
           hasCategories={categories.length > 0}
-          hasFilters={hasFilters}
+          hasFilters={Boolean(hasFilters)}
         />
       )}
 

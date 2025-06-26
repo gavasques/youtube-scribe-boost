@@ -79,7 +79,14 @@ export function CategoryForm({
       return
     }
 
-    onSave(validation.data)
+    // Ensure the validated data conforms to CategoryFormData
+    const validatedData: CategoryFormData = {
+      name: validation.data.name,
+      description: validation.data.description || "",
+      is_active: validation.data.is_active ?? CATEGORY_DEFAULTS.DEFAULT_ACTIVE_STATUS
+    }
+
+    onSave(validatedData)
     if (!isLoading) {
       onClose()
     }
