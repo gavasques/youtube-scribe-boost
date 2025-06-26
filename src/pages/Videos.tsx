@@ -67,6 +67,11 @@ export default function Videos() {
     handleUpdateStatusToggle(videoId, newStatus, videos)
   }
 
+  // Função para atualizar a lista após mudanças no modal
+  const handleVideoUpdate = () => {
+    fetchVideos()
+  }
+
   return (
     <div className="space-y-6">
       <VideoHeader
@@ -114,6 +119,7 @@ export default function Videos() {
         onSave={onSaveVideo}
         video={editingVideo}
         categories={categories}
+        onVideoUpdate={handleVideoUpdate}
       />
 
       <YouTubeSyncModal

@@ -24,9 +24,10 @@ interface VideoModalProps {
   onSave: (data: VideoFormData) => void
   video?: Video | null
   categories: Category[]
+  onVideoUpdate?: () => void // Nova prop para atualizar a lista
 }
 
-export function VideoModal({ open, onClose, onSave, video, categories }: VideoModalProps) {
+export function VideoModal({ open, onClose, onSave, video, categories, onVideoUpdate }: VideoModalProps) {
   const [formData, setFormData] = useState<VideoFormData>({
     title: "",
     youtube_url: "",
@@ -102,6 +103,11 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
       // Atualizar estado local
       setFormData(prev => ({ ...prev, category_id: categoryId === "none" ? "" : categoryId }))
 
+      // Atualizar a lista de vídeos na página principal
+      if (onVideoUpdate) {
+        onVideoUpdate()
+      }
+
       // Mostrar confirmação
       toast({
         title: "Categoria atualizada!",
@@ -137,6 +143,11 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
 
       // Atualizar estado local
       setFormData(prev => ({ ...prev, update_status: newStatus as any }))
+
+      // Atualizar a lista de vídeos na página principal
+      if (onVideoUpdate) {
+        onVideoUpdate()
+      }
 
       // Mostrar confirmação
       toast({
