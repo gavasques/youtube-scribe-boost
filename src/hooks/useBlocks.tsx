@@ -13,13 +13,35 @@ export function useBlocks() {
   const fetchBlocks = async () => {
     try {
       setLoading(true)
+      
+      // Verificar se o usuário está autenticado
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError) {
+        console.error('Erro ao obter usuário:', userError)
+        throw userError
+      }
+
+      if (!user) {
+        console.log('Usuário não autenticado')
+        setBlocks([])
+        return
+      }
+
+      console.log('Buscando blocos para usuário:', user.id)
+
       const { data, error } = await supabase
         .from('blocks')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Erro na query de blocos:', error)
+        throw error
+      }
       
+      console.log('Blocos encontrados:', data)
       setBlocks((data || []) as Block[])
     } catch (error) {
       console.error('Erro ao buscar blocos:', error)
@@ -36,18 +58,45 @@ export function useBlocks() {
   // Criar novo bloco
   const createBlock = async (data: BlockFormData) => {
     try {
+      console.log('Criando bloco com dados:', data)
+      
+      // Obter usuário atual
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        throw new Error('Usuário não autenticado')
+      }
+
+      // Preparar dados para inserção
+      const blockData = {
+        title: data.title,
+        description: data.description || null,
+        content: data.content,
+        type: data.type === 'CATEGORY' ? 'CATEGORY_SPECIFIC' : data.type,
+        scope: data.scope,
+        priority: data.priority || 0,
+        is_active: data.is_active !== false,
+        scheduled_start: data.scheduled_start || null,
+        scheduled_end: data.scheduled_end || null,
+        user_id: user.id
+      }
+
+      console.log('Dados preparados para inserção:', blockData)
+
       const { data: newBlock, error } = await supabase
         .from('blocks')
-        .insert([{
-          ...data,
-          user_id: (await supabase.auth.getUser()).data.user?.id
-        }])
+        .insert([blockData])
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Erro ao inserir bloco:', error)
+        throw error
+      }
 
+      console.log('Bloco criado com sucesso:', newBlock)
       setBlocks(prev => [newBlock as Block, ...prev])
+      
       toast({
         title: 'Bloco criado',
         description: 'O bloco foi criado com sucesso.',
@@ -58,7 +107,7 @@ export function useBlocks() {
       console.error('Erro ao criar bloco:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao criar bloco.',
+        description: error instanceof Error ? error.message : 'Erro ao criar bloco.',
         variant: 'destructive',
       })
       return { data: null, error }
@@ -68,12 +117,22 @@ export function useBlocks() {
   // Atualizar bloco
   const updateBlock = async (id: string, data: BlockFormData) => {
     try {
+      const updateData = {
+        title: data.title,
+        description: data.description || null,
+        content: data.content,
+        type: data.type === 'CATEGORY' ? 'CATEGORY_SPECIFIC' : data.type,
+        scope: data.scope,
+        priority: data.priority || 0,
+        is_active: data.is_active !== false,
+        scheduled_start: data.scheduled_start || null,
+        scheduled_end: data.scheduled_end || null,
+        updated_at: new Date().toISOString()
+      }
+
       const { data: updatedBlock, error } = await supabase
         .from('blocks')
-        .update({
-          ...data,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single()
@@ -206,6 +265,9 @@ export function useBlocks() {
   // Duplicar bloco
   const duplicateBlock = async (block: Block) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Usuário não autenticado')
+
       const { data: duplicatedBlock, error } = await supabase
         .from('blocks')
         .insert([{
@@ -216,7 +278,7 @@ export function useBlocks() {
           scope: block.scope,
           priority: block.priority,
           is_active: false,
-          user_id: (await supabase.auth.getUser()).data.user?.id
+          user_id: user.id
         }])
         .select()
         .single()

@@ -66,9 +66,9 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
   const watchedScope = form.watch("scope")
 
   const handleSubmit = (data: BlockFormData) => {
+    console.log('Dados do formulário:', data)
     onSave(data)
     form.reset()
-    onClose()
   }
 
   const handleCategoryChange = (categoryName: string, checked: boolean) => {
@@ -247,30 +247,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
                 />
               </div>
             )}
-
-            {/* Prioridade */}
-            <FormField
-              control={form.control}
-              name="priority"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prioridade</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="0"
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Ordem de aplicação (0 = menor prioridade)
-                  </FormDescription>
-                </FormItem>
-              )}
-            />
 
             {/* Aplicar a vídeos existentes */}
             {!block && (
