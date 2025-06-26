@@ -17,8 +17,15 @@ import { useVideoActions } from "../hooks/useVideoActions"
 export default function VideosPage() {
   const { videos, loading: videosLoading, fetchVideos } = useVideos()
   const { categories, loading: categoriesLoading } = useOptimizedCategories()
-  const { filters, setFilters, filteredVideos } = useVideoFilters(videos)
-  const { handleUpdateStatusToggle, handleEditVideo, handleSaveVideo, handleSyncComplete } = useVideoActions()
+  const { filters, setFilters, filteredVideos, showIgnored, setShowIgnored } = useVideoFilters(videos)
+  const { 
+    handleUpdateStatusToggle, 
+    handleEditVideo, 
+    handleSaveVideo, 
+    handleSyncComplete,
+    handleIgnoreVideo,
+    handleUnignoreVideo
+  } = useVideoActions()
   
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -65,6 +72,16 @@ export default function VideosPage() {
     handleUpdateStatusToggle(videoId, newStatus, videos)
   }
 
+  const onIgnoreVideo = async (video: Video) => {
+    await handleIgnoreVideo(video)
+    fetchVideos()
+  }
+
+  const onUnignoreVideo = async (video: Video) => {
+    await handleUnignoreVideo(video)
+    fetchVideos()
+  }
+
   return (
     <div className="space-y-6">
       <VideoHeader
@@ -84,6 +101,8 @@ export default function VideosPage() {
             filters={filters}
             onFiltersChange={setFilters}
             categories={categories}
+            showIgnored={showIgnored}
+            onShowIgnoredChange={setShowIgnored}
           />
         </CardContent>
       </Card>
@@ -94,6 +113,8 @@ export default function VideosPage() {
         onEditVideo={onEditVideo}
         onPreviewVideo={onPreviewVideo}
         onUpdateStatusToggle={onUpdateStatusToggle}
+        onIgnoreVideo={onIgnoreVideo}
+        onUnignoreVideo={onUnignoreVideo}
       />
 
       <VideoModal

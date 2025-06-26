@@ -47,10 +47,19 @@ export function VideoTable({
               className={video.update_status === 'IGNORED' ? 'opacity-50 bg-gray-50' : ''}
             >
               <TableCell>
-                <VideoThumbnail video={video} />
+                <VideoThumbnail 
+                  thumbnailUrl={video.thumbnail_url} 
+                  title={video.title}
+                />
               </TableCell>
               <TableCell>
-                <VideoInfo video={video} />
+                <VideoInfo 
+                  title={video.title}
+                  viewsCount={video.views_count}
+                  publishedAt={video.published_at}
+                  durationFormatted={video.duration_formatted}
+                  likesCount={video.likes_count}
+                />
               </TableCell>
               <TableCell>
                 <span className="text-sm text-muted-foreground">
@@ -58,7 +67,11 @@ export function VideoTable({
                 </span>
               </TableCell>
               <TableCell>
-                <VideoDataIndicators video={video} />
+                <VideoDataIndicators 
+                  hasTranscription={!!video.transcription}
+                  aiProcessed={!!video.ai_summary}
+                  youtubeUrl={video.youtube_url}
+                />
               </TableCell>
               <VideoStatusBadges 
                 configurationStatus={video.configuration_status}
@@ -66,8 +79,8 @@ export function VideoTable({
               />
               <TableCell>
                 <VideoUpdateStatus
-                  status={video.update_status}
-                  onStatusChange={(newStatus) => onUpdateStatusToggle(video.id, newStatus)}
+                  updateStatus={video.update_status}
+                  onToggle={(checked) => onUpdateStatusToggle(video.id, checked ? 'ACTIVE_FOR_UPDATE' : 'DO_NOT_UPDATE')}
                 />
               </TableCell>
               <TableCell className="text-right">
