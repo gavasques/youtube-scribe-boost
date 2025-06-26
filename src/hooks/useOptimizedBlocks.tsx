@@ -319,7 +319,7 @@ export function useOptimizedBlocks() {
       id: block.id,
       title: block.title,
       content: block.content,
-      type: block.type as 'GLOBAL' | 'CATEGORY' | 'MANUAL',
+      type: block.type as 'GLOBAL' | 'CATEGORY_SPECIFIC' | 'MANUAL',
       scope: block.scope as 'PERMANENT' | 'SCHEDULED',
       priority: block.priority,
       isActive: block.is_active,
