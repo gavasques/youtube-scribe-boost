@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/core/Logger'
 import { errorHandler } from '@/core/ErrorHandler'
-import { BlockUI, BlockFormData } from '@/types/block'
+import { BlockUI, BlockFormData, BlockType, BlockScope } from '@/types/block'
 
 export function useBlockActions() {
   const { toast } = useToast()
@@ -59,6 +59,23 @@ export function useBlockActions() {
     return true
   }
 
+  const convertToBlockUI = (block: any): BlockUI => {
+    return {
+      id: block.id,
+      title: block.title,
+      content: block.content,
+      type: block.type as BlockType,
+      scope: block.scope as BlockScope,
+      priority: block.priority || 0,
+      isActive: block.is_active,
+      scheduledStart: block.scheduled_start,
+      scheduledEnd: block.scheduled_end,
+      categories: [],
+      createdAt: block.created_at,
+      videoId: block.video_id
+    }
+  }
+
   const createBlock = async (data: BlockFormData): Promise<{ data?: BlockUI; error?: string }> => {
     if (!user?.id) {
       return { error: 'Usuário não autenticado' }
@@ -88,20 +105,7 @@ export function useBlockActions() {
 
       if (error) throw error
 
-      const convertedBlock: BlockUI = {
-        id: block.id,
-        title: block.title,
-        content: block.content,
-        type: block.type,
-        scope: block.scope,
-        priority: block.priority,
-        isActive: block.is_active,
-        scheduledStart: block.scheduled_start,
-        scheduledEnd: block.scheduled_end,
-        categories: [],
-        createdAt: block.created_at,
-        videoId: block.video_id
-      }
+      const convertedBlock = convertToBlockUI(block)
 
       showSuccessMessage('created', block.title)
       return { data: convertedBlock }
@@ -140,20 +144,7 @@ export function useBlockActions() {
 
       if (error) throw error
 
-      const convertedBlock: BlockUI = {
-        id: block.id,
-        title: block.title,
-        content: block.content,
-        type: block.type,
-        scope: block.scope,
-        priority: block.priority,
-        isActive: block.is_active,
-        scheduledStart: block.scheduled_start,
-        scheduledEnd: block.scheduled_end,
-        categories: [],
-        createdAt: block.created_at,
-        videoId: block.video_id
-      }
+      const convertedBlock = convertToBlockUI(block)
 
       showSuccessMessage('updated', block.title)
       return { data: convertedBlock }
