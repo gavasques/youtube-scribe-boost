@@ -13,26 +13,32 @@ export function useVideos() {
   const fetchVideos = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
+      
+      // Buscar vídeos
+      const { data: videosData, error: videosError } = await supabase
         .from('videos')
-        .select(`
-          *,
-          categories!left(
-            id,
-            name
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (videosError) throw videosError
+
+      // Buscar categorias
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('id, name')
+
+      if (categoriesError) throw categoriesError
       
       // Mapear os dados para incluir o nome da categoria
-      const videosWithCategoryNames = (data || []).map(video => ({
-        ...video,
-        category_name: video.categories?.name || null,
-        has_transcription: !!video.transcription,
-        ai_processed: !!(video.ai_summary || video.ai_description || video.ai_generated_tags?.length > 0)
-      }))
+      const videosWithCategoryNames = (videosData || []).map(video => {
+        const category = categoriesData?.find(cat => cat.id === video.category_id)
+        return {
+          ...video,
+          category_name: category?.name || null,
+          has_transcription: !!video.transcription,
+          ai_processed: !!(video.ai_summary || video.ai_description || video.ai_generated_tags?.length > 0)
+        }
+      })
       
       setVideos(videosWithCategoryNames as Video[])
     } catch (error) {
