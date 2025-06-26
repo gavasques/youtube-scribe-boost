@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Brain, Play, Save, TestTube } from "lucide-react"
 import { Prompt, PromptFormData } from "@/types/prompt"
 import { useForm } from "react-hook-form"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 
 interface PromptEditorProps {
@@ -27,15 +27,46 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
 
   const form = useForm<PromptFormData>({
     defaultValues: {
-      name: prompt?.name || "",
-      description: prompt?.description || "",
-      prompt: prompt?.prompt || "",
-      temperature: prompt?.temperature || 0.7,
-      max_tokens: prompt?.max_tokens || 1000,
-      top_p: prompt?.top_p || 0.9,
+      name: "",
+      description: "",
+      prompt: "",
+      temperature: 0.7,
+      max_tokens: 1000,
+      top_p: 0.9,
       test_input: "",
     },
   })
+
+  // Atualizar formulário quando prompt for selecionado para edição
+  useEffect(() => {
+    if (open) {
+      if (prompt) {
+        // Edição: carregar dados do prompt
+        form.reset({
+          name: prompt.name,
+          description: prompt.description || "",
+          prompt: prompt.prompt,
+          temperature: prompt.temperature,
+          max_tokens: prompt.max_tokens,
+          top_p: prompt.top_p,
+          test_input: "",
+        })
+      } else {
+        // Criação: resetar para valores padrão
+        form.reset({
+          name: "",
+          description: "",
+          prompt: "",
+          temperature: 0.7,
+          max_tokens: 1000,
+          top_p: 0.9,
+          test_input: "",
+        })
+      }
+      // Limpar resultado de teste quando abrir o modal
+      setTestResult("")
+    }
+  }, [prompt, open, form])
 
   const handleTestPrompt = async (data: PromptFormData) => {
     if (!data.test_input?.trim()) {
@@ -70,8 +101,15 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
     })
   }
 
+  const handleClose = () => {
+    // Resetar formulário e limpar teste ao fechar
+    form.reset()
+    setTestResult("")
+    onClose()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -274,7 +312,7 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
             </Card>
 
             <div className="flex justify-between pt-4 border-t">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={handleClose}>
                 Cancelar
               </Button>
               <Button type="submit" className="gap-2">
