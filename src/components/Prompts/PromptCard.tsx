@@ -30,6 +30,7 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
   const isGlobalPrompt = !prompt.user_id
   const isOwner = currentUserId && prompt.user_id === currentUserId
   const canToggle = isOwner // Apenas donos podem ativar/desativar seus prompts
+  const canEdit = isOwner || isGlobalPrompt // Donos e prompts globais podem ser editados
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -77,47 +78,47 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
             >
               <Copy className="w-4 h-4" />
             </Button>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(prompt)}
+                title="Editar"
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+            )}
             {isOwner && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEdit(prompt)}
-                  title="Editar"
-                >
-                  <Edit className="w-4 h-4" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      title="Remover"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    title="Remover"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remover Prompt</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja remover o prompt "{prompt.name}"? 
+                      Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => onDelete(prompt)}
+                      className="bg-red-600 hover:bg-red-700"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Remover Prompt</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja remover o prompt "{prompt.name}"? 
-                        Esta ação não pode ser desfeita.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={() => onDelete(prompt)}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        Remover
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </>
+                      Remover
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
         </div>
