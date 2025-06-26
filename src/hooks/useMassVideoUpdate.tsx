@@ -52,7 +52,7 @@ export function useMassVideoUpdate() {
 
       // Log da operação
       await logEvent({
-        event_type: 'VIDEO_BULK_UPDATE',
+        event_type: 'VIDEO_UPDATE',
         description: `Atualização em massa: ${successful.length} vídeos movidos para categoria "${categoryName}"`,
         metadata: {
           category_name: categoryName,
@@ -85,7 +85,7 @@ export function useMassVideoUpdate() {
       console.error('Erro na atualização em massa:', error)
       
       await logEvent({
-        event_type: 'VIDEO_BULK_UPDATE',
+        event_type: 'VIDEO_UPDATE',
         description: `Falha na atualização em massa para categoria "${categoryName}": ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
         metadata: { category_name: categoryName, error: String(error) },
         severity: 'HIGH'
