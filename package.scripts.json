@@ -1,0 +1,20 @@
+
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:watch": "vitest --watch",
+    "lint": "eslint src --ext .ts,.tsx --config .eslintrc.feature-based.json",
+    "lint:fix": "eslint src --ext .ts,.tsx --config .eslintrc.feature-based.json --fix",
+    "format": "prettier --write src/**/*.{ts,tsx} --config .prettierrc.feature-based",
+    "format:check": "prettier --check src/**/*.{ts,tsx} --config .prettierrc.feature-based",
+    "type-check": "tsc --noEmit",
+    "analyze": "npx vite-bundle-analyzer",
+    "debug:hooks": "DEBUG=hooks npm run dev",
+    "debug:api": "DEBUG=api npm run dev"
+  }
+}
