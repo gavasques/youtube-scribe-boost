@@ -30,8 +30,14 @@ export function useScheduledTasks() {
 
       if (fetchError) throw fetchError
 
-      setTasks(data || [])
-    } catch (err) {
+      // Type cast para garantir compatibilidade com nossa interface
+      const typedTasks: ScheduledTask[] = (data || []).map(task => ({
+        ...task,
+        task_data: (task.task_data as Record<string, any>) || {}
+      }))
+
+      setTasks(typedTasks)
+    } catch (err: any) {
       console.error('Error fetching scheduled tasks:', err)
       setError(err.message || 'Erro ao buscar tarefas agendadas')
     } finally {
@@ -63,7 +69,7 @@ export function useScheduledTasks() {
 
       await fetchTasks()
       return true
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating scheduled task:', err)
       toast({
         title: 'Erro ao criar tarefa',
@@ -91,7 +97,7 @@ export function useScheduledTasks() {
 
       await fetchTasks()
       return true
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating scheduled task:', err)
       toast({
         title: 'Erro ao atualizar tarefa',
@@ -119,7 +125,7 @@ export function useScheduledTasks() {
 
       await fetchTasks()
       return true
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting scheduled task:', err)
       toast({
         title: 'Erro ao remover tarefa',
@@ -179,7 +185,7 @@ export function useScheduledTasks() {
 
       await fetchTasks()
       return result.success
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error executing scheduled task:', err)
       
       // Reverter status se houve erro
