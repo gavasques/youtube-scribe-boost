@@ -32,7 +32,8 @@ import {
   ChevronRight,
   ChevronLeft,
   FileText,
-  Lock
+  Lock,
+  Info
 } from "lucide-react"
 
 export interface Block {
@@ -97,9 +98,9 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
       )
     } else if (type === "MANUAL") {
       return (
-        <Badge variant="outline" className="gap-1 border-blue-500 text-blue-700">
+        <Badge variant="outline" className="gap-1 border-blue-500 text-blue-700 bg-blue-50">
           <FileText className="w-3 h-3" />
-          Manual
+          Descrições dos Vídeos
         </Badge>
       )
     } else {
@@ -127,7 +128,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
 
   const getBlockContent = (block: Block) => {
     if (block.type === 'MANUAL') {
-      return block.videoDescription || 'Descrição do vídeo não disponível'
+      return 'Este bloco representa onde as descrições dos vídeos aparecem na compilação final. A posição dele na lista define onde as descrições ficam em relação aos outros blocos.'
     }
     return block.content
   }
@@ -165,7 +166,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
             <option value="all">Todos os tipos</option>
             <option value="GLOBAL">Global</option>
             <option value="CATEGORY">Categoria</option>
-            <option value="MANUAL">Manual</option>
+            <option value="MANUAL">Descrições dos Vídeos</option>
           </select>
           
           <select
@@ -189,7 +190,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                 <TableHead>Tipo</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Escopo</TableHead>
-                <TableHead>Ordem</TableHead>
+                <TableHead>Prioridade</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -213,12 +214,12 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {block.type === 'MANUAL' && <Lock className="w-4 h-4 text-gray-500" />}
+                        {block.type === 'MANUAL' && <Info className="w-4 h-4 text-blue-500" />}
                         <div>
                           <div className="font-medium">{block.title}</div>
-                          {block.type === 'MANUAL' && block.videoTitle && (
-                            <div className="text-sm text-gray-500">
-                              Vídeo: {block.videoTitle}
+                          {block.type === 'MANUAL' && (
+                            <div className="text-sm text-blue-600">
+                              Posição das descrições na compilação
                             </div>
                           )}
                           {block.categories.length > 0 && (
@@ -248,24 +249,25 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                     <TableCell>{getScopeBadge(block)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onMoveUp(block.id)}
-                          disabled={index === 0}
-                          className="h-6 w-6 p-0"
-                        >
-                          <ChevronUp className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onMoveDown(block.id)}
-                          disabled={index === filteredBlocks.length - 1}
-                          className="h-6 w-6 p-0"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </Button>
+                        <span className="text-sm font-mono">{block.priority}</span>
+                        <div className="flex flex-col">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onMoveUp(block.id)}
+                            className="h-4 w-4 p-0"
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onMoveDown(block.id)}
+                            className="h-4 w-4 p-0"
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -300,7 +302,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                           {block.type === 'MANUAL' && (
                             <DropdownMenuItem disabled>
                               <Lock className="w-4 h-4 mr-2" />
-                              Bloco protegido
+                              Bloco gerenciado pelo sistema
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -313,14 +315,14 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
                       <TableCell colSpan={6}>
                         <div className={`p-4 rounded-md ${block.type === 'MANUAL' ? 'bg-blue-50' : 'bg-gray-50'}`}>
                           <div className="text-sm font-medium text-gray-700 mb-2">
-                            {block.type === 'MANUAL' ? 'Conteúdo da Descrição do Vídeo:' : 'Conteúdo do Bloco:'}
+                            {block.type === 'MANUAL' ? 'Função do Bloco:' : 'Conteúdo do Bloco:'}
                           </div>
                           <div className="text-sm text-gray-600 whitespace-pre-wrap border p-3 bg-white rounded">
                             {getBlockContent(block)}
                           </div>
                           {block.type === 'MANUAL' && (
                             <div className="text-xs text-blue-600 mt-2">
-                              ℹ️ Este bloco representa a descrição atual do vídeo vinculado
+                              💡 <strong>Dica:</strong> Mova este bloco para cima ou para baixo para definir onde as descrições dos vídeos aparecem em relação aos outros blocos. Altere a prioridade para reordenar.
                             </div>
                           )}
                         </div>

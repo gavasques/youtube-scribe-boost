@@ -443,7 +443,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      ensure_manual_block_exists: {
+        Args: { p_user_id: string }
+        Returns: string
+      }
     }
     Enums: {
       approval_status: "PENDING" | "APPROVED" | "REJECTED"

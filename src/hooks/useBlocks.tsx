@@ -9,7 +9,31 @@ export function useBlocks() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  // Buscar blocos do usuário - ordenados por data de criação (mais recente primeiro)
+  // Garantir que existe um bloco Manual para o usuário
+  const ensureManualBlockExists = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        console.log('Usuário não autenticado')
+        return
+      }
+
+      const { data, error } = await supabase.rpc('ensure_manual_block_exists', {
+        p_user_id: user.id
+      })
+
+      if (error) {
+        console.error('Erro ao garantir bloco Manual:', error)
+      } else {
+        console.log('Bloco Manual garantido:', data)
+      }
+    } catch (error) {
+      console.error('Erro na função ensureManualBlockExists:', error)
+    }
+  }
+
+  // Buscar blocos do usuário - ordenados por prioridade (maior primeiro) e depois por data
   const fetchBlocks = async () => {
     try {
       setLoading(true)
@@ -30,6 +54,9 @@ export function useBlocks() {
 
       console.log('Buscando blocos para usuário:', user.id)
 
+      // Garantir que existe bloco Manual
+      await ensureManualBlockExists()
+
       const { data, error } = await supabase
         .from('blocks')
         .select(`
@@ -42,6 +69,7 @@ export function useBlocks() {
           )
         `)
         .eq('user_id', user.id)
+        .order('priority', { ascending: false })
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -70,7 +98,7 @@ export function useBlocks() {
       
       // Verificar se está tentando criar um bloco MANUAL
       if (data.type === 'MANUAL') {
-        throw new Error('Blocos do tipo MANUAL não podem ser criados manualmente')
+        throw new Error('Blocos do tipo MANUAL são criados automaticamente pelo sistema')
       }
       
       // Obter usuário atual
@@ -90,7 +118,7 @@ export function useBlocks() {
         is_active: data.is_active !== false,
         scheduled_start: data.scheduled_start || null,
         scheduled_end: data.scheduled_end || null,
-        video_id: data.video_id || null,
+        video_id: null, // Sempre null para novos blocos
         user_id: user.id
       }
 
@@ -133,7 +161,7 @@ export function useBlocks() {
       // Verificar se é um bloco MANUAL
       const blockToUpdate = blocks.find(b => b.id === id)
       if (blockToUpdate?.type === 'MANUAL') {
-        throw new Error('Blocos do tipo MANUAL não podem ser editados')
+        throw new Error('O bloco "Descrições dos Vídeos" não pode ser editado. Ele é gerenciado automaticamente pelo sistema.')
       }
 
       const updateData = {
@@ -175,62 +203,32 @@ export function useBlocks() {
     }
   }
 
-  // Criar bloco MANUAL para um vídeo específico
+  // Função removida - não é mais necessária
   const createManualBlock = async (videoId: string, videoTitle: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Usuário não autenticado')
-
-      const { data: manualBlock, error } = await supabase
-        .from('blocks')
-        .insert([{
-          title: `Descrição do vídeo: ${videoTitle}`,
-          content: '', // Conteúdo vazio pois será puxado da descrição do vídeo
-          type: 'MANUAL',
-          scope: 'PERMANENT',
-          priority: 0,
-          is_active: true,
-          video_id: videoId,
-          user_id: user.id
-        }])
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setBlocks(prev => [manualBlock as Block, ...prev])
-      toast({
-        title: 'Bloco manual criado',
-        description: `Bloco manual criado para o vídeo "${videoTitle}".`,
-      })
-      
-      return { data: manualBlock, error: null }
-    } catch (error) {
-      console.error('Erro ao criar bloco manual:', error)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao criar bloco manual.',
-        variant: 'destructive',
-      })
-      return { data: null, error }
-    }
+    throw new Error('Esta função foi removida. O bloco Manual é criado automaticamente pelo sistema.')
   }
 
-  // Mover bloco para cima na ordem
+  // Mover bloco para cima na ordem (aumentar prioridade)
   const moveBlockUp = async (blockId: string) => {
     try {
-      const currentIndex = blocks.findIndex(b => b.id === blockId)
-      if (currentIndex <= 0) return
+      const currentBlock = blocks.find(b => b.id === blockId)
+      if (!currentBlock) return
 
-      const currentBlock = blocks[currentIndex]
-      const previousBlock = blocks[currentIndex - 1]
-      
-      // Ajustar created_at para simular reordenação
-      const newCreatedAt = new Date(new Date(previousBlock.created_at).getTime() + 1000).toISOString()
+      // Não permitir mover o bloco MANUAL
+      if (currentBlock.type === 'MANUAL') {
+        toast({
+          title: 'Ação não permitida',
+          description: 'O bloco "Descrições dos Vídeos" pode ser reordenado apenas alterando sua prioridade.',
+        })
+        return
+      }
+
+      // Aumentar prioridade em 10
+      const newPriority = currentBlock.priority + 10
 
       const { error } = await supabase
         .from('blocks')
-        .update({ created_at: newCreatedAt })
+        .update({ priority: newPriority })
         .eq('id', blockId)
 
       if (error) throw error
@@ -252,21 +250,27 @@ export function useBlocks() {
     }
   }
 
-  // Mover bloco para baixo na ordem
+  // Mover bloco para baixo na ordem (diminuir prioridade)
   const moveBlockDown = async (blockId: string) => {
     try {
-      const currentIndex = blocks.findIndex(b => b.id === blockId)
-      if (currentIndex >= blocks.length - 1) return
+      const currentBlock = blocks.find(b => b.id === blockId)
+      if (!currentBlock) return
 
-      const currentBlock = blocks[currentIndex]
-      const nextBlock = blocks[currentIndex + 1]
-      
-      // Ajustar created_at para simular reordenação
-      const newCreatedAt = new Date(new Date(nextBlock.created_at).getTime() - 1000).toISOString()
+      // Não permitir mover o bloco MANUAL
+      if (currentBlock.type === 'MANUAL') {
+        toast({
+          title: 'Ação não permitida',
+          description: 'O bloco "Descrições dos Vídeos" pode ser reordenado apenas alterando sua prioridade.',
+        })
+        return
+      }
+
+      // Diminuir prioridade em 10 (mínimo 0)
+      const newPriority = Math.max(0, currentBlock.priority - 10)
 
       const { error } = await supabase
         .from('blocks')
-        .update({ created_at: newCreatedAt })
+        .update({ priority: newPriority })
         .eq('id', blockId)
 
       if (error) throw error
@@ -292,7 +296,7 @@ export function useBlocks() {
   const toggleBlockActive = async (block: Block) => {
     try {
       if (block.type === 'MANUAL') {
-        throw new Error('Blocos do tipo MANUAL não podem ser desativados')
+        throw new Error('O bloco "Descrições dos Vídeos" está sempre ativo e não pode ser desativado.')
       }
 
       const { data: updatedBlock, error } = await supabase
@@ -329,7 +333,7 @@ export function useBlocks() {
   const duplicateBlock = async (block: Block) => {
     try {
       if (block.type === 'MANUAL') {
-        throw new Error('Blocos do tipo MANUAL não podem ser duplicados')
+        throw new Error('O bloco "Descrições dos Vídeos" não pode ser duplicado.')
       }
 
       const { data: { user } } = await supabase.auth.getUser()
@@ -344,7 +348,8 @@ export function useBlocks() {
           scope: block.scope,
           priority: block.priority,
           is_active: false,
-          user_id: user.id
+          user_id: user.id,
+          video_id: null
         }])
         .select()
         .single()
@@ -373,7 +378,7 @@ export function useBlocks() {
   const deleteBlock = async (block: Block) => {
     try {
       if (block.type === 'MANUAL') {
-        throw new Error('Blocos do tipo MANUAL não podem ser removidos')
+        throw new Error('O bloco "Descrições dos Vídeos" não pode ser removido. Ele é necessário para o funcionamento do sistema.')
       }
 
       const { error } = await supabase
