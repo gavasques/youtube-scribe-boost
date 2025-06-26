@@ -286,21 +286,29 @@ export type Database = {
           ai_description: string | null
           ai_generated_tags: string[] | null
           ai_summary: string | null
+          category_id: string | null
+          comments_count: number | null
           compiled_description: string | null
           configuration_status: string | null
           created_at: string | null
           current_description: string | null
           current_tags: string[] | null
+          duration_formatted: string | null
+          duration_seconds: number | null
           id: string
+          likes_count: number | null
           original_description: string | null
           original_tags: string[] | null
+          privacy_status: string | null
           published_at: string | null
+          thumbnail_url: string | null
           title: string
           transcription: string | null
           update_status: string | null
           updated_at: string | null
           user_id: string | null
           video_type: string | null
+          views_count: number | null
           youtube_id: string
           youtube_url: string
         }
@@ -309,21 +317,29 @@ export type Database = {
           ai_description?: string | null
           ai_generated_tags?: string[] | null
           ai_summary?: string | null
+          category_id?: string | null
+          comments_count?: number | null
           compiled_description?: string | null
           configuration_status?: string | null
           created_at?: string | null
           current_description?: string | null
           current_tags?: string[] | null
+          duration_formatted?: string | null
+          duration_seconds?: number | null
           id?: string
+          likes_count?: number | null
           original_description?: string | null
           original_tags?: string[] | null
+          privacy_status?: string | null
           published_at?: string | null
+          thumbnail_url?: string | null
           title: string
           transcription?: string | null
           update_status?: string | null
           updated_at?: string | null
           user_id?: string | null
           video_type?: string | null
+          views_count?: number | null
           youtube_id: string
           youtube_url: string
         }
@@ -332,21 +348,29 @@ export type Database = {
           ai_description?: string | null
           ai_generated_tags?: string[] | null
           ai_summary?: string | null
+          category_id?: string | null
+          comments_count?: number | null
           compiled_description?: string | null
           configuration_status?: string | null
           created_at?: string | null
           current_description?: string | null
           current_tags?: string[] | null
+          duration_formatted?: string | null
+          duration_seconds?: number | null
           id?: string
+          likes_count?: number | null
           original_description?: string | null
           original_tags?: string[] | null
+          privacy_status?: string | null
           published_at?: string | null
+          thumbnail_url?: string | null
           title?: string
           transcription?: string | null
           update_status?: string | null
           updated_at?: string | null
           user_id?: string | null
           video_type?: string | null
+          views_count?: number | null
           youtube_id?: string
           youtube_url?: string
         }

@@ -27,8 +27,16 @@ export interface Video {
   created_at: string
   updated_at: string
   
-  // Propriedades computadas/extras para UI
-  thumbnail_url?: string
+  // Novos campos com todos os metadados do YouTube
+  views_count: number
+  likes_count: number
+  comments_count: number
+  thumbnail_url: string | null
+  duration_seconds: number
+  duration_formatted: string | null
+  privacy_status: string
+  
+  // Propriedades computadas/extras para UI (mantidas para compatibilidade)
   views?: string
   duration?: string
   category_name?: string

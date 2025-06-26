@@ -23,16 +23,21 @@ interface YouTubeVideo {
     publishedAt: string
     tags?: string[]
     thumbnails: {
-      medium: { url: string }
+      default?: { url: string }
+      medium?: { url: string }
+      high?: { url: string }
+      standard?: { url: string }
+      maxres?: { url: string }
     }
+    categoryId: string
   }
   contentDetails: {
     duration: string
   }
   statistics: {
-    viewCount: string
-    likeCount: string
-    commentCount: string
+    viewCount?: string
+    likeCount?: string
+    commentCount?: string
   }
   status: {
     privacyStatus: string
@@ -45,6 +50,39 @@ interface SyncProgress {
   total: number
   message: string
   errors?: string[]
+}
+
+// Função para converter duração ISO 8601 (PT1M30S) para segundos
+function parseDuration(duration: string): { seconds: number; formatted: string } {
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+  if (!match) return { seconds: 0, formatted: '0:00' }
+  
+  const hours = parseInt(match[1] || '0')
+  const minutes = parseInt(match[2] || '0')
+  const seconds = parseInt(match[3] || '0')
+  
+  const totalSeconds = hours * 3600 + minutes * 60 + seconds
+  
+  // Formatar como HH:MM:SS ou MM:SS
+  let formatted = ''
+  if (hours > 0) {
+    formatted = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  } else {
+    formatted = `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+  
+  return { seconds: totalSeconds, formatted }
+}
+
+// Função para obter a melhor thumbnail disponível
+function getBestThumbnail(thumbnails: any): string | null {
+  // Prioridade: maxres > standard > high > medium > default
+  if (thumbnails.maxres) return thumbnails.maxres.url
+  if (thumbnails.standard) return thumbnails.standard.url
+  if (thumbnails.high) return thumbnails.high.url
+  if (thumbnails.medium) return thumbnails.medium.url
+  if (thumbnails.default) return thumbnails.default.url
+  return null
 }
 
 serve(async (req) => {
@@ -62,7 +100,7 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
-    // Verificar autenticação usando o mesmo método do oauth-start
+    // Verificar autenticação
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
       console.error('Authentication error:', authError)
@@ -89,7 +127,7 @@ serve(async (req) => {
       message: 'Validando conexão com YouTube...'
     })
 
-    // Buscar tokens do YouTube usando o service role para acessar todos os dados
+    // Buscar tokens do YouTube usando o service role
     const supabaseService = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -139,7 +177,6 @@ serve(async (req) => {
         console.log('Token refreshed successfully')
         accessToken = refreshData.access_token
         
-        // Atualizar token no banco
         await supabaseService
           .from('youtube_tokens')
           .update({
@@ -193,15 +230,16 @@ serve(async (req) => {
       step: 'details',
       current: 3,
       total: 5,
-      message: `Buscando detalhes de ${videoIds.length} vídeos...`
+      message: `Buscando detalhes completos de ${videoIds.length} vídeos...`
     })
 
-    // Buscar detalhes dos vídeos em lotes
+    // Buscar detalhes completos dos vídeos em lotes
     const batchSize = 50
     const allVideos: YouTubeVideo[] = []
 
     for (let i = 0; i < videoIds.length; i += batchSize) {
       const batch = videoIds.slice(i, i + batchSize)
+      // Buscar todos os dados possíveis: snippet, contentDetails, statistics, status
       const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${batch.join(',')}`
       
       console.log(`Fetching batch ${Math.floor(i/batchSize) + 1}, videos: ${batch.length}`)
@@ -219,13 +257,13 @@ serve(async (req) => {
       }
     }
 
-    console.log('Total videos fetched:', allVideos.length)
+    console.log('Total videos fetched with complete data:', allVideos.length)
 
     sendProgress({
       step: 'processing',
       current: 4,
       total: 5,
-      message: 'Processando vídeos...'
+      message: 'Processando e salvando todos os dados dos vídeos...'
     })
 
     const stats = {
@@ -239,15 +277,8 @@ serve(async (req) => {
 
     // Função para detectar se é Short
     const isShort = (duration: string) => {
-      // Parse ISO 8601 duration (PT1M30S = 1 minute 30 seconds)
-      const match = duration.match(/PT(?:(\d+)M)?(?:(\d+)S)?/)
-      if (!match) return false
-      
-      const minutes = parseInt(match[1] || '0')
-      const seconds = parseInt(match[2] || '0')
-      const totalSeconds = minutes * 60 + seconds
-      
-      return totalSeconds <= 60 // 60 segundos ou menos = Short
+      const { seconds } = parseDuration(duration)
+      return seconds <= 60 // 60 segundos ou menos = Short
     }
 
     for (const video of allVideos) {
@@ -255,7 +286,10 @@ serve(async (req) => {
         console.log(`Processing video: ${video.snippet.title}`)
         
         const videoType = isShort(video.contentDetails.duration) ? 'SHORT' : 'REGULAR'
-        console.log(`Video type: ${videoType}, Duration: ${video.contentDetails.duration}`)
+        const durationData = parseDuration(video.contentDetails.duration)
+        const thumbnailUrl = getBestThumbnail(video.snippet.thumbnails)
+        
+        console.log(`Video type: ${videoType}, Duration: ${video.contentDetails.duration} (${durationData.formatted})`)
         
         // Filtrar por tipo se necessário
         if (videoType === 'REGULAR' && !options.includeRegular) {
@@ -275,6 +309,7 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .maybeSingle()
 
+        // Preparar todos os dados do vídeo
         const videoData = {
           user_id: user.id,
           youtube_id: video.id,
@@ -286,21 +321,35 @@ serve(async (req) => {
           current_description: video.snippet.description || '',
           original_tags: video.snippet.tags || [],
           current_tags: video.snippet.tags || [],
+          
+          // Novos campos com todos os metadados
+          views_count: parseInt(video.statistics.viewCount || '0'),
+          likes_count: parseInt(video.statistics.likeCount || '0'),
+          comments_count: parseInt(video.statistics.commentCount || '0'),
+          thumbnail_url: thumbnailUrl,
+          duration_seconds: durationData.seconds,
+          duration_formatted: durationData.formatted,
+          privacy_status: video.status.privacyStatus,
+          category_id: video.snippet.categoryId,
+          
           updated_at: new Date().toISOString()
         }
 
-        console.log('Video data to save:', {
+        console.log('Complete video data to save:', {
           youtube_id: videoData.youtube_id,
           title: videoData.title,
           video_type: videoData.video_type,
-          user_id: videoData.user_id
+          views_count: videoData.views_count,
+          likes_count: videoData.likes_count,
+          duration_formatted: videoData.duration_formatted,
+          privacy_status: videoData.privacy_status
         })
 
         if (existingVideo) {
-          console.log('Video exists, updating...')
+          console.log('Video exists, updating with complete data...')
           
-          // Atualizar vídeo existente apenas se syncMetadata estiver ativo
-          if (options.syncMetadata) {
+          // Atualizar vídeo existente sempre, ou apenas se syncMetadata estiver ativo
+          if (options.syncMetadata || true) { // Sempre atualizar para garantir dados completos
             const { error: updateError } = await supabaseService
               .from('videos')
               .update(videoData)
@@ -312,10 +361,10 @@ serve(async (req) => {
             }
             
             stats.updated++
-            console.log('Video updated successfully')
+            console.log('Video updated successfully with complete data')
           }
         } else {
-          console.log('Creating new video...')
+          console.log('Creating new video with complete data...')
           
           // Criar novo vídeo
           const { error: insertError } = await supabaseService
@@ -328,7 +377,7 @@ serve(async (req) => {
           }
           
           stats.new++
-          console.log('New video created successfully')
+          console.log('New video created successfully with complete data')
         }
 
         stats.processed++
@@ -344,16 +393,16 @@ serve(async (req) => {
       step: 'complete',
       current: 5,
       total: 5,
-      message: 'Sincronização concluída!'
+      message: 'Sincronização concluída com todos os dados!'
     })
 
-    console.log('=== Sync completed ===')
+    console.log('=== Sync completed with complete data ===')
     console.log('Final stats:', stats)
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Sincronização concluída com sucesso',
+        message: 'Sincronização concluída com sucesso - todos os dados foram salvos',
         stats,
         errors: errors.length > 0 ? errors : undefined
       }),

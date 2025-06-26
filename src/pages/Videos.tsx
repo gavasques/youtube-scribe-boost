@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -59,9 +60,22 @@ export default function Videos() {
     }
   }
 
+  const formatViews = (views: number) => {
+    if (views >= 1000000) {
+      return `${(views / 1000000).toFixed(1)}M`
+    } else if (views >= 1000) {
+      return `${(views / 1000).toFixed(1)}K`
+    }
+    return views.toString()
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleDateString('pt-BR')
+  }
+
   const handleUpdateStatusToggle = async (videoId: string, newStatus: string) => {
     try {
-      // Log the status change
       await logEvent({
         event_type: 'VIDEO_UPDATE',
         description: `Video status changed to: ${getUpdateStatusLabel(newStatus)}`,
@@ -73,7 +87,6 @@ export default function Videos() {
         severity: 'LOW'
       })
 
-      // Implementar atualização real do status
       toast({
         title: "Status atualizado!",
         description: `Status de atualização alterado para: ${getUpdateStatusLabel(newStatus)}`,
@@ -196,7 +209,7 @@ export default function Videos() {
             <Youtube className="w-4 h-4" />
             Sincronizar com YouTube
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={fetchVideos}>
             <RefreshCw className="w-4 h-4" />
             Atualizar
           </Button>
@@ -253,21 +266,35 @@ export default function Videos() {
                   <TableRow key={video.id}>
                     <TableCell>
                       <div className="flex items-start gap-3">
-                        <div className="w-16 h-12 bg-muted rounded flex items-center justify-center">
-                          <Play className="w-6 h-6 text-muted-foreground" />
+                        <div className="w-16 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
+                          {video.thumbnail_url ? (
+                            <img 
+                              src={video.thumbnail_url} 
+                              alt={video.title}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Play className="w-6 h-6 text-muted-foreground" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium line-clamp-2 text-sm">
                             {video.title}
                           </p>
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            <span>{video.views || '0'} views</span>
+                            <span>{formatViews(video.views_count)} views</span>
                             <span>•</span>
-                            <span>{video.published_at}</span>
-                            {video.duration && (
+                            <span>{formatDate(video.published_at)}</span>
+                            {video.duration_formatted && (
                               <>
                                 <span>•</span>
-                                <span>{video.duration}</span>
+                                <span>{video.duration_formatted}</span>
+                              </>
+                            )}
+                            {video.likes_count > 0 && (
+                              <>
+                                <span>•</span>
+                                <span>{formatViews(video.likes_count)} curtidas</span>
                               </>
                             )}
                           </div>
