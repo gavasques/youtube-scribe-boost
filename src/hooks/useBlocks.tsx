@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { Block, BlockFormData } from '@/types/block'
@@ -33,6 +32,18 @@ export function useBlocks() {
     }
   }
 
+  // Reorganizar prioridades sequenciais
+  const reorganizePriorities = (blocksToReorganize: Block[]) => {
+    // Ordenar por prioridade atual (menor primeiro para manter a ordem visual)
+    const sortedBlocks = [...blocksToReorganize].sort((a, b) => b.priority - a.priority)
+    
+    // Reassignar prioridades sequenciais
+    return sortedBlocks.map((block, index) => ({
+      ...block,
+      priority: sortedBlocks.length - index // Inverte: primeiro bloco tem prioridade mais alta
+    }))
+  }
+
   // Reorganizar prioridades sequenciais no banco
   const updatePrioritiesInDatabase = async (blocksToUpdate: Block[]) => {
     try {
@@ -58,7 +69,7 @@ export function useBlocks() {
     }
   }
 
-  // Buscar blocos do usuário - ordenados por prioridade (maior primeiro) e depois por data
+  // Buscar blocos do usuário - ordenados por prioridade (menor primeiro) e depois por data
   const fetchBlocks = async () => {
     try {
       setLoading(true)
@@ -94,7 +105,7 @@ export function useBlocks() {
           )
         `)
         .eq('user_id', user.id)
-        .order('priority', { ascending: false })
+        .order('priority', { ascending: true })
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -250,11 +261,7 @@ export function useBlocks() {
       updatedBlocks[currentBlockIndex - 1] = { ...blockAbove, priority: currentBlock.priority }
       
       // Reorganizar as prioridades para serem sequenciais
-      const sortedBlocks = updatedBlocks.sort((a, b) => b.priority - a.priority)
-      const reorderedBlocks = sortedBlocks.map((block, index) => ({
-        ...block,
-        priority: sortedBlocks.length - index
-      }))
+      const reorderedBlocks = reorganizePriorities(updatedBlocks)
       
       // Atualizar estado local primeiro (UX suave)
       setBlocks(reorderedBlocks)
@@ -293,11 +300,7 @@ export function useBlocks() {
       updatedBlocks[currentBlockIndex + 1] = { ...blockBelow, priority: currentBlock.priority }
       
       // Reorganizar as prioridades para serem sequenciais
-      const sortedBlocks = updatedBlocks.sort((a, b) => b.priority - a.priority)
-      const reorderedBlocks = sortedBlocks.map((block, index) => ({
-        ...block,
-        priority: sortedBlocks.length - index
-      }))
+      const reorderedBlocks = reorganizePriorities(updatedBlocks)
       
       // Atualizar estado local primeiro (UX suave)
       setBlocks(reorderedBlocks)
