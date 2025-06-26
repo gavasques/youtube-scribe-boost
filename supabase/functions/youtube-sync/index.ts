@@ -240,15 +240,22 @@ serve(async (req) => {
       log('Token refreshed successfully')
     }
 
+    // For complete sync, use maxResults=50 per page, for single page sync use the requested maxVideos
+    const pageSize = options.syncAll ? 50 : Math.min(options.maxVideos, 50)
+    
     // Build search URL with pagination support
-    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${Math.min(options.maxVideos, 50)}`
+    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${pageSize}`
     
     if (options.pageToken) {
       searchUrl += `&pageToken=${options.pageToken}`
       log('Using page token for pagination', { pageToken: options.pageToken })
     }
     
-    log('Fetching videos from YouTube', { maxVideos: options.maxVideos, pageToken: options.pageToken })
+    log('Fetching videos from YouTube', { 
+      pageSize, 
+      pageToken: options.pageToken,
+      syncAll: options.syncAll 
+    })
     
     const searchResponse = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -273,14 +280,15 @@ serve(async (req) => {
       count: videoIds.length,
       nextPageToken,
       totalResults,
-      resultsPerPage
+      resultsPerPage,
+      hasMorePages: !!nextPageToken
     })
 
     if (videoIds.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true,
-          stats: { processed: 0, new: 0, updated: 0, errors: 0 },
+          stats: { processed: 0, new: 0, updated: 0, errors: 0, totalEstimated: totalResults },
           hasMorePages: false,
           currentPage: 1,
           nextPageToken: null
@@ -355,6 +363,7 @@ serve(async (req) => {
           
           videoId = existingVideo.id
           stats.updated++
+          log(`Updated existing video: ${video.snippet.title}`)
         } else {
           // Insert new video
           const { data: newVideo, error: insertError } = await supabaseService
@@ -367,6 +376,7 @@ serve(async (req) => {
           
           videoId = newVideo.id
           stats.new++
+          log(`Created new video: ${video.snippet.title}`)
         }
 
         // Insert/update metadata in video_metadata table
@@ -385,7 +395,7 @@ serve(async (req) => {
 
         const { error: metadataError } = await supabaseService
           .from('video_metadata')
-          .upsert(metadataData)
+          .upsert(metadataData, { onConflict: 'video_id' })
         
         if (metadataError) {
           logError('Failed to upsert metadata', metadataError)
@@ -401,7 +411,7 @@ serve(async (req) => {
 
         const { error: descriptionError } = await supabaseService
           .from('video_descriptions')
-          .upsert(descriptionData)
+          .upsert(descriptionData, { onConflict: 'video_id' })
         
         if (descriptionError) {
           logError('Failed to upsert description', descriptionError)
@@ -417,7 +427,7 @@ serve(async (req) => {
 
         const { error: configError } = await supabaseService
           .from('video_configuration')
-          .upsert(configData)
+          .upsert(configData, { onConflict: 'video_id' })
         
         if (configError) {
           logError('Failed to upsert configuration', configError)
@@ -461,7 +471,7 @@ serve(async (req) => {
     const hasMorePages = !!nextPageToken
     const estimatedTotalPages = Math.ceil(totalResults / resultsPerPage)
     const currentPage = options.pageToken ? 
-      Math.floor((stats.processed || 0) / resultsPerPage) + 1 : 1
+      Math.floor((totalResults - searchData.pageInfo?.totalResults + stats.processed) / resultsPerPage) + 1 : 1
 
     const result: SyncResult = {
       stats,

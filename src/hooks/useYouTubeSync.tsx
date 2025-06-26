@@ -88,7 +88,8 @@ export function useYouTubeSync() {
         step: 'auth', 
         current: 1, 
         total: 3, 
-        message: 'Verificando autenticação...' 
+        message: 'Verificando autenticação...',
+        totalVideosEstimated: options.syncAll ? undefined : options.maxVideos
       })
 
       const { data: authData } = await supabase.auth.getSession()
@@ -100,7 +101,8 @@ export function useYouTubeSync() {
         step: 'syncing', 
         current: 2, 
         total: 3, 
-        message: 'Sincronizando vídeos...' 
+        message: options.syncAll ? 'Sincronizando todos os vídeos...' : `Sincronizando até ${options.maxVideos} vídeos...`,
+        totalVideosEstimated: options.syncAll ? undefined : options.maxVideos
       })
 
       logger.info('Calling Edge Function', { 
@@ -146,7 +148,9 @@ export function useYouTubeSync() {
         step: 'complete', 
         current: 3, 
         total: 3, 
-        message: 'Sincronização concluída!' 
+        message: 'Sincronização concluída!',
+        totalVideosEstimated: result.stats.totalEstimated,
+        videosProcessed: result.stats.processed
       })
 
       const statsMessage = `${result.stats.processed} vídeos processados. ${result.stats.new} novos, ${result.stats.updated} atualizados.`
@@ -229,7 +233,7 @@ export function useYouTubeSync() {
           step: 'syncing',
           current: currentPage,
           total: totalPages || currentPage + 1,
-          message: `Sincronizando página ${currentPage}${totalPages ? ` de ${totalPages}` : ''}...`,
+          message: `Processando página ${currentPage}${totalPages ? ` de ${totalPages}` : ''}...`,
           currentPage,
           totalPages,
           videosProcessed: batchSync.totalStats.processed,
@@ -239,7 +243,8 @@ export function useYouTubeSync() {
         const syncOptions: SyncOptions = {
           ...options,
           syncAll: true,
-          pageToken
+          pageToken,
+          maxVideos: 50 // Fixed at 50 per page for complete sync
         }
 
         const result = await syncWithYouTube(syncOptions)
@@ -250,7 +255,7 @@ export function useYouTubeSync() {
           new: batchSync.totalStats.new + result.stats.new,
           updated: batchSync.totalStats.updated + result.stats.updated,
           errors: batchSync.totalStats.errors + result.stats.errors,
-          totalEstimated: result.stats.totalEstimated
+          totalEstimated: result.stats.totalEstimated || batchSync.totalStats.totalEstimated
         }
 
         const newAllErrors = [...batchSync.allErrors, ...(result.errors || [])]
@@ -275,11 +280,13 @@ export function useYouTubeSync() {
           totalPages,
           hasMorePages: result.hasMorePages,
           totalStatsProcessed: newTotalStats.processed,
-          totalVideosEstimated
+          totalVideosEstimated,
+          nextPageToken: result.nextPageToken
         })
 
         // Check if there are more pages
         if (!result.hasMorePages || !result.nextPageToken) {
+          logger.info('No more pages to process, completing sync')
           break
         }
 
