@@ -13,8 +13,7 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { Approval, ApprovalTypeLabels, ApprovalStatusLabels } from '@/types/approval'
-import { formatDistanceToNow } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { formatApprovalDate, getStatusColors, getTypeColors, isApprovalUrgent, isApprovalOld } from '@/utils/approvalFormatters'
 
 interface ApprovalCardProps {
   approval: Approval
@@ -24,6 +23,11 @@ interface ApprovalCardProps {
 
 export function ApprovalCard({ approval, onView, onQuickAction }: ApprovalCardProps) {
   const [processing, setProcessing] = useState(false)
+
+  const statusColors = getStatusColors(approval.status)
+  const typeColors = getTypeColors(approval.type)
+  const isUrgent = isApprovalUrgent(approval)
+  const isOld = isApprovalOld(approval)
 
   const getStatusIcon = () => {
     switch (approval.status) {
@@ -36,34 +40,6 @@ export function ApprovalCard({ approval, onView, onQuickAction }: ApprovalCardPr
     }
   }
 
-  const getStatusColor = () => {
-    switch (approval.status) {
-      case 'PENDING':
-        return 'bg-orange-100 text-orange-800'
-      case 'APPROVED':
-        return 'bg-green-100 text-green-800'
-      case 'REJECTED':
-        return 'bg-red-100 text-red-800'
-    }
-  }
-
-  const getTypeColor = () => {
-    switch (approval.type) {
-      case 'BLOCK_CHANGE':
-        return 'bg-blue-100 text-blue-800'
-      case 'MASS_UPDATE':
-        return 'bg-purple-100 text-purple-800'
-      case 'SYNC_OPERATION':
-        return 'bg-cyan-100 text-cyan-800'
-      case 'CATEGORY_CHANGE':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'TAG_UPDATE':
-        return 'bg-pink-100 text-pink-800'
-      case 'SEASONAL_TEMPLATE':
-        return 'bg-indigo-100 text-indigo-800'
-    }
-  }
-
   const handleQuickAction = async (action: 'approve' | 'reject') => {
     setProcessing(true)
     try {
@@ -72,9 +48,6 @@ export function ApprovalCard({ approval, onView, onQuickAction }: ApprovalCardPr
       setProcessing(false)
     }
   }
-
-  const isUrgent = approval.affected_videos_count > 50
-  const isOld = new Date(approval.created_at) < new Date(Date.now() - 24 * 60 * 60 * 1000) // mais de 1 dia
 
   return (
     <Card className={`relative ${isUrgent ? 'border-orange-200 bg-orange-50/50' : ''}`}>
@@ -93,12 +66,12 @@ export function ApprovalCard({ approval, onView, onQuickAction }: ApprovalCardPr
             <CardTitle className="text-lg">{approval.title}</CardTitle>
             
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge className={getStatusColor()}>
+              <Badge className={`${statusColors.bg} ${statusColors.text}`}>
                 {getStatusIcon()}
                 <span className="ml-1">{ApprovalStatusLabels[approval.status]}</span>
               </Badge>
               
-              <Badge variant="outline" className={getTypeColor()}>
+              <Badge variant="outline" className={`${typeColors.bg} ${typeColors.text}`}>
                 {ApprovalTypeLabels[approval.type]}
               </Badge>
 
@@ -128,12 +101,7 @@ export function ApprovalCard({ approval, onView, onQuickAction }: ApprovalCardPr
           
           <div className="flex items-center gap-1">
             <Calendar className="h-4 w-4" />
-            <span>
-              {formatDistanceToNow(new Date(approval.created_at), { 
-                addSuffix: true, 
-                locale: ptBR 
-              })}
-            </span>
+            <span>{formatApprovalDate(approval.created_at)}</span>
           </div>
         </div>
 

@@ -1,40 +1,10 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useDashboardActivity } from "@/hooks/useDashboardActivity"
 
 export function RecentActivity() {
-  const activities = [
-    {
-      action: "Sistema inicializado",
-      description: "Bem-vindo ao YT Description Manager",
-      time: "agora",
-      type: "info" as const
-    },
-    {
-      action: "Bloco criado",
-      description: "Bloco 'Introdução Padrão' foi criado",
-      time: "há 5 minutos",
-      type: "success" as const
-    },
-    {
-      action: "Categoria adicionada",
-      description: "Categoria 'Tutoriais' foi adicionada",
-      time: "há 10 minutos",
-      type: "success" as const
-    },
-    {
-      action: "Configuração salva",
-      description: "Preferências do sistema foram atualizadas",
-      time: "há 15 minutos",
-      type: "info" as const
-    },
-    {
-      action: "Conta criada",
-      description: "Sua conta foi criada com sucesso",
-      time: "há 20 minutos",
-      type: "success" as const
-    }
-  ]
+  const { activities, loading } = useDashboardActivity()
 
   const getStatusColor = (type: string) => {
     switch (type) {
@@ -62,6 +32,24 @@ export function RecentActivity() {
     }
   }
 
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Atividade Recente</CardTitle>
+          <CardDescription>Carregando atividades...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -72,8 +60,8 @@ export function RecentActivity() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {activities.map((activity, index) => (
-            <div key={index} className="flex items-start gap-4 p-3 rounded-lg border bg-muted/30">
+          {activities.map((activity) => (
+            <div key={activity.id} className="flex items-start gap-4 p-3 rounded-lg border bg-muted/30">
               <div className={`w-2 h-2 rounded-full mt-2 ${getStatusColor(activity.type)}`} />
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between">

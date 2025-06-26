@@ -20,31 +20,19 @@ interface ApprovalFiltersProps {
     search: string
   }
   onFiltersChange: (filters: any) => void
+  onClearFilters: () => void
+  hasActiveFilters: boolean
 }
 
-export function ApprovalFilters({ filters, onFiltersChange }: ApprovalFiltersProps) {
+export function ApprovalFilters({ filters, onFiltersChange, onClearFilters, hasActiveFilters }: ApprovalFiltersProps) {
   const handleFilterChange = (key: string, value: string) => {
-    onFiltersChange({
-      ...filters,
-      [key]: value
-    })
+    onFiltersChange({ [key]: value })
   }
-
-  const clearFilters = () => {
-    onFiltersChange({
-      status: 'all',
-      type: 'all',
-      search: ''
-    })
-  }
-
-  const hasActiveFilters = filters.status !== 'all' || filters.type !== 'all' || filters.search
 
   return (
     <Card>
       <CardContent className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Busca */}
           <div className="space-y-2">
             <Label htmlFor="search">Buscar</Label>
             <div className="relative">
@@ -59,7 +47,6 @@ export function ApprovalFilters({ filters, onFiltersChange }: ApprovalFiltersPro
             </div>
           </div>
 
-          {/* Status */}
           <div className="space-y-2">
             <Label>Status</Label>
             <Select
@@ -78,7 +65,6 @@ export function ApprovalFilters({ filters, onFiltersChange }: ApprovalFiltersPro
             </Select>
           </div>
 
-          {/* Tipo */}
           <div className="space-y-2">
             <Label>Tipo</Label>
             <Select
@@ -99,12 +85,11 @@ export function ApprovalFilters({ filters, onFiltersChange }: ApprovalFiltersPro
             </Select>
           </div>
 
-          {/* Limpar Filtros */}
           <div className="space-y-2">
             <Label>&nbsp;</Label>
             <Button
               variant="outline"
-              onClick={clearFilters}
+              onClick={onClearFilters}
               disabled={!hasActiveFilters}
               className="w-full"
             >
