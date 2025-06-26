@@ -1,6 +1,5 @@
 
 import { ErrorBoundary } from "@/components/ui/error-boundary"
-import { NotificationSettings } from "@/components/Settings/NotificationSettings"
 import { ApiSettings } from "@/components/Settings/ApiSettings"
 import { AccountSettings } from "@/components/Settings/AccountSettings"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
@@ -35,10 +34,9 @@ export default function Settings() {
 
         {/* Settings Tabs */}
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 bg-gradient-to-r from-indigo-50 to-purple-50">
+          <TabsList className="grid w-full grid-cols-2 bg-gradient-to-r from-indigo-50 to-purple-50">
             <TabsTrigger value="account" className="data-[state=active]:bg-indigo-500 data-[state=active]:text-white">Conta</TabsTrigger>
             <TabsTrigger value="apis" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">APIs</TabsTrigger>
-            <TabsTrigger value="notifications" className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white">Notificações</TabsTrigger>
           </TabsList>
 
           <TabsContent value="account">
@@ -47,10 +45,6 @@ export default function Settings() {
 
           <TabsContent value="apis">
             <ApiSettings />
-          </TabsContent>
-
-          <TabsContent value="notifications">
-            <NotificationSettings />
           </TabsContent>
         </Tabs>
       </div>
