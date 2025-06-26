@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -33,49 +34,37 @@ export default function Videos() {
     video_type: "all"
   })
 
-  // Mock categories
+  // Mock categories - simplified without hierarchy
   const categories: Category[] = [
     {
       id: "1",
       user_id: "mock-user-id",
       name: "Importação",
       description: "Vídeos sobre importação de produtos",
-      parent_id: null,
-      color: "#f97316",
-      icon: "package",
       is_active: true,
       created_at: "2024-06-15",
       updated_at: "2024-06-15",
-      video_count: 12,
-      children: []
+      video_count: 12
     },
     {
       id: "2",
       user_id: "mock-user-id",
       name: "Internacionalização",
       description: "Expansão internacional de negócios",
-      parent_id: null,
-      color: "#22c55e",
-      icon: "globe",
       is_active: true,
       created_at: "2024-06-10",
       updated_at: "2024-06-10",
-      video_count: 8,
-      children: []
+      video_count: 8
     },
     {
       id: "3",
       user_id: "mock-user-id",
       name: "Amazon",
       description: "Vendas na plataforma Amazon",
-      parent_id: null,
-      color: "#3b82f6",
-      icon: "shopping-cart",
       is_active: true,
       created_at: "2024-06-05",
       updated_at: "2024-06-05",
-      video_count: 15,
-      children: []
+      video_count: 15
     }
   ]
 
@@ -319,11 +308,7 @@ export default function Videos() {
                     </TableCell>
                     <TableCell>
                       {video.category_name ? (
-                        <Badge variant="outline" style={{ 
-                          backgroundColor: categories.find(c => c.id === video.category_id)?.color + '20',
-                          borderColor: categories.find(c => c.id === video.category_id)?.color,
-                          color: categories.find(c => c.id === video.category_id)?.color
-                        }}>
+                        <Badge variant="outline">
                           {video.category_name}
                         </Badge>
                       ) : (
