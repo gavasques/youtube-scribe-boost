@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
+import { useRetry } from '@/hooks/useRetry'
 import { logger } from '@/core/Logger'
 
 interface SyncOptions {
@@ -64,6 +65,13 @@ export function useYouTubeSync() {
     allErrors: []
   })
 
+  // Retry configuration for YouTube API calls
+  const { retryWithCondition } = useRetry({
+    maxAttempts: 3,
+    delay: 2000,
+    backoff: true
+  })
+
   const syncWithYouTube = async (options: SyncOptions): Promise<SyncResult> => {
     setSyncing(true)
     setProgress({ 
@@ -100,29 +108,39 @@ export function useYouTubeSync() {
         hasAuth: !!authData.session?.access_token 
       })
 
-      const response = await supabase.functions.invoke('youtube-sync', {
-        body: { options },
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authData.session.access_token}`
+      // Use retry logic for the API call
+      const result = await retryWithCondition(
+        async () => {
+          const response = await supabase.functions.invoke('youtube-sync', {
+            body: { options },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authData.session!.access_token}`
+            }
+          })
+
+          if (response.error) {
+            logger.error('Sync failed', response.error)
+            throw new Error(`Erro na sincronização: ${response.error.message || 'Erro desconhecido'}`)
+          }
+
+          if (!response.data) {
+            throw new Error('Nenhum dado retornado pelo servidor')
+          }
+
+          return response.data as SyncResult
+        },
+        // Retry condition: retry on network errors but not on auth errors
+        (error) => {
+          const errorMessage = error.message?.toLowerCase() || ''
+          const shouldRetry = !errorMessage.includes('authentication') && 
+                             !errorMessage.includes('authorization') &&
+                             !errorMessage.includes('não conectado')
+          
+          console.log('Retry condition check:', { error: errorMessage, shouldRetry })
+          return shouldRetry
         }
-      })
-
-      logger.info('Edge Function Response', { 
-        error: response.error,
-        data: response.data 
-      })
-
-      if (response.error) {
-        logger.error('Sync failed', response.error)
-        throw new Error(`Erro na sincronização: ${response.error.message || 'Erro desconhecido'}`)
-      }
-
-      if (!response.data) {
-        throw new Error('Nenhum dado retornado pelo servidor')
-      }
-
-      const result = response.data as SyncResult
+      )
 
       setProgress({ 
         step: 'complete', 
@@ -161,12 +179,7 @@ export function useYouTubeSync() {
         errors: [error.message || 'Erro desconhecido']
       })
       
-      toast({
-        title: 'Erro na sincronização',
-        description: error.message || 'Não foi possível sincronizar com o YouTube',
-        variant: 'destructive'
-      })
-      
+      // Don't show toast here - the retry hook will handle it
       throw error
     } finally {
       setSyncing(false)

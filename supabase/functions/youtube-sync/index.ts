@@ -330,45 +330,122 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .maybeSingle()
 
-        const videoData = {
+        // Core video data for the videos table
+        const coreVideoData = {
           user_id: user.id,
           youtube_id: video.id,
           youtube_url: `https://www.youtube.com/watch?v=${video.id}`,
           title: video.snippet.title,
           video_type: videoType,
           published_at: video.snippet.publishedAt,
-          original_description: video.snippet.description || '',
-          current_description: video.snippet.description || '',
-          original_tags: video.snippet.tags || [],
-          current_tags: video.snippet.tags || [],
-          views_count: parseInt(video.statistics.viewCount || '0'),
-          likes_count: parseInt(video.statistics.likeCount || '0'),
-          comments_count: parseInt(video.statistics.commentCount || '0'),
-          thumbnail_url: getBestThumbnail(video.snippet.thumbnails),
-          duration_seconds: durationData.seconds,
-          duration_formatted: durationData.formatted,
-          privacy_status: video.status.privacyStatus,
           category_id: video.snippet.categoryId,
           updated_at: new Date().toISOString()
         }
 
+        let videoId: string
+        
         if (existingVideo) {
-          if (options.syncMetadata) {
-            const { error: updateError } = await supabaseService
-              .from('videos')
-              .update(videoData)
-              .eq('id', existingVideo.id)
-            
-            if (updateError) throw updateError
-            stats.updated++
-          }
-        } else {
-          const { error: insertError } = await supabaseService
+          // Update existing video
+          const { error: updateError } = await supabaseService
             .from('videos')
-            .insert(videoData)
+            .update(coreVideoData)
+            .eq('id', existingVideo.id)
+          
+          if (updateError) throw updateError
+          
+          videoId = existingVideo.id
+          stats.updated++
+        } else {
+          // Insert new video
+          const { data: newVideo, error: insertError } = await supabaseService
+            .from('videos')
+            .insert(coreVideoData)
+            .select('id')
+            .single()
           
           if (insertError) throw insertError
+          
+          videoId = newVideo.id
           stats.new++
+        }
+
+        // Insert/update metadata in video_metadata table
+        const metadataData = {
+          video_id: videoId,
+          views_count: parseInt(video.statistics.viewCount || '0'),
+          likes_count: parseInt(video.statistics.likeCount || '0'),
+          comments_count: parseInt(video.statistics.commentCount || '0'),
+          duration_seconds: durationData.seconds,
+          duration_formatted: durationData.formatted,
+          thumbnail_url: getBestThumbnail(video.snippet.thumbnails),
+          privacy_status: video.status.privacyStatus,
+          published_at: video.snippet.publishedAt,
+          updated_at: new Date().toISOString()
+        }
+
+        const { error: metadataError } = await supabaseService
+          .from('video_metadata')
+          .upsert(metadataData)
+        
+        if (metadataError) {
+          logError('Failed to upsert metadata', metadataError)
+        }
+
+        // Insert/update descriptions in video_descriptions table
+        const descriptionData = {
+          video_id: videoId,
+          original_description: video.snippet.description || '',
+          current_description: video.snippet.description || '',
+          updated_at: new Date().toISOString()
+        }
+
+        const { error: descriptionError } = await supabaseService
+          .from('video_descriptions')
+          .upsert(descriptionData)
+        
+        if (descriptionError) {
+          logError('Failed to upsert description', descriptionError)
+        }
+
+        // Insert/update configuration in video_configuration table
+        const configData = {
+          video_id: videoId,
+          configuration_status: 'NOT_CONFIGURED',
+          update_status: 'ACTIVE_FOR_UPDATE',
+          updated_at: new Date().toISOString()
+        }
+
+        const { error: configError } = await supabaseService
+          .from('video_configuration')
+          .upsert(configData)
+        
+        if (configError) {
+          logError('Failed to upsert configuration', configError)
+        }
+
+        // Handle tags if they exist
+        if (video.snippet.tags && video.snippet.tags.length > 0) {
+          // Delete existing tags for this video
+          await supabaseService
+            .from('video_tags')
+            .delete()
+            .eq('video_id', videoId)
+            .eq('tag_type', 'original')
+
+          // Insert new tags
+          const tagData = video.snippet.tags.map((tag: string) => ({
+            video_id: videoId,
+            tag_text: tag,
+            tag_type: 'original'
+          }))
+
+          const { error: tagsError } = await supabaseService
+            .from('video_tags')
+            .insert(tagData)
+          
+          if (tagsError) {
+            logError('Failed to insert tags', tagsError)
+          }
         }
 
         stats.processed++
