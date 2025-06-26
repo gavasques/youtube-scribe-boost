@@ -67,10 +67,7 @@ export function useBlocks() {
       }
 
       // Converter tipo do formulário para o tipo do banco
-      let dbType = data.type
-      if (data.type === 'CATEGORY') {
-        dbType = 'CATEGORY_SPECIFIC'
-      }
+      const dbType = data.type === 'CATEGORY' ? 'CATEGORY_SPECIFIC' : data.type
 
       // Preparar dados para inserção
       const blockData = {
@@ -123,10 +120,7 @@ export function useBlocks() {
   const updateBlock = async (id: string, data: BlockFormData) => {
     try {
       // Converter tipo do formulário para o tipo do banco
-      let dbType = data.type
-      if (data.type === 'CATEGORY') {
-        dbType = 'CATEGORY_SPECIFIC'
-      }
+      const dbType = data.type === 'CATEGORY' ? 'CATEGORY_SPECIFIC' : data.type
 
       const updateData = {
         title: data.title,
