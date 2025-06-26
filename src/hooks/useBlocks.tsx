@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { Block, BlockFormData } from '@/types/block'
@@ -29,6 +30,46 @@ export function useBlocks() {
       }
     } catch (error) {
       console.error('Erro na função ensureManualBlockExists:', error)
+    }
+  }
+
+  // Reorganizar prioridades sequenciais
+  const reorganizePriorities = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        console.log('Usuário não autenticado')
+        return
+      }
+
+      // Buscar todos os blocos ordenados
+      const { data: allBlocks, error } = await supabase
+        .from('blocks')
+        .select('id, priority')
+        .eq('user_id', user.id)
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      // Reassignar prioridades sequenciais
+      const updates = allBlocks?.map((block, index) => ({
+        id: block.id,
+        priority: allBlocks.length - index // Maior prioridade = posição mais alta
+      })) || []
+
+      // Atualizar em lote
+      for (const update of updates) {
+        await supabase
+          .from('blocks')
+          .update({ priority: update.priority })
+          .eq('id', update.id)
+      }
+
+      console.log('Prioridades reorganizadas:', updates)
+    } catch (error) {
+      console.error('Erro ao reorganizar prioridades:', error)
     }
   }
 
@@ -135,7 +176,10 @@ export function useBlocks() {
       }
 
       console.log('Bloco criado com sucesso:', newBlock)
-      setBlocks(prev => [newBlock as Block, ...prev])
+      
+      // Reorganizar prioridades após criação
+      await reorganizePriorities()
+      await fetchBlocks() // Recarregar para mostrar ordem correta
       
       toast({
         title: 'Bloco criado',
@@ -207,22 +251,31 @@ export function useBlocks() {
     throw new Error('Esta função foi removida. O bloco Manual é criado automaticamente pelo sistema.')
   }
 
-  // Mover bloco para cima na ordem (aumentar prioridade)
+  // Mover bloco para cima na ordem (trocar posição com o bloco acima)
   const moveBlockUp = async (blockId: string) => {
     try {
-      const currentBlock = blocks.find(b => b.id === blockId)
-      if (!currentBlock) return
+      const currentBlockIndex = blocks.findIndex(b => b.id === blockId)
+      if (currentBlockIndex === -1 || currentBlockIndex === 0) return // Já está no topo
 
-      // Aumentar prioridade em 1
-      const newPriority = currentBlock.priority + 1
+      const currentBlock = blocks[currentBlockIndex]
+      const blockAbove = blocks[currentBlockIndex - 1]
 
-      const { error } = await supabase
+      // Trocar prioridades
+      const tempPriority = currentBlock.priority
+      
+      await supabase
         .from('blocks')
-        .update({ priority: newPriority })
-        .eq('id', blockId)
+        .update({ priority: blockAbove.priority })
+        .eq('id', currentBlock.id)
 
-      if (error) throw error
+      await supabase
+        .from('blocks')
+        .update({ priority: tempPriority })
+        .eq('id', blockAbove.id)
 
+      // Reorganizar prioridades sequenciais
+      await reorganizePriorities()
+      
       // Recarregar lista
       await fetchBlocks()
       
@@ -240,22 +293,31 @@ export function useBlocks() {
     }
   }
 
-  // Mover bloco para baixo na ordem (diminuir prioridade)
+  // Mover bloco para baixo na ordem (trocar posição com o bloco abaixo)
   const moveBlockDown = async (blockId: string) => {
     try {
-      const currentBlock = blocks.find(b => b.id === blockId)
-      if (!currentBlock) return
+      const currentBlockIndex = blocks.findIndex(b => b.id === blockId)
+      if (currentBlockIndex === -1 || currentBlockIndex === blocks.length - 1) return // Já está no final
 
-      // Diminuir prioridade em 1 (mínimo 0)
-      const newPriority = Math.max(0, currentBlock.priority - 1)
+      const currentBlock = blocks[currentBlockIndex]
+      const blockBelow = blocks[currentBlockIndex + 1]
 
-      const { error } = await supabase
+      // Trocar prioridades
+      const tempPriority = currentBlock.priority
+      
+      await supabase
         .from('blocks')
-        .update({ priority: newPriority })
-        .eq('id', blockId)
+        .update({ priority: blockBelow.priority })
+        .eq('id', currentBlock.id)
 
-      if (error) throw error
+      await supabase
+        .from('blocks')
+        .update({ priority: tempPriority })
+        .eq('id', blockBelow.id)
 
+      // Reorganizar prioridades sequenciais
+      await reorganizePriorities()
+      
       // Recarregar lista
       await fetchBlocks()
       
@@ -337,7 +399,10 @@ export function useBlocks() {
 
       if (error) throw error
 
-      setBlocks(prev => [duplicatedBlock as Block, ...prev])
+      // Reorganizar prioridades após duplicação
+      await reorganizePriorities()
+      await fetchBlocks() // Recarregar para mostrar ordem correta
+      
       toast({
         title: 'Bloco duplicado',
         description: 'Uma cópia do bloco foi criada e está inativa.',
@@ -369,7 +434,10 @@ export function useBlocks() {
 
       if (error) throw error
 
-      setBlocks(prev => prev.filter(b => b.id !== block.id))
+      // Reorganizar prioridades após remoção
+      await reorganizePriorities()
+      await fetchBlocks() // Recarregar para mostrar ordem correta
+      
       toast({
         title: 'Bloco removido',
         description: `O bloco "${block.title}" foi removido com sucesso.`,
