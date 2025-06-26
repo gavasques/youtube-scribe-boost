@@ -5,8 +5,6 @@ import { Input } from "@/components/ui/input"
 import { Plus, Search } from "lucide-react"
 import { CategoryCard } from "@/components/Categories/CategoryCard"
 import { CategoryForm } from "@/components/Categories/CategoryForm"
-import { AuthDebug } from "@/components/Categories/AuthDebug"
-import { CategoryTestForm } from "@/components/Categories/CategoryTestForm"
 import { Category } from "@/types/category"
 import { useCategories } from "@/hooks/useCategories"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -73,12 +71,6 @@ export default function Categories() {
 
   return (
     <div className="space-y-6">
-      {/* Debug temporário - remover após resolver */}
-      <AuthDebug />
-      
-      {/* Teste de criação - remover após resolver */}
-      <CategoryTestForm />
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

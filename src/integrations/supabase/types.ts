@@ -163,7 +163,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           updated_at: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string | null
@@ -172,7 +172,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           updated_at?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string | null
@@ -181,17 +181,9 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           updated_at?: string | null
-          user_id?: string | null
+          user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "categories_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       prompts: {
         Row: {

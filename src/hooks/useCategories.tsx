@@ -14,14 +14,7 @@ export function useCategories() {
     try {
       setLoading(true)
       
-      // Primeiro, verificar se o usuário está autenticado
       const { data: { user }, error: authError } = await supabase.auth.getUser()
-      
-      console.log('🔍 Estado de autenticação:', { 
-        userId: user?.id, 
-        email: user?.email,
-        authError 
-      })
       
       if (authError) {
         console.error('❌ Erro de autenticação:', authError)
@@ -34,19 +27,11 @@ export function useCategories() {
         return
       }
 
-      console.log('📋 Buscando categorias para o usuário:', user.id)
-
       const { data, error } = await supabase
         .from('categories')
         .select('*')
         .eq('user_id', user.id)
         .order('name', { ascending: true })
-
-      console.log('📊 Resultado da busca de categorias:', { 
-        data, 
-        error,
-        count: data?.length || 0
-      })
       
       if (error) {
         console.error('❌ Erro ao buscar categorias:', error)
@@ -70,22 +55,15 @@ export function useCategories() {
   // Criar nova categoria
   const createCategory = async (data: CategoryFormData) => {
     try {
-      console.log('🚀 Iniciando criação de categoria:', data)
-      
       const { data: user } = await supabase.auth.getUser()
       if (!user.user) {
-        console.error('❌ Usuário não autenticado para criar categoria')
         throw new Error('Usuário não autenticado')
       }
-
-      console.log('👤 Usuário autenticado, criando categoria para:', user.user.id)
 
       const categoryData = {
         ...data,
         user_id: user.user.id
       }
-
-      console.log('📝 Dados da categoria a serem inseridos:', categoryData)
 
       const { data: newCategory, error } = await supabase
         .from('categories')
@@ -93,21 +71,7 @@ export function useCategories() {
         .select()
         .single()
 
-      console.log('✅ Resultado da inserção:', { newCategory, error })
-
       if (error) {
-        console.error('❌ Erro na inserção:', error)
-        
-        // Tratamento específico para foreign key constraint
-        if (error.code === '23503' && error.message.includes('foreign key constraint')) {
-          console.error('🔗 Erro de foreign key constraint detectado')
-          toast({
-            title: 'Erro de configuração',
-            description: 'Problema de configuração do banco de dados. Tentando novamente...',
-            variant: 'destructive',
-          })
-        }
-        
         throw error
       }
 
@@ -117,7 +81,6 @@ export function useCategories() {
         description: 'A categoria foi criada com sucesso.',
       })
       
-      console.log('🎉 Categoria criada com sucesso:', newCategory)
       return { data: newCategory, error: null }
     } catch (error) {
       console.error('💥 Erro ao criar categoria:', error)
@@ -225,7 +188,6 @@ export function useCategories() {
   }
 
   useEffect(() => {
-    console.log('🔄 useCategories: Inicializando busca de categorias')
     fetchCategories()
   }, [])
 
