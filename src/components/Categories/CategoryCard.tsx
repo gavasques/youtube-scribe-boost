@@ -2,13 +2,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, FolderTree, Package, Globe, ShoppingCart, Folder } from "lucide-react"
+import { Edit, Trash2, FolderTree, Package, Globe, ShoppingCart, Folder, Power } from "lucide-react"
 import { Category } from "@/types/category"
 
 interface CategoryCardProps {
   category: Category
   onEdit: (category: Category) => void
   onDelete: (categoryId: string) => void
+  onToggleActive?: (category: Category) => void
 }
 
 const iconMap = {
@@ -19,7 +20,7 @@ const iconMap = {
   'folder-tree': FolderTree
 }
 
-export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) {
+export function CategoryCard({ category, onEdit, onDelete, onToggleActive }: CategoryCardProps) {
   const IconComponent = iconMap[category.icon as keyof typeof iconMap] || Folder
 
   return (
@@ -55,6 +56,17 @@ export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) 
             </div>
           </div>
           <div className="flex gap-1">
+            {onToggleActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onToggleActive(category)}
+                className="h-8 w-8 p-0"
+                title={category.is_active ? "Desativar categoria" : "Ativar categoria"}
+              >
+                <Power className={`w-4 h-4 ${category.is_active ? 'text-green-600' : 'text-gray-400'}`} />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"

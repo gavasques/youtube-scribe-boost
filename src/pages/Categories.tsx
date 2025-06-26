@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -6,7 +7,8 @@ import { Plus, Search } from "lucide-react"
 import { CategoryCard } from "@/components/Categories/CategoryCard"
 import { CategoryForm } from "@/components/Categories/CategoryForm"
 import { Category } from "@/types/category"
-import { useToast } from "@/hooks/use-toast"
+import { useCategories } from "@/hooks/useCategories"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -17,113 +19,20 @@ import {
 } from "@/components/ui/breadcrumb"
 
 export default function Categories() {
-  const { toast } = useToast()
+  const {
+    categories,
+    loading,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    toggleCategoryActive
+  } = useCategories()
+
   const [showForm, setShowForm] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterParent, setFilterParent] = useState<string>("all")
   const [currentParent, setCurrentParent] = useState<string | null>(null)
-
-  // Mock data with example categories
-  const [categories, setCategories] = useState<Category[]>([
-    {
-      id: "1",
-      user_id: "mock-user-id",
-      name: "Importação",
-      description: "Vídeos sobre importação de produtos",
-      parent_id: null,
-      color: "#f97316",
-      icon: "package",
-      is_active: true,
-      created_at: "2024-06-15",
-      updated_at: "2024-06-15",
-      video_count: 12,
-      children: [
-        {
-          id: "1a",
-          user_id: "mock-user-id",
-          name: "AliExpress",
-          description: "Importação via AliExpress",
-          parent_id: "1",
-          color: "#f97316",
-          icon: "package",
-          is_active: true,
-          created_at: "2024-06-16",
-          updated_at: "2024-06-16",
-          video_count: 8
-        }
-      ]
-    },
-    {
-      id: "2",
-      user_id: "mock-user-id",
-      name: "Internacionalização",
-      description: "Expansão internacional de negócios",
-      parent_id: null,
-      color: "#22c55e",
-      icon: "globe",
-      is_active: true,
-      created_at: "2024-06-10",
-      updated_at: "2024-06-10",
-      video_count: 8,
-      children: []
-    },
-    {
-      id: "3",
-      user_id: "mock-user-id",
-      name: "Amazon",
-      description: "Vendas na plataforma Amazon",
-      parent_id: null,
-      color: "#3b82f6",
-      icon: "shopping-cart",
-      is_active: true,
-      created_at: "2024-06-05",
-      updated_at: "2024-06-05",
-      video_count: 15,
-      children: [
-        {
-          id: "3a",
-          user_id: "mock-user-id",
-          name: "FBA",
-          description: "Fulfillment by Amazon",
-          parent_id: "3",
-          color: "#3b82f6",
-          icon: "shopping-cart",
-          is_active: true,
-          created_at: "2024-06-06",
-          updated_at: "2024-06-06",
-          video_count: 10
-        },
-        {
-          id: "3b",
-          user_id: "mock-user-id",
-          name: "PPC",
-          description: "Anúncios pagos Amazon",
-          parent_id: "3",
-          color: "#3b82f6",
-          icon: "shopping-cart",
-          is_active: true,
-          created_at: "2024-06-07",
-          updated_at: "2024-06-07",
-          video_count: 5
-        }
-      ]
-    },
-    {
-      id: "4",
-      user_id: "mock-user-id",
-      name: "Sem Categoria",
-      description: "Vídeos não categorizados",
-      parent_id: null,
-      color: "#6b7280",
-      icon: "folder",
-      is_active: true,
-      created_at: "2024-06-01",
-      updated_at: "2024-06-01",
-      video_count: 3,
-      children: []
-    }
-  ])
 
   // Build hierarchy helper
   const buildHierarchy = (cats: Category[]): Category[] => {
@@ -180,75 +89,32 @@ export default function Categories() {
     return filtered
   }
 
-  const handleCreateCategory = (data: any) => {
-    const newCategory: Category = {
-      id: Date.now().toString(),
-      user_id: "mock-user-id",
-      name: data.name,
-      description: data.description,
-      parent_id: data.parent_id,
-      color: data.color,
-      icon: data.icon,
-      is_active: data.is_active,
-      created_at: new Date().toISOString().split('T')[0],
-      updated_at: new Date().toISOString().split('T')[0],
-      video_count: 0,
-      children: []
-    }
-
-    setCategories([...categories, newCategory])
-    toast({
-      title: "Categoria criada!",
-      description: `A categoria "${data.name}" foi criada com sucesso.`,
-    })
+  const handleCreateCategory = async (data: any) => {
+    await createCategory(data)
   }
 
-  const handleEditCategory = (data: any) => {
+  const handleEditCategory = async (data: any) => {
     if (!editingCategory) return
-
-    const updatedCategories = categories.map(cat =>
-      cat.id === editingCategory.id
-        ? {
-            ...cat,
-            name: data.name,
-            description: data.description,
-            parent_id: data.parent_id,
-            color: data.color,
-            icon: data.icon,
-            is_active: data.is_active,
-            updated_at: new Date().toISOString().split('T')[0],
-          }
-        : cat
-    )
-
-    setCategories(updatedCategories)
+    await updateCategory(editingCategory.id, data)
     setEditingCategory(null)
-    toast({
-      title: "Categoria atualizada!",
-      description: `As alterações na categoria "${data.name}" foram salvas.`,
-    })
   }
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     const category = categories.find(cat => cat.id === categoryId)
+    if (!category) return
     
     // Check if category has children
     const hasChildren = categories.some(cat => cat.parent_id === categoryId)
     if (hasChildren) {
-      toast({
-        title: "Não é possível excluir",
-        description: "Esta categoria possui subcategorias. Remova-as primeiro.",
-        variant: "destructive",
-      })
+      // This will be handled by the hook's error handling
       return
     }
 
-    setCategories(categories.filter(cat => cat.id !== categoryId))
-    toast({
-      title: "Categoria excluída!",
-      description: `A categoria "${category?.name}" foi removida.`,
-      variant: "destructive",
-    })
+    await deleteCategory(category)
+  }
+
+  const handleToggleActive = async (category: Category) => {
+    await toggleCategoryActive(category)
   }
 
   const handleEdit = (category: Category) => {
@@ -266,7 +132,15 @@ export default function Categories() {
     return categories.find(cat => cat.id === currentParent)?.name
   }
 
-  const parentCategories = categories.filter(cat => !cat.parent_id)
+  const filteredCategories = getFilteredCategories()
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -330,19 +204,25 @@ export default function Categories() {
 
       {/* Categories Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {getFilteredCategories().map((category) => (
+        {filteredCategories.map((category) => (
           <CategoryCard
             key={category.id}
             category={category}
             onEdit={handleEdit}
             onDelete={handleDeleteCategory}
+            onToggleActive={handleToggleActive}
           />
         ))}
       </div>
 
-      {getFilteredCategories().length === 0 && (
+      {filteredCategories.length === 0 && !loading && (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Nenhuma categoria encontrada.</p>
+          <p className="text-muted-foreground">
+            {categories.length === 0 
+              ? "Nenhuma categoria encontrada. Crie sua primeira categoria!"
+              : "Nenhuma categoria corresponde aos filtros aplicados."
+            }
+          </p>
         </div>
       )}
 
