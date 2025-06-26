@@ -143,12 +143,82 @@ export async function parseCsvFile(file: File): Promise<ParsedFileContent> {
   }
 }
 
-// Improved DOCX parser with multiple extraction strategies
+// Helper function to convert binary string to readable text
+function extractReadableText(binaryString: string): string {
+  const textChunks: string[] = []
+  
+  // Strategy 1: Extract text between common XML tags
+  const xmlTextMatches = binaryString.match(/<w:t[^>]*>([^<]+)<\/w:t>/g)
+  if (xmlTextMatches) {
+    xmlTextMatches.forEach(match => {
+      const textMatch = match.match(/<w:t[^>]*>([^<]+)<\/w:t>/)
+      if (textMatch && textMatch[1]) {
+        const text = textMatch[1]
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+        textChunks.push(text)
+      }
+    })
+  }
+  
+  // Strategy 2: Find readable sequences between null bytes
+  if (textChunks.length === 0) {
+    const nullSeparatedParts = binaryString.split('\x00').filter(part => part.length > 0)
+    for (const part of nullSeparatedParts) {
+      // Look for sequences with at least 5 readable characters
+      const readableMatches = part.match(/[a-zA-ZÀ-ÿ\s.,!?;:()-]{5,}/g)
+      if (readableMatches) {
+        readableMatches.forEach(match => {
+          const cleaned = match.trim()
+          if (cleaned.length > 5 && cleaned.match(/[a-zA-ZÀ-ÿ]{2,}/)) {
+            textChunks.push(cleaned)
+          }
+        })
+      }
+    }
+  }
+  
+  // Strategy 3: Extract text from potential Word document structure
+  if (textChunks.length === 0) {
+    // Look for text after common Word document markers
+    const wordPatterns = [
+      /document\.xml.*?<w:t[^>]*>([^<]+)<\/w:t>/g,
+      /word\/document\.xml.*?<w:t[^>]*>([^<]+)<\/w:t>/g,
+      /<w:document[^>]*>.*?<w:t[^>]*>([^<]+)<\/w:t>/g
+    ]
+    
+    for (const pattern of wordPatterns) {
+      const matches = Array.from(binaryString.matchAll(pattern))
+      matches.forEach(match => {
+        if (match[1]) {
+          textChunks.push(match[1])
+        }
+      })
+    }
+  }
+  
+  // Strategy 4: Last resort - extract any readable sequences
+  if (textChunks.length === 0) {
+    const readableSequences = binaryString.match(/[a-zA-ZÀ-ÿ\s.,!?;:()-]{10,}/g)
+    if (readableSequences) {
+      readableSequences.forEach(seq => {
+        const words = seq.match(/[a-zA-ZÀ-ÿ]{3,}/g)
+        if (words && words.length >= 2) {
+          textChunks.push(seq.trim())
+        }
+      })
+    }
+  }
+  
+  return textChunks.join(' ')
+}
+
+// Improved DOCX parser with better text extraction
 export async function parseDocxFile(file: File): Promise<ParsedFileContent> {
-  const warnings: string[] = [
-    'Formato DOCX processado com extração avançada',
-    'Para melhor resultado, salve como .txt no Word'
-  ]
+  const warnings: string[] = []
   
   try {
     const buffer = await file.arrayBuffer()
@@ -160,94 +230,65 @@ export async function parseDocxFile(file: File): Promise<ParsedFileContent> {
       binaryString += String.fromCharCode(uint8Array[i])
     }
     
-    let extractedText = ''
+    console.log('Processing DOCX file, size:', uint8Array.length, 'bytes')
     
-    // Strategy 1: Try to extract XML text content (standard approach)
-    try {
-      const xmlMatches = binaryString.match(/<w:t[^>]*>([^<]+)<\/w:t>/g)
-      if (xmlMatches && xmlMatches.length > 0) {
-        extractedText = xmlMatches
-          .map(match => {
-            const textMatch = match.match(/<w:t[^>]*>([^<]+)<\/w:t>/)
-            return textMatch ? textMatch[1] : ''
-          })
-          .filter(text => text.length > 0)
-          .join(' ')
-      }
-    } catch (error) {
-      console.log('Strategy 1 failed, trying alternative approaches')
-    }
+    // Extract readable text using multiple strategies
+    let extractedText = extractReadableText(binaryString)
     
-    // Strategy 2: If no XML content, try alternative patterns
+    console.log('Extracted text length:', extractedText.length)
+    console.log('First 100 chars:', extractedText.substring(0, 100))
+    
+    // If extraction failed, try with different encoding approaches
     if (!extractedText || extractedText.length < 20) {
+      console.log('Primary extraction failed, trying alternative methods')
+      
+      // Try extracting as UTF-16
       try {
-        // Look for readable text patterns between common separators
-        const textPatterns = [
-          />([^<\x00-\x1F\x7F-\x9F]{10,})</g,
-          /\x00([a-zA-ZÀ-ÿ\s.,!?;:]{10,})\x00/g,
-          /[^a-zA-ZÀ-ÿ\s]([a-zA-ZÀ-ÿ\s.,!?;:]{15,})[^a-zA-ZÀ-ÿ\s]/g
-        ]
-        
-        for (const pattern of textPatterns) {
-          const matches = binaryString.match(pattern)
-          if (matches && matches.length > 0) {
-            const candidateText = matches
-              .map(match => {
-                // Clean up the match
-                const cleaned = match.replace(/^[^a-zA-ZÀ-ÿ]+|[^a-zA-ZÀ-ÿ]+$/g, '')
-                return cleaned.length > 10 ? cleaned : ''
-              })
-              .filter(text => {
-                // Additional filtering
-                return text.length > 10 && 
-                       !/^[A-Z0-9_]{3,}$/.test(text) && // Skip constants
-                       !/^\d+$/.test(text) && // Skip numbers
-                       !text.includes('xml') &&
-                       !text.includes('<?') &&
-                       text.match(/[a-zA-ZÀ-ÿ]{3,}/g) // Must have real words
-              })
-              .join(' ')
-            
-            if (candidateText.length > extractedText.length) {
-              extractedText = candidateText
-            }
-          }
+        const decoder = new TextDecoder('utf-16le', { fatal: false })
+        const utf16Text = decoder.decode(buffer)
+        const utf16Extracted = extractReadableText(utf16Text)
+        if (utf16Extracted.length > extractedText.length) {
+          extractedText = utf16Extracted
+          console.log('UTF-16 extraction successful')
         }
       } catch (error) {
-        console.log('Strategy 2 failed, trying final approach')
+        console.log('UTF-16 extraction failed')
       }
-    }
-    
-    // Strategy 3: Last resort - extract any readable sequences
-    if (!extractedText || extractedText.length < 20) {
+      
+      // Try extracting as Windows-1252
       try {
-        // Find sequences of readable characters
-        const readableSequences = binaryString.match(/[a-zA-ZÀ-ÿ\s.,!?;:]{20,}/g)
-        if (readableSequences && readableSequences.length > 0) {
-          extractedText = readableSequences
-            .filter(seq => {
-              const words = seq.match(/[a-zA-ZÀ-ÿ]{3,}/g)
-              return words && words.length >= 3 // At least 3 real words
-            })
-            .join(' ')
+        const decoder = new TextDecoder('windows-1252', { fatal: false })
+        const winText = decoder.decode(buffer)
+        const winExtracted = extractReadableText(winText)
+        if (winExtracted.length > extractedText.length) {
+          extractedText = winExtracted
+          console.log('Windows-1252 extraction successful')
         }
       } catch (error) {
-        console.log('All strategies failed')
+        console.log('Windows-1252 extraction failed')
       }
     }
     
     // Final validation
     if (!extractedText || extractedText.length < 10) {
-      // Return a more helpful error with specific advice
-      throw new Error('Não foi possível extrair texto do arquivo DOCX. Tente: 1) Abrir no Word e salvar como .txt, 2) Copiar o texto e colar diretamente, ou 3) Usar um arquivo .txt')
+      throw new Error('Não foi possível extrair texto legível do arquivo DOCX. Tente: 1) Abrir no Word e salvar como arquivo .txt, 2) Copiar o texto e colar diretamente no campo manual, ou 3) Verificar se o arquivo não está corrompido.')
     }
     
     // Clean and validate the extracted text
     const cleanContent = cleanTextContent(extractedText)
-    const validation = validateTextContent(cleanContent)
     
-    // Add success information to warnings
-    warnings.unshift(`Texto extraído com sucesso: ${cleanContent.split(/\s+/).length} palavras`)
+    // More lenient validation for DOCX files
+    const readableWords = cleanContent.match(/[a-zA-ZÀ-ÿ]{2,}/g)
+    const isValid = readableWords && readableWords.length >= 5
+    
+    if (!isValid) {
+      warnings.push('Texto extraído pode estar incompleto ou com problemas de codificação')
+      warnings.push('Recomendamos salvar o arquivo como .txt no Word para melhor resultado')
+    } else {
+      warnings.push(`Texto extraído com sucesso: ${readableWords.length} palavras reconhecidas`)
+    }
+    
+    warnings.push('Arquivo DOCX processado com múltiplas estratégias de extração')
     
     return {
       content: cleanContent,
@@ -255,11 +296,12 @@ export async function parseDocxFile(file: File): Promise<ParsedFileContent> {
       characterCount: cleanContent.length,
       fileType: 'docx',
       encoding: 'binary/xml',
-      isValid: validation.isValid,
-      warnings: [...warnings, ...validation.warnings]
+      isValid: isValid || cleanContent.length > 50, // Be more lenient
+      warnings
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao processar DOCX'
+    console.error('DOCX parsing error:', error)
     throw new Error(errorMessage)
   }
 }
@@ -428,7 +470,7 @@ export function getFileTypeRecommendation(extension: string): string {
   const recommendations: Record<string, string> = {
     txt: 'Formato ideal para transcrições',
     csv: 'Dados tabulares serão convertidos em texto corrido',
-    docx: 'Extração automática com múltiplas estratégias. Para melhor resultado, salve como .txt',
+    docx: 'Extração automática aprimorada com múltiplas estratégias. Para melhor resultado, salve como .txt',
     srt: 'Legendas serão convertidas removendo timestamps',
     vtt: 'Legendas WebVTT serão convertidas removendo marcações'
   }
