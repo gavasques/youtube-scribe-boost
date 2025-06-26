@@ -1,4 +1,3 @@
-
 import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -38,10 +37,6 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
 
   const handleStatusChange = (status: 'connected' | 'disconnected' | 'error') => {
     onUpdate('status', status)
-  }
-
-  const handleModelSelect = (modelId: string) => {
-    onUpdate('model', modelId)
   }
 
   const getStatusBadge = (status: 'connected' | 'disconnected' | 'error') => {
@@ -93,13 +88,10 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           <div className="flex items-center justify-between">
             <Label>Modelo</Label>
             {apiKey && (
-              <OpenAIModelsModal 
-                onModelSelect={handleModelSelect}
-                currentModel={config.model}
-              >
+              <OpenAIModelsModal>
                 <Button variant="outline" size="sm">
                   <Search className="w-4 h-4 mr-2" />
-                  Buscar Modelos
+                  Ver Modelos
                 </Button>
               </OpenAIModelsModal>
             )}
@@ -113,7 +105,7 @@ export function OpenAISettings({ config, onUpdate }: OpenAISettingsProps) {
           />
           
           <p className="text-xs text-muted-foreground">
-            Digite o nome do modelo OpenAI que deseja usar. Use o botão "Buscar Modelos" para ver os modelos disponíveis.
+            Digite o nome do modelo OpenAI que deseja usar. Use o botão "Ver Modelos" para consultar os modelos disponíveis.
           </p>
         </div>
 

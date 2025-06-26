@@ -5,17 +5,15 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { RefreshCw, Search, CheckCircle, AlertCircle, Clock } from "lucide-react"
+import { RefreshCw, Search, AlertCircle, Clock } from "lucide-react"
 import { useOpenAIModels } from "@/hooks/useOpenAIModels"
-import { showSuccessToast, showErrorToast } from "@/components/ui/enhanced-toast"
+import { showErrorToast } from "@/components/ui/enhanced-toast"
 
 interface OpenAIModelsModalProps {
   children: React.ReactNode
-  onModelSelect: (modelId: string) => void
-  currentModel?: string
 }
 
-export function OpenAIModelsModal({ children, onModelSelect, currentModel }: OpenAIModelsModalProps) {
+export function OpenAIModelsModal({ children }: OpenAIModelsModalProps) {
   const [open, setOpen] = React.useState(false)
   const { models, loading, error, lastFetched, fetchModels, categorizeModels } = useOpenAIModels()
 
@@ -24,15 +22,6 @@ export function OpenAIModelsModal({ children, onModelSelect, currentModel }: Ope
       fetchModels()
     }
   }, [open, models.length, loading, error, fetchModels])
-
-  const handleModelSelect = (modelId: string) => {
-    onModelSelect(modelId)
-    setOpen(false)
-    showSuccessToast({
-      title: "Modelo selecionado",
-      description: `Modelo ${modelId} foi selecionado com sucesso`
-    })
-  }
 
   const handleRefresh = async () => {
     await fetchModels()
@@ -55,7 +44,7 @@ export function OpenAIModelsModal({ children, onModelSelect, currentModel }: Ope
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Search className="w-5 h-5" />
-            Modelos OpenAI Disponíveis
+            Modelos OpenAI Disponíveis (Consulta)
           </DialogTitle>
         </DialogHeader>
         
@@ -121,17 +110,11 @@ export function OpenAIModelsModal({ children, onModelSelect, currentModel }: Ope
                       {categoryModels.map((model) => (
                         <div
                           key={model.id}
-                          className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/50 ${
-                            currentModel === model.id ? 'bg-blue-50 border-blue-200' : ''
-                          }`}
-                          onClick={() => handleModelSelect(model.id)}
+                          className="flex items-center justify-between p-3 rounded-lg border bg-muted/25"
                         >
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{model.id}</span>
-                              {currentModel === model.id && (
-                                <CheckCircle className="w-4 h-4 text-blue-600" />
-                              )}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
                               <span>Proprietário: {model.owned_by}</span>
@@ -153,7 +136,7 @@ export function OpenAIModelsModal({ children, onModelSelect, currentModel }: Ope
 
           {/* Footer */}
           <div className="text-xs text-muted-foreground text-center">
-            {models.length > 0 && `${models.length} modelos encontrados`}
+            {models.length > 0 && `${models.length} modelos encontrados - Use o campo de texto para inserir o modelo desejado`}
           </div>
         </div>
       </DialogContent>
