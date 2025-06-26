@@ -1,106 +1,90 @@
 
-import { useState, useEffect, useMemo } from 'react'
-import { Category } from '@/types/category'
-import { categoryService } from '@/services/categoryService'
-import { useCategoryActions } from '@/hooks/useCategoryActions'
-import { useToast } from '@/hooks/use-toast'
-import { CATEGORY_MESSAGES } from '@/utils/categoryConstants'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { supabase } from '@/integrations/supabase/client'
+import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/core/Logger'
+import { errorHandler } from '@/core/ErrorHandler'
 
-export function useOptimizedCategories() {
+interface Category {
+  id: string
+  name: string
+  description?: string
+  color_hex?: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+interface UseOptimizedCategoriesResult {
+  categories: Category[]
+  loading: boolean
+  error: string | null
+  refreshCategories: () => Promise<void>
+  totalCount: number
+}
+
+export function useOptimizedCategories(): UseOptimizedCategoriesResult {
+  const { user } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
-  const [hasLoaded, setHasLoaded] = useState(false)
-  const { toast } = useToast()
-  
-  const actions = useCategoryActions()
+  const [error, setError] = useState<string | null>(null)
+  const [totalCount, setTotalCount] = useState(0)
 
-  // Cache para evitar refetch desnecessário
-  const [lastFetch, setLastFetch] = useState<number>(0)
-  const CACHE_DURATION = 60000 // 1 minuto
+  const fetchCategories = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false)
+      return
+    }
 
-  // Buscar categorias
-  const fetchCategories = async (forceRefresh = false) => {
     try {
-      const now = Date.now()
-      
-      // Verificar cache apenas se já carregou uma vez
-      if (!forceRefresh && hasLoaded && now - lastFetch < CACHE_DURATION) {
-        return
-      }
-
       setLoading(true)
-      const data = await categoryService.fetchCategories()
-      setCategories(data)
-      setHasLoaded(true)
-      setLastFetch(now)
-    } catch (error) {
-      console.error('Erro ao buscar categorias:', error)
-      toast({
-        title: 'Erro',
-        description: CATEGORY_MESSAGES.ERRORS.LOAD,
-        variant: 'destructive',
+      setError(null)
+
+      logger.debug('Fetching optimized categories', { userId: user.id })
+
+      const { data, count, error: fetchError } = await supabase
+        .from('categories')
+        .select('*', { count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+
+      if (fetchError) throw fetchError
+
+      setCategories(data || [])
+      setTotalCount(count || 0)
+      
+      logger.debug('Categories fetched successfully', { count: data?.length })
+    } catch (err) {
+      const appError = errorHandler.handle(err, {
+        context: 'useOptimizedCategories.fetchCategories',
+        showToast: true
       })
-      setCategories([])
+      setError(appError.message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id])
 
-  // Carregar categorias na inicialização
   useEffect(() => {
     fetchCategories()
-  }, [])
+  }, [fetchCategories])
 
-  // Memoizar categorias ativas
-  const activeCategories = useMemo(() => {
-    return categories.filter(cat => cat.is_active)
-  }, [categories])
-
-  // Wrapper functions que atualizam estado local
-  const createCategory = async (data: any) => {
-    const result = await actions.createCategory(data)
-    if (result.data) {
-      setCategories(prev => [...prev, result.data])
-    }
-    return result
-  }
-
-  const updateCategory = async (id: string, data: any) => {
-    const result = await actions.updateCategory(id, data)
-    if (result.data) {
-      setCategories(prev => prev.map(c => c.id === id ? result.data : c))
-    }
-    return result
-  }
-
-  const toggleCategoryActive = async (category: Category) => {
-    const result = await actions.toggleCategoryActive(category)
-    if (result.data) {
-      setCategories(prev => prev.map(c => 
-        c.id === category.id ? result.data : c
-      ))
-    }
-    return result
-  }
-
-  const deleteCategory = async (category: Category) => {
-    const result = await actions.deleteCategory(category)
-    if (!result.error) {
-      setCategories(prev => prev.filter(c => c.id !== category.id))
-    }
-    return result
-  }
+  // Memoize category options for forms
+  const categoryOptions = useMemo(() => 
+    categories.map(cat => ({
+      value: cat.id,
+      label: cat.name,
+      color: cat.color_hex
+    })), 
+    [categories]
+  )
 
   return {
     categories,
-    activeCategories,
     loading,
-    hasLoaded,
-    createCategory,
-    updateCategory,
-    toggleCategoryActive,
-    deleteCategory,
-    fetchCategories,
-    isActionLoading: actions.isLoading
+    error,
+    refreshCategories: fetchCategories,
+    totalCount
   }
 }
