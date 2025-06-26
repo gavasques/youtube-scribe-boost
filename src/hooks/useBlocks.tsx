@@ -33,8 +33,8 @@ export function useBlocks() {
     }
   }
 
-  // Reorganizar prioridades sequenciais
-  const reorganizePriorities = async () => {
+  // Reorganizar prioridades sequenciais no banco
+  const updatePrioritiesInDatabase = async (blocksToUpdate: Block[]) => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       
@@ -43,33 +43,18 @@ export function useBlocks() {
         return
       }
 
-      // Buscar todos os blocos ordenados
-      const { data: allBlocks, error } = await supabase
-        .from('blocks')
-        .select('id, priority')
-        .eq('user_id', user.id)
-        .order('priority', { ascending: false })
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      // Reassignar prioridades sequenciais
-      const updates = allBlocks?.map((block, index) => ({
-        id: block.id,
-        priority: allBlocks.length - index // Maior prioridade = posição mais alta
-      })) || []
-
-      // Atualizar em lote
-      for (const update of updates) {
+      // Atualizar em lote no banco
+      for (const block of blocksToUpdate) {
         await supabase
           .from('blocks')
-          .update({ priority: update.priority })
-          .eq('id', update.id)
+          .update({ priority: block.priority })
+          .eq('id', block.id)
       }
 
-      console.log('Prioridades reorganizadas:', updates)
+      console.log('Prioridades atualizadas no banco:', blocksToUpdate.map(b => ({ id: b.id, priority: b.priority })))
     } catch (error) {
-      console.error('Erro ao reorganizar prioridades:', error)
+      console.error('Erro ao atualizar prioridades no banco:', error)
+      throw error
     }
   }
 
@@ -177,9 +162,8 @@ export function useBlocks() {
 
       console.log('Bloco criado com sucesso:', newBlock)
       
-      // Reorganizar prioridades após criação
-      await reorganizePriorities()
-      await fetchBlocks() // Recarregar para mostrar ordem correta
+      // Recarregar lista completa para garantir ordem correta
+      await fetchBlocks()
       
       toast({
         title: 'Bloco criado',
@@ -260,24 +244,23 @@ export function useBlocks() {
       const currentBlock = blocks[currentBlockIndex]
       const blockAbove = blocks[currentBlockIndex - 1]
 
-      // Trocar prioridades
-      const tempPriority = currentBlock.priority
+      // Atualizar estado local imediatamente (interface responsiva)
+      const updatedBlocks = [...blocks]
+      updatedBlocks[currentBlockIndex] = { ...currentBlock, priority: blockAbove.priority }
+      updatedBlocks[currentBlockIndex - 1] = { ...blockAbove, priority: currentBlock.priority }
       
-      await supabase
-        .from('blocks')
-        .update({ priority: blockAbove.priority })
-        .eq('id', currentBlock.id)
-
-      await supabase
-        .from('blocks')
-        .update({ priority: tempPriority })
-        .eq('id', blockAbove.id)
-
-      // Reorganizar prioridades sequenciais
-      await reorganizePriorities()
+      // Reorganizar as prioridades para serem sequenciais
+      const sortedBlocks = updatedBlocks.sort((a, b) => b.priority - a.priority)
+      const reorderedBlocks = sortedBlocks.map((block, index) => ({
+        ...block,
+        priority: sortedBlocks.length - index
+      }))
       
-      // Recarregar lista
-      await fetchBlocks()
+      // Atualizar estado local primeiro (UX suave)
+      setBlocks(reorderedBlocks)
+
+      // Depois atualizar no banco em background
+      await updatePrioritiesInDatabase(reorderedBlocks)
       
       toast({
         title: 'Bloco movido',
@@ -285,6 +268,8 @@ export function useBlocks() {
       })
     } catch (error) {
       console.error('Erro ao mover bloco:', error)
+      // Em caso de erro, recarregar do banco para garantir consistência
+      await fetchBlocks()
       toast({
         title: 'Erro',
         description: 'Erro ao mover bloco.',
@@ -302,24 +287,23 @@ export function useBlocks() {
       const currentBlock = blocks[currentBlockIndex]
       const blockBelow = blocks[currentBlockIndex + 1]
 
-      // Trocar prioridades
-      const tempPriority = currentBlock.priority
+      // Atualizar estado local imediatamente (interface responsiva)
+      const updatedBlocks = [...blocks]
+      updatedBlocks[currentBlockIndex] = { ...currentBlock, priority: blockBelow.priority }
+      updatedBlocks[currentBlockIndex + 1] = { ...blockBelow, priority: currentBlock.priority }
       
-      await supabase
-        .from('blocks')
-        .update({ priority: blockBelow.priority })
-        .eq('id', currentBlock.id)
-
-      await supabase
-        .from('blocks')
-        .update({ priority: tempPriority })
-        .eq('id', blockBelow.id)
-
-      // Reorganizar prioridades sequenciais
-      await reorganizePriorities()
+      // Reorganizar as prioridades para serem sequenciais
+      const sortedBlocks = updatedBlocks.sort((a, b) => b.priority - a.priority)
+      const reorderedBlocks = sortedBlocks.map((block, index) => ({
+        ...block,
+        priority: sortedBlocks.length - index
+      }))
       
-      // Recarregar lista
-      await fetchBlocks()
+      // Atualizar estado local primeiro (UX suave)
+      setBlocks(reorderedBlocks)
+
+      // Depois atualizar no banco em background
+      await updatePrioritiesInDatabase(reorderedBlocks)
       
       toast({
         title: 'Bloco movido',
@@ -327,6 +311,8 @@ export function useBlocks() {
       })
     } catch (error) {
       console.error('Erro ao mover bloco:', error)
+      // Em caso de erro, recarregar do banco para garantir consistência
+      await fetchBlocks()
       toast({
         title: 'Erro',
         description: 'Erro ao mover bloco.',
@@ -399,9 +385,8 @@ export function useBlocks() {
 
       if (error) throw error
 
-      // Reorganizar prioridades após duplicação
-      await reorganizePriorities()
-      await fetchBlocks() // Recarregar para mostrar ordem correta
+      // Recarregar lista completa para garantir ordem correta
+      await fetchBlocks()
       
       toast({
         title: 'Bloco duplicado',
@@ -434,9 +419,8 @@ export function useBlocks() {
 
       if (error) throw error
 
-      // Reorganizar prioridades após remoção
-      await reorganizePriorities()
-      await fetchBlocks() // Recarregar para mostrar ordem correta
+      // Recarregar lista completa para garantir ordem correta
+      await fetchBlocks()
       
       toast({
         title: 'Bloco removido',
