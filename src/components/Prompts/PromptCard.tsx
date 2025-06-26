@@ -29,7 +29,7 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
 
   const isGlobalPrompt = !prompt.user_id
   const isOwner = currentUserId && prompt.user_id === currentUserId
-  const canEdit = isOwner || isGlobalPrompt
+  const canToggle = isOwner // Apenas donos podem ativar/desativar seus prompts
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -55,7 +55,7 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
             </div>
           </div>
           <div className="flex gap-1">
-            {canEdit && (
+            {canToggle && (
               <Button
                 variant="outline"
                 size="sm"
