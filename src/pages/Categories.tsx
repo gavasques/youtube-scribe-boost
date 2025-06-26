@@ -1,12 +1,13 @@
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Plus, Search } from "lucide-react"
-import { CategoryCard } from "@/components/Categories/CategoryCard"
-import { CategoryForm } from "@/components/Categories/CategoryForm"
 import { Category } from "@/types/category"
-import { useCategories } from "@/hooks/useCategories"
+import { CategoryHeader } from "@/components/Categories/CategoryHeader"
+import { CategorySearch } from "@/components/Categories/CategorySearch"
+import { CategoryGrid } from "@/components/Categories/CategoryGrid"
+import { CategoryEmptyState } from "@/components/Categories/CategoryEmptyState"
+import { CategoryForm } from "@/components/Categories/CategoryForm"
+import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
+import { useCategoryFilters } from "@/hooks/useCategoryFilters"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export default function Categories() {
@@ -16,18 +17,19 @@ export default function Categories() {
     createCategory,
     updateCategory,
     deleteCategory,
-    toggleCategoryActive
-  } = useCategories()
+    toggleCategoryActive,
+    isActionLoading
+  } = useOptimizedCategories()
+
+  const {
+    filters,
+    filteredCategories,
+    updateSearchTerm,
+    hasFilters
+  } = useCategoryFilters(categories)
 
   const [showForm, setShowForm] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
-
-  // Filter categories
-  const filteredCategories = categories.filter(cat =>
-    cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cat.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
   const handleCreateCategory = async (data: any) => {
     await createCategory(data)
@@ -61,6 +63,11 @@ export default function Categories() {
     setEditingCategory(null)
   }
 
+  const handleCreateNew = () => {
+    setEditingCategory(null)
+    setShowForm(true)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -71,62 +78,33 @@ export default function Categories() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Categorias</h1>
-          <p className="text-muted-foreground">
-            Organize seus vídeos em categorias
-          </p>
-        </div>
-        <Button className="gap-2" onClick={() => setShowForm(true)}>
-          <Plus className="w-4 h-4" />
-          Nova Categoria
-        </Button>
-      </div>
+      <CategoryHeader onCreateCategory={handleCreateNew} />
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-        <Input
-          placeholder="Buscar categorias..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
+      <CategorySearch
+        value={filters.searchTerm}
+        onChange={updateSearchTerm}
+      />
+
+      {filteredCategories.length > 0 ? (
+        <CategoryGrid
+          categories={filteredCategories}
+          onEdit={handleEdit}
+          onDelete={handleDeleteCategory}
+          onToggleActive={handleToggleActive}
         />
-      </div>
-
-      {/* Categories Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredCategories.map((category) => (
-          <CategoryCard
-            key={category.id}
-            category={category}
-            onEdit={handleEdit}
-            onDelete={handleDeleteCategory}
-            onToggleActive={handleToggleActive}
-          />
-        ))}
-      </div>
-
-      {filteredCategories.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {categories.length === 0 
-              ? "Nenhuma categoria encontrada. Crie sua primeira categoria!"
-              : "Nenhuma categoria corresponde ao termo de busca."
-            }
-          </p>
-        </div>
+      ) : (
+        <CategoryEmptyState
+          hasCategories={categories.length > 0}
+          hasFilters={hasFilters}
+        />
       )}
 
-      {/* Form Modal */}
       <CategoryForm
         open={showForm}
         onClose={handleCloseForm}
         onSave={editingCategory ? handleEditCategory : handleCreateCategory}
         category={editingCategory}
-        categories={categories}
+        isLoading={isActionLoading}
       />
     </div>
   )

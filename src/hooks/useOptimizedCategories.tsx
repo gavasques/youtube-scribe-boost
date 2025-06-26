@@ -2,27 +2,28 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Category } from '@/types/category'
 import { categoryService } from '@/services/categoryService'
-import { useCategoryOperations } from '@/hooks/useCategoryOperations'
+import { useCategoryActions } from '@/hooks/useCategoryActions'
 import { useToast } from '@/hooks/use-toast'
+import { CATEGORY_MESSAGES } from '@/utils/categoryConstants'
 
 export function useOptimizedCategories() {
   const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(false) // Não carrega automaticamente
+  const [loading, setLoading] = useState(true)
   const [hasLoaded, setHasLoaded] = useState(false)
   const { toast } = useToast()
   
-  const operations = useCategoryOperations()
+  const actions = useCategoryActions()
 
   // Cache para evitar refetch desnecessário
   const [lastFetch, setLastFetch] = useState<number>(0)
-  const CACHE_DURATION = 60000 // 1 minuto para categorias
+  const CACHE_DURATION = 60000 // 1 minuto
 
-  // Lazy loading - buscar apenas quando necessário
+  // Buscar categorias
   const fetchCategories = async (forceRefresh = false) => {
     try {
       const now = Date.now()
       
-      // Verificar cache
+      // Verificar cache apenas se já carregou uma vez
       if (!forceRefresh && hasLoaded && now - lastFetch < CACHE_DURATION) {
         return
       }
@@ -36,7 +37,7 @@ export function useOptimizedCategories() {
       console.error('Erro ao buscar categorias:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao carregar categorias.',
+        description: CATEGORY_MESSAGES.ERRORS.LOAD,
         variant: 'destructive',
       })
       setCategories([])
@@ -45,6 +46,11 @@ export function useOptimizedCategories() {
     }
   }
 
+  // Carregar categorias na inicialização
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
   // Memoizar categorias ativas
   const activeCategories = useMemo(() => {
     return categories.filter(cat => cat.is_active)
@@ -52,7 +58,7 @@ export function useOptimizedCategories() {
 
   // Wrapper functions que atualizam estado local
   const createCategory = async (data: any) => {
-    const result = await operations.createCategory(data)
+    const result = await actions.createCategory(data)
     if (result.data) {
       setCategories(prev => [...prev, result.data])
     }
@@ -60,7 +66,7 @@ export function useOptimizedCategories() {
   }
 
   const updateCategory = async (id: string, data: any) => {
-    const result = await operations.updateCategory(id, data)
+    const result = await actions.updateCategory(id, data)
     if (result.data) {
       setCategories(prev => prev.map(c => c.id === id ? result.data : c))
     }
@@ -68,7 +74,7 @@ export function useOptimizedCategories() {
   }
 
   const toggleCategoryActive = async (category: Category) => {
-    const result = await operations.toggleCategoryActive(category)
+    const result = await actions.toggleCategoryActive(category)
     if (result.data) {
       setCategories(prev => prev.map(c => 
         c.id === category.id ? result.data : c
@@ -78,7 +84,7 @@ export function useOptimizedCategories() {
   }
 
   const deleteCategory = async (category: Category) => {
-    const result = await operations.deleteCategory(category)
+    const result = await actions.deleteCategory(category)
     if (!result.error) {
       setCategories(prev => prev.filter(c => c.id !== category.id))
     }
@@ -94,6 +100,7 @@ export function useOptimizedCategories() {
     updateCategory,
     toggleCategoryActive,
     deleteCategory,
-    fetchCategories
+    fetchCategories,
+    isActionLoading: actions.isLoading
   }
 }

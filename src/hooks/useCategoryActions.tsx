@@ -3,18 +3,21 @@ import { useState } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { Category, CategoryFormData } from '@/types/category'
 import { categoryService } from '@/services/categoryService'
+import { CATEGORY_MESSAGES } from '@/utils/categoryConstants'
+import { formatToggleMessage, formatDeleteMessage } from '@/utils/categoryFormatters'
 
-export function useCategoryOperations() {
+export function useCategoryActions() {
   const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Criar nova categoria
   const createCategory = async (data: CategoryFormData) => {
+    setIsLoading(true)
     try {
       const newCategory = await categoryService.createCategory(data)
       
       toast({
-        title: 'Categoria criada',
-        description: 'A categoria foi criada com sucesso.',
+        title: CATEGORY_MESSAGES.CREATED,
+        description: `Categoria "${newCategory.name}" criada.`,
       })
       
       return { data: newCategory, error: null }
@@ -22,21 +25,23 @@ export function useCategoryOperations() {
       console.error('💥 Erro ao criar categoria:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao criar categoria.',
+        description: CATEGORY_MESSAGES.ERRORS.CREATE,
         variant: 'destructive',
       })
       return { data: null, error }
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // Atualizar categoria
   const updateCategory = async (id: string, data: CategoryFormData) => {
+    setIsLoading(true)
     try {
       const updatedCategory = await categoryService.updateCategory(id, data)
       
       toast({
-        title: 'Categoria atualizada',
-        description: 'A categoria foi atualizada com sucesso.',
+        title: CATEGORY_MESSAGES.UPDATED,
+        description: `Categoria "${updatedCategory.name}" atualizada.`,
       })
       
       return { data: updatedCategory, error: null }
@@ -44,21 +49,23 @@ export function useCategoryOperations() {
       console.error('Erro ao atualizar categoria:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao atualizar categoria.',
+        description: CATEGORY_MESSAGES.ERRORS.UPDATE,
         variant: 'destructive',
       })
       return { data: null, error }
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // Ativar/desativar categoria
   const toggleCategoryActive = async (category: Category) => {
+    setIsLoading(true)
     try {
       const updatedCategory = await categoryService.toggleCategoryActive(category)
 
       toast({
-        title: category.is_active ? 'Categoria desativada' : 'Categoria ativada',
-        description: `A categoria "${category.name}" foi ${category.is_active ? 'desativada' : 'ativada'}.`,
+        title: category.is_active ? CATEGORY_MESSAGES.DEACTIVATED : CATEGORY_MESSAGES.ACTIVATED,
+        description: formatToggleMessage(category),
       })
       
       return { data: updatedCategory, error: null }
@@ -66,21 +73,23 @@ export function useCategoryOperations() {
       console.error('Erro ao alterar status da categoria:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao alterar status da categoria.',
+        description: CATEGORY_MESSAGES.ERRORS.TOGGLE,
         variant: 'destructive',
       })
       return { data: null, error }
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // Remover categoria
   const deleteCategory = async (category: Category) => {
+    setIsLoading(true)
     try {
       await categoryService.deleteCategory(category.id)
       
       toast({
-        title: 'Categoria removida',
-        description: `A categoria "${category.name}" foi removida com sucesso.`,
+        title: CATEGORY_MESSAGES.DELETED,
+        description: formatDeleteMessage(category.name),
       })
       
       return { error: null }
@@ -88,10 +97,12 @@ export function useCategoryOperations() {
       console.error('Erro ao remover categoria:', error)
       toast({
         title: 'Erro',
-        description: 'Erro ao remover categoria.',
+        description: CATEGORY_MESSAGES.ERRORS.DELETE,
         variant: 'destructive',
       })
       return { error }
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -99,6 +110,7 @@ export function useCategoryOperations() {
     createCategory,
     updateCategory,
     toggleCategoryActive,
-    deleteCategory
+    deleteCategory,
+    isLoading
   }
 }

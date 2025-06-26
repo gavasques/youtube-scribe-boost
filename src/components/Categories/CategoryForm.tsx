@@ -1,29 +1,36 @@
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 import { Category, CategoryFormData } from "@/types/category"
+import { CategoryFormFields } from "./CategoryForm/CategoryFormFields"
+import { CategoryFormActions } from "./CategoryForm/CategoryFormActions"
+import { validateCategoryForm } from "@/utils/categoryValidation"
+import { CATEGORY_DEFAULTS } from "@/utils/categoryConstants"
 
 interface CategoryFormProps {
   open: boolean
   onClose: () => void
   onSave: (data: CategoryFormData) => void
   category?: Category | null
-  categories: Category[]
+  isLoading?: boolean
 }
 
-export function CategoryForm({ open, onClose, onSave, category }: CategoryFormProps) {
+export function CategoryForm({ 
+  open, 
+  onClose, 
+  onSave, 
+  category,
+  isLoading = false
+}: CategoryFormProps) {
   const [formData, setFormData] = useState<CategoryFormData>({
     name: "",
     description: "",
-    is_active: true
+    is_active: CATEGORY_DEFAULTS.DEFAULT_ACTIVE_STATUS
   })
 
   const [errors, setErrors] = useState<Partial<CategoryFormData>>({})
+
+  const isEditing = !!category
 
   useEffect(() => {
     if (category) {
@@ -36,27 +43,44 @@ export function CategoryForm({ open, onClose, onSave, category }: CategoryFormPr
       setFormData({
         name: "",
         description: "",
-        is_active: true
+        is_active: CATEGORY_DEFAULTS.DEFAULT_ACTIVE_STATUS
       })
     }
     setErrors({})
   }, [category, open])
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<CategoryFormData> = {}
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Nome é obrigatório"
+  const handleFieldChange = (updates: Partial<CategoryFormData>) => {
+    setFormData(prev => ({ ...prev, ...updates }))
+    // Limpar erros dos campos alterados
+    if (Object.keys(updates).length > 0) {
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        Object.keys(updates).forEach(key => {
+          delete newErrors[key as keyof CategoryFormData]
+        })
+        return newErrors
+      })
     }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (validateForm()) {
-      onSave(formData)
+    
+    const validation = validateCategoryForm(formData)
+    if (!validation.success) {
+      const fieldErrors: Partial<CategoryFormData> = {}
+      validation.error.errors.forEach(error => {
+        const field = error.path[0] as keyof CategoryFormData
+        if (field) {
+          fieldErrors[field] = error.message
+        }
+      })
+      setErrors(fieldErrors)
+      return
+    }
+
+    onSave(validation.data)
+    if (!isLoading) {
       onClose()
     }
   }
@@ -66,57 +90,23 @@ export function CategoryForm({ open, onClose, onSave, category }: CategoryFormPr
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {category ? "Editar Categoria" : "Nova Categoria"}
+            {isEditing ? "Editar Categoria" : "Nova Categoria"}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nome */}
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="Nome da categoria"
-              className={errors.name ? "border-destructive" : ""}
-            />
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name}</p>
-            )}
-          </div>
+          <CategoryFormFields
+            formData={formData}
+            onChange={handleFieldChange}
+            errors={errors}
+          />
 
-          {/* Descrição */}
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Descrição opcional da categoria"
-              rows={3}
-            />
-          </div>
-
-          {/* Status */}
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="is_active"
-              checked={formData.is_active}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
-            />
-            <Label htmlFor="is_active">Categoria ativa</Label>
-          </div>
-
-          {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit">
-              {category ? "Atualizar" : "Criar"} Categoria
-            </Button>
-          </div>
+          <CategoryFormActions
+            isEditing={isEditing}
+            onCancel={onClose}
+            onSubmit={handleSubmit}
+            isLoading={isLoading}
+          />
         </form>
       </DialogContent>
     </Dialog>
