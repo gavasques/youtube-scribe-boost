@@ -69,7 +69,6 @@ export function useBlocks() {
       // Preparar dados para inserção
       const blockData = {
         title: data.title,
-        description: data.description || null,
         content: data.content,
         type: data.type,
         scope: data.scope,
@@ -118,7 +117,6 @@ export function useBlocks() {
     try {
       const updateData = {
         title: data.title,
-        description: data.description || null,
         content: data.content,
         type: data.type,
         scope: data.scope,
@@ -271,7 +269,6 @@ export function useBlocks() {
         .from('blocks')
         .insert([{
           title: `${block.title} (Cópia)`,
-          description: block.description,
           content: block.content,
           type: block.type,
           scope: block.scope,
