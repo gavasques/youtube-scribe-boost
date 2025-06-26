@@ -147,9 +147,15 @@ export function useYouTubeSync() {
     }
 
     logger.info('Request body prepared', {
-      optionsKeys: Object.keys(requestBody.options),
+      optionsStructure: {
+        type: requestBody.options.type,
+        includeRegular: requestBody.options.includeRegular,
+        includeShorts: requestBody.options.includeShorts,
+        syncMetadata: requestBody.options.syncMetadata,
+        maxVideos: requestBody.options.maxVideos
+      },
       hasUserId: !!requestBody.userId,
-      bodySize: JSON.stringify(requestBody).length
+      timestamp: requestBody.timestamp
     })
 
     return requestBody
@@ -188,7 +194,8 @@ export function useYouTubeSync() {
       logger.info('Edge function test response', {
         hasData: !!response.data,
         hasError: !!response.error,
-        errorMessage: response.error?.message
+        errorMessage: response.error?.message,
+        responseData: response.data
       })
 
       return !response.error
@@ -200,9 +207,21 @@ export function useYouTubeSync() {
 
   const callSyncFunction = async (requestBody: any): Promise<SyncResult> => {
     logger.info('=== CALLING SYNC FUNCTION ===')
+    
+    // Validate the request body structure before sending
+    if (!requestBody.options) {
+      throw new Error('Invalid request body: missing options')
+    }
+
     logger.info('Sync function call initiated', {
-      bodySize: JSON.stringify(requestBody).length,
-      optionsPresent: !!requestBody.options,
+      hasOptions: !!requestBody.options,
+      optionsValidation: {
+        hasType: typeof requestBody.options.type === 'string',
+        hasIncludeRegular: typeof requestBody.options.includeRegular === 'boolean',
+        hasIncludeShorts: typeof requestBody.options.includeShorts === 'boolean',
+        hasSyncMetadata: typeof requestBody.options.syncMetadata === 'boolean',
+        hasMaxVideos: typeof requestBody.options.maxVideos === 'number'
+      },
       timestamp: requestBody.timestamp
     })
 
@@ -247,6 +266,8 @@ export function useYouTubeSync() {
         throw new Error('Token expirado. Reconecte sua conta do YouTube nas configurações.')
       } else if (errorMessage.includes('Empty request body')) {
         throw new Error('Erro de comunicação com o servidor. Dados não enviados corretamente.')
+      } else if (errorMessage.includes('Missing sync options')) {
+        throw new Error('Erro de validação: opções de sincronização inválidas.')
       } else {
         throw new Error(`Erro do servidor: ${errorMessage}`)
       }

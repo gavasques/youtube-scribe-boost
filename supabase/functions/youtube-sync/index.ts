@@ -122,7 +122,7 @@ serve(async (req) => {
     method: req.method,
     url: req.url,
     timestamp: new Date().toISOString(),
-    hasBody: req.body !== null
+    headers: Object.fromEntries(req.headers.entries())
   })
 
   if (req.method === 'OPTIONS') {
@@ -142,40 +142,43 @@ serve(async (req) => {
   let options: SyncOptions
 
   try {
-    // Read request body ONCE and store it
+    // Read and log the raw request body
     const bodyText = await req.text()
-    debugLog('Request body received', {
+    debugLog('Raw request body received', {
       bodyLength: bodyText.length,
       hasContent: bodyText.length > 0,
-      contentPreview: bodyText.substring(0, 200)
+      rawBody: bodyText
     })
 
+    // Validate body is not empty
     if (!bodyText || bodyText.trim() === '') {
-      errorLog('Empty request body')
+      errorLog('Empty request body received')
       return new Response(
         JSON.stringify({ 
           error: 'Empty request body',
-          details: 'Sync options are required',
-          received: 'Empty or null body'
+          details: 'Request body is required for sync operation'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    // Parse JSON
     try {
       requestBody = JSON.parse(bodyText)
       debugLog('Request body parsed successfully', {
-        hasOptions: !!requestBody.options,
-        hasTest: !!requestBody.test,
-        optionsKeys: requestBody.options ? Object.keys(requestBody.options) : [],
-        allKeys: Object.keys(requestBody)
+        bodyKeys: Object.keys(requestBody),
+        bodyStructure: typeof requestBody,
+        fullBody: requestBody
       })
     } catch (parseError) {
-      errorLog('JSON parsing failed', parseError)
+      errorLog('JSON parsing failed', {
+        error: parseError.message,
+        bodyPreview: bodyText.substring(0, 500)
+      })
       return new Response(
         JSON.stringify({ 
           error: 'Invalid JSON format',
-          details: parseError.message,
+          details: `JSON parsing error: ${parseError.message}`,
           received: bodyText.substring(0, 200)
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -183,32 +186,62 @@ serve(async (req) => {
     }
 
     // Handle test connectivity request
-    if (requestBody.test) {
-      debugLog('Test connectivity request received')
+    if (requestBody.test === true) {
+      debugLog('Test connectivity request detected')
       return new Response(
         JSON.stringify({ 
           success: true,
-          message: 'Edge function is accessible',
+          message: 'Edge function is accessible and working',
           timestamp: new Date().toISOString()
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    // Validate sync options
     if (!requestBody.options) {
-      errorLog('Missing options in request')
+      errorLog('Missing options in request body', {
+        receivedKeys: Object.keys(requestBody),
+        bodyStructure: requestBody
+      })
       return new Response(
         JSON.stringify({ 
           error: 'Missing sync options',
-          details: 'Request must include sync options',
-          received: Object.keys(requestBody)
+          details: 'Request must include sync options object',
+          received: Object.keys(requestBody),
+          expected: 'Body should contain "options" property'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    options = requestBody.options
-    debugLog('Sync options validated', options)
+    options = requestBody.options as SyncOptions
+    debugLog('Sync options extracted and validated', {
+      type: options.type,
+      includeRegular: options.includeRegular,
+      includeShorts: options.includeShorts,
+      syncMetadata: options.syncMetadata,
+      maxVideos: options.maxVideos
+    })
+
+    // Validate required option fields
+    const requiredFields = ['type', 'includeRegular', 'includeShorts', 'syncMetadata', 'maxVideos']
+    const missingFields = requiredFields.filter(field => options[field] === undefined)
+    
+    if (missingFields.length > 0) {
+      errorLog('Missing required option fields', {
+        missingFields,
+        receivedOptions: options
+      })
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid sync options',
+          details: `Missing required fields: ${missingFields.join(', ')}`,
+          received: options
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Create Supabase clients
     const supabaseClient = createClient(
@@ -222,7 +255,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    debugLog('Supabase clients created')
+    debugLog('Supabase clients created successfully')
 
     // Verify authentication
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
@@ -231,13 +264,14 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Authentication required',
-          details: 'Please log in to sync videos'
+          details: 'Please log in to sync videos',
+          authError: authError?.message
         }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    debugLog('User authenticated', { userId: user.id })
+    debugLog('User authenticated successfully', { userId: user.id })
 
     // Get YouTube tokens
     const { data: tokenData, error: tokenError } = await supabaseService
@@ -247,17 +281,20 @@ serve(async (req) => {
       .maybeSingle()
 
     if (tokenError || !tokenData) {
-      errorLog('YouTube tokens not found', tokenError)
+      errorLog('YouTube tokens not found', {
+        tokenError: tokenError?.message,
+        userId: user.id
+      })
       return new Response(
         JSON.stringify({ 
           error: 'YouTube not connected',
-          details: 'Please connect your YouTube account in Settings'
+          details: 'Please connect your YouTube account in Settings > APIs'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    debugLog('YouTube tokens found', {
+    debugLog('YouTube tokens retrieved successfully', {
       channelId: tokenData.channel_id,
       expiresAt: tokenData.expires_at,
       hasRefreshToken: !!tokenData.refresh_token
@@ -268,10 +305,11 @@ serve(async (req) => {
     const expiresAt = new Date(tokenData.expires_at)
     const now = new Date()
     const timeUntilExpiry = expiresAt.getTime() - now.getTime()
+    const minutesUntilExpiry = Math.round(timeUntilExpiry / 1000 / 60)
 
     debugLog('Token expiry check', {
       expiresAt: expiresAt.toISOString(),
-      minutesUntilExpiry: Math.round(timeUntilExpiry / 1000 / 60),
+      minutesUntilExpiry,
       needsRefresh: timeUntilExpiry < 10 * 60 * 1000
     })
 
@@ -292,13 +330,15 @@ serve(async (req) => {
           })
           .eq('user_id', user.id)
         
-        debugLog('Token refreshed and updated', { newExpiresAt: newExpiresAt.toISOString() })
+        debugLog('Token refreshed and updated successfully', { 
+          newExpiresAt: newExpiresAt.toISOString() 
+        })
       } else {
         errorLog('Token refresh failed')
         return new Response(
           JSON.stringify({ 
             error: 'Token refresh failed',
-            details: 'Please reconnect your YouTube account'
+            details: 'Please reconnect your YouTube account in Settings'
           }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
@@ -306,17 +346,18 @@ serve(async (req) => {
     }
 
     // Start video synchronization
-    debugLog('Starting video sync', {
+    debugLog('Starting video sync process', {
       channelId: tokenData.channel_id,
       maxVideos: options.maxVideos,
       includeRegular: options.includeRegular,
-      includeShorts: options.includeShorts
+      includeShorts: options.includeShorts,
+      syncType: options.type
     })
 
     // Search for videos
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${Math.min(options.maxVideos, 50)}`
     
-    debugLog('Fetching video list', { searchUrl })
+    debugLog('Fetching video list from YouTube API', { searchUrl })
     
     const searchResponse = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -326,12 +367,13 @@ serve(async (req) => {
       const searchError = await searchResponse.json()
       errorLog('YouTube search API error', {
         status: searchResponse.status,
+        statusText: searchResponse.statusText,
         error: searchError
       })
       return new Response(
         JSON.stringify({ 
           error: 'YouTube API error',
-          details: searchError.error?.message || 'Failed to fetch videos'
+          details: searchError.error?.message || 'Failed to fetch videos from YouTube'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -340,10 +382,13 @@ serve(async (req) => {
     const searchData = await searchResponse.json()
     const videoIds = searchData.items?.map((item: any) => item.id.videoId) || []
     
-    debugLog('Video IDs retrieved', { count: videoIds.length, videoIds })
+    debugLog('Video IDs retrieved from search', { 
+      totalFound: videoIds.length, 
+      videoIds: videoIds.slice(0, 5) // Log first 5 for debugging
+    })
 
     if (videoIds.length === 0) {
-      debugLog('No videos found')
+      debugLog('No videos found in channel')
       return new Response(
         JSON.stringify({ 
           success: true,
@@ -357,7 +402,10 @@ serve(async (req) => {
     // Get video details
     const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${videoIds.join(',')}`
     
-    debugLog('Fetching video details', { videoCount: videoIds.length })
+    debugLog('Fetching video details from YouTube API', { 
+      videoCount: videoIds.length,
+      detailsUrl: detailsUrl.substring(0, 200) + '...'
+    })
     
     const detailsResponse = await fetch(detailsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -365,7 +413,10 @@ serve(async (req) => {
 
     if (!detailsResponse.ok) {
       const detailsError = await detailsResponse.json()
-      errorLog('YouTube details API error', detailsError)
+      errorLog('YouTube details API error', {
+        status: detailsResponse.status,
+        error: detailsError
+      })
       return new Response(
         JSON.stringify({ 
           error: 'Failed to get video details',
@@ -378,7 +429,10 @@ serve(async (req) => {
     const detailsData = await detailsResponse.json()
     const videos: YouTubeVideo[] = detailsData.items || []
     
-    debugLog('Video details retrieved', { videoCount: videos.length })
+    debugLog('Video details retrieved successfully', { 
+      videoCount: videos.length,
+      sampleTitles: videos.slice(0, 3).map(v => v.snippet.title)
+    })
 
     // Process videos
     const stats = { processed: 0, new: 0, updated: 0, errors: 0 }
@@ -397,7 +451,8 @@ serve(async (req) => {
         debugLog(`Processing video: ${video.snippet.title}`, {
           id: video.id,
           type: videoType,
-          duration: durationData.formatted
+          duration: durationData.formatted,
+          published: video.snippet.publishedAt
         })
 
         // Check if video exists
@@ -454,7 +509,11 @@ serve(async (req) => {
         stats.processed++
 
       } catch (error) {
-        errorLog(`Error processing video ${video.snippet.title}`, error)
+        errorLog(`Error processing video ${video.snippet.title}`, {
+          videoId: video.id,
+          errorMessage: error.message,
+          errorName: error.name
+        })
         errors.push(`${video.snippet.title}: ${error.message}`)
         stats.errors++
       }
@@ -462,7 +521,8 @@ serve(async (req) => {
 
     debugLog('=== Sync completed successfully ===', { 
       stats, 
-      errorCount: errors.length 
+      errorCount: errors.length,
+      totalProcessed: stats.processed
     })
 
     return new Response(
