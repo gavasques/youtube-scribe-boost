@@ -18,12 +18,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, Edit, Power, Trash, Calendar, Globe, FolderTree, ChevronUp, ChevronDown } from "lucide-react"
+import { 
+  Search, 
+  MoreHorizontal, 
+  Edit, 
+  Power, 
+  Trash, 
+  Calendar, 
+  Globe, 
+  FolderTree, 
+  ChevronUp, 
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft
+} from "lucide-react"
 
 export interface Block {
   id: string
   title: string
-  description?: string
   content: string
   type: 'GLOBAL' | 'CATEGORY'
   scope: 'PERMANENT' | 'SCHEDULED'
@@ -48,6 +60,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set())
 
   const filteredBlocks = blocks.filter(block => {
     const matchesSearch = block.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -58,6 +71,16 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
     
     return matchesSearch && matchesType && matchesStatus
   })
+
+  const toggleBlockExpansion = (blockId: string) => {
+    const newExpanded = new Set(expandedBlocks)
+    if (newExpanded.has(blockId)) {
+      newExpanded.delete(blockId)
+    } else {
+      newExpanded.add(blockId)
+    }
+    setExpandedBlocks(newExpanded)
+  }
 
   const getTypeBadge = (type: string) => {
     return type === "GLOBAL" ? (
@@ -133,6 +156,7 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12"></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Status</TableHead>
@@ -143,82 +167,106 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp
             </TableHeader>
             <TableBody>
               {filteredBlocks.map((block, index) => (
-                <TableRow key={block.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{block.title}</div>
-                      {block.description && (
-                        <div className="text-sm text-muted-foreground">
-                          {block.description}
-                        </div>
-                      )}
-                      {block.categories.length > 0 && (
-                        <div className="flex gap-1 mt-1">
-                          {block.categories.map((category) => (
-                            <Badge key={category} variant="outline" className="text-xs">
-                              {category}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{getTypeBadge(block.type)}</TableCell>
-                  <TableCell>
-                    <Badge variant={block.isActive ? "default" : "secondary"}>
-                      {block.isActive ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{getScopeBadge(block)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                <>
+                  <TableRow key={block.id}>
+                    <TableCell>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onMoveUp(block.id)}
-                        disabled={index === 0}
+                        onClick={() => toggleBlockExpansion(block.id)}
                         className="h-6 w-6 p-0"
                       >
-                        <ChevronUp className="w-3 h-3" />
+                        {expandedBlocks.has(block.id) ? (
+                          <ChevronDown className="w-4 h-4" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4" />
+                        )}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onMoveDown(block.id)}
-                        disabled={index === filteredBlocks.length - 1}
-                        className="h-6 w-6 p-0"
-                      >
-                        <ChevronDown className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(block)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onToggleActive(block.id)}>
-                          <Power className="w-4 h-4 mr-2" />
-                          {block.isActive ? "Desativar" : "Ativar"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => onDelete(block.id)}
-                          className="text-destructive"
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{block.title}</div>
+                        {block.categories.length > 0 && (
+                          <div className="flex gap-1 mt-1">
+                            {block.categories.map((category) => (
+                              <Badge key={category} variant="outline" className="text-xs">
+                                {category}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{getTypeBadge(block.type)}</TableCell>
+                    <TableCell>
+                      <Badge variant={block.isActive ? "default" : "secondary"}>
+                        {block.isActive ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{getScopeBadge(block)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onMoveUp(block.id)}
+                          disabled={index === 0}
+                          className="h-6 w-6 p-0"
                         >
-                          <Trash className="w-4 h-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                          <ChevronUp className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onMoveDown(block.id)}
+                          disabled={index === filteredBlocks.length - 1}
+                          className="h-6 w-6 p-0"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(block)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onToggleActive(block.id)}>
+                            <Power className="w-4 h-4 mr-2" />
+                            {block.isActive ? "Desativar" : "Ativar"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => onDelete(block.id)}
+                            className="text-destructive"
+                          >
+                            <Trash className="w-4 h-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                  {expandedBlocks.has(block.id) && (
+                    <TableRow>
+                      <TableCell></TableCell>
+                      <TableCell colSpan={6}>
+                        <div className="bg-gray-50 p-4 rounded-md">
+                          <div className="text-sm font-medium text-gray-700 mb-2">Conteúdo do Bloco:</div>
+                          <div className="text-sm text-gray-600 whitespace-pre-wrap border p-3 bg-white rounded">
+                            {block.content}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               ))}
             </TableBody>
           </Table>

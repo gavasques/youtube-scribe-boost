@@ -6,7 +6,6 @@ export interface Block {
   id: string
   user_id: string
   title: string
-  description: string | null
   content: string
   type: BlockType
   scope: BlockScope
@@ -20,7 +19,6 @@ export interface Block {
 
 export interface BlockFormData {
   title: string
-  description?: string
   content: string
   type: BlockType
   scope: BlockScope

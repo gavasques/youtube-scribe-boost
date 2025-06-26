@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,7 +26,6 @@ import { BlockType, BlockScope } from "@/types/block"
 
 interface BlockFormData {
   title: string
-  description: string
   content: string
   type: BlockType
   scope: BlockScope
@@ -64,7 +62,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
   const form = useForm<BlockFormData>({
     defaultValues: {
       title: "",
-      description: "",
       content: "",
       type: "GLOBAL",
       scope: "PERMANENT",
@@ -92,7 +89,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
       console.log('Carregando dados do bloco para edição:', block)
       form.reset({
         title: block.title,
-        description: block.description || "",
         content: block.content,
         type: block.type,
         scope: block.scope,
@@ -106,7 +102,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
       // Resetar para valores padrão quando não há bloco (criação)
       form.reset({
         title: "",
-        description: "",
         content: "",
         type: "GLOBAL",
         scope: "PERMANENT",
@@ -160,23 +155,6 @@ export function BlockForm({ open, onClose, onSave, block, categories }: BlockFor
                     <Input placeholder="Ex: CTA Principal" {...field} />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Descrição */}
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Descrição</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Breve descrição do bloco..." {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Descrição opcional para identificar o bloco
-                  </FormDescription>
                 </FormItem>
               )}
             />

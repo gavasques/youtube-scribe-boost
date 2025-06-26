@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
@@ -82,7 +81,6 @@ export default function Blocks() {
   const convertedBlocks = blocks.map(block => ({
     id: block.id,
     title: block.title,
-    description: block.description || undefined,
     content: block.content,
     type: block.type as 'GLOBAL' | 'CATEGORY',
     scope: block.scope as 'PERMANENT' | 'SCHEDULED',
@@ -98,7 +96,6 @@ export default function Blocks() {
   const convertBlockForForm = (block: Block) => ({
     id: block.id,
     title: block.title,
-    description: block.description || undefined,
     content: block.content,
     type: block.type,
     scope: block.scope,
