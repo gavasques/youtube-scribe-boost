@@ -2,6 +2,7 @@
 import { Routes, Route } from "react-router-dom"
 import { Layout } from "@/components/Layout/Layout"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
+import YouTubeCallback from "@/components/YouTubeCallback"
 
 // Direct imports instead of barrel exports to avoid circular dependencies
 import DashboardPage from "@/features/dashboard/pages/DashboardPage"
@@ -21,6 +22,7 @@ function App() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/youtube/callback" element={<YouTubeCallback />} />
       <Route
         path="/*"
         element={
