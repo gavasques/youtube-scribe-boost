@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,15 +9,17 @@ import { VideoModal } from "@/components/Videos/VideoModal"
 import { VideoFilters } from "@/components/Videos/VideoFilters"
 import { YouTubeSyncModal } from "@/components/Videos/YouTubeSyncModal"
 import { Video, VideoFilters as VideoFiltersType, VideoFormData } from "@/types/video"
-import { Category } from "@/types/category"
 import { useToast } from "@/hooks/use-toast"
 import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 import { useVideos } from "@/hooks/useVideos"
 import { useAuditLog } from "@/hooks/useAuditLog"
+import { useCategories } from "@/hooks/useCategories"
+import { Category } from "@/types/category"
 
 export default function Videos() {
   const { toast } = useToast()
-  const { videos, loading, fetchVideos } = useVideos()
+  const { videos, loading: videosLoading, fetchVideos } = useVideos()
+  const { categories, loading: categoriesLoading } = useCategories()
   const { logEvent } = useAuditLog()
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -33,40 +34,6 @@ export default function Videos() {
     category_id: "all",
     video_type: "all"
   })
-
-  // Mock categories - simplified without hierarchy
-  const categories: Category[] = [
-    {
-      id: "1",
-      user_id: "mock-user-id",
-      name: "Importação",
-      description: "Vídeos sobre importação de produtos",
-      is_active: true,
-      created_at: "2024-06-15",
-      updated_at: "2024-06-15",
-      video_count: 12
-    },
-    {
-      id: "2",
-      user_id: "mock-user-id",
-      name: "Internacionalização",
-      description: "Expansão internacional de negócios",
-      is_active: true,
-      created_at: "2024-06-10",
-      updated_at: "2024-06-10",
-      video_count: 8
-    },
-    {
-      id: "3",
-      user_id: "mock-user-id",
-      name: "Amazon",
-      description: "Vendas na plataforma Amazon",
-      is_active: true,
-      created_at: "2024-06-05",
-      updated_at: "2024-06-05",
-      video_count: 15
-    }
-  ]
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -208,6 +175,7 @@ export default function Videos() {
   }
 
   const filteredVideos = getFilteredVideos()
+  const loading = videosLoading || categoriesLoading
 
   return (
     <div className="space-y-6">
