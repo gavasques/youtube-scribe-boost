@@ -15,6 +15,8 @@ import { TranscriptionUpload } from "./TranscriptionUpload"
 import { AIProcessingSettings } from "./AIProcessingSettings"
 import { DescriptionCompiler } from "./DescriptionCompiler"
 import { useAIProcessing } from "@/hooks/useAIProcessing"
+import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 interface VideoModalProps {
   open: boolean
@@ -36,7 +38,9 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
   })
 
   const [transcriptionText, setTranscriptionText] = useState("")
+  const [savingCategory, setSavingCategory] = useState(false)
   const { processing, progress, processWithAI, uploadTranscription } = useAIProcessing()
+  const { toast } = useToast()
 
   // Estado para configurações de processamento IA
   const [aiConfig, setAiConfig] = useState({
@@ -75,6 +79,80 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
       setTranscriptionText("")
     }
   }, [video, open])
+
+  const handleCategoryChange = async (categoryId: string) => {
+    if (!video) return
+
+    setSavingCategory(true)
+    
+    try {
+      const newCategoryId = categoryId === "none" ? null : categoryId
+
+      // Atualizar no banco de dados
+      const { error } = await supabase
+        .from('videos')
+        .update({ 
+          category_id: newCategoryId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', video.id)
+
+      if (error) throw error
+
+      // Atualizar estado local
+      setFormData(prev => ({ ...prev, category_id: categoryId === "none" ? "" : categoryId }))
+
+      // Mostrar confirmação
+      toast({
+        title: "Categoria atualizada!",
+        description: `Categoria ${categoryId === "none" ? "removida" : "alterada"} com sucesso.`,
+      })
+
+    } catch (error) {
+      console.error('Erro ao atualizar categoria:', error)
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível atualizar a categoria do vídeo",
+        variant: "destructive"
+      })
+    } finally {
+      setSavingCategory(false)
+    }
+  }
+
+  const handleUpdateStatusChange = async (newStatus: string) => {
+    if (!video) return
+
+    try {
+      // Atualizar no banco de dados
+      const { error } = await supabase
+        .from('videos')
+        .update({ 
+          update_status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', video.id)
+
+      if (error) throw error
+
+      // Atualizar estado local
+      setFormData(prev => ({ ...prev, update_status: newStatus as any }))
+
+      // Mostrar confirmação
+      toast({
+        title: "Status atualizado!",
+        description: "Status de atualização alterado com sucesso.",
+      })
+
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error)
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível atualizar o status do vídeo",
+        variant: "destructive"
+      })
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -188,10 +266,11 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
                   <Label htmlFor="category">Categoria</Label>
                   <Select
                     value={formData.category_id}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value === "none" ? "" : value }))}
+                    onValueChange={handleCategoryChange}
+                    disabled={savingCategory}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecionar categoria" />
+                      <SelectValue placeholder={savingCategory ? "Salvando..." : "Selecionar categoria"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Sem categoria</SelectItem>
@@ -208,7 +287,7 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
                   <Label htmlFor="update_status">Status de Atualização</Label>
                   <Select
                     value={formData.update_status}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, update_status: value as any }))}
+                    onValueChange={handleUpdateStatusChange}
                   >
                     <SelectTrigger>
                       <SelectValue />
