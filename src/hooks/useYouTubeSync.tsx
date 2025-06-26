@@ -35,37 +35,70 @@ export function useYouTubeSync() {
     setSyncing(true)
     setProgress({ step: 'starting', current: 0, total: 5, message: 'Iniciando sincronização...' })
     
-    console.log('=== Starting YouTube sync ===')
+    console.log('=== Starting YouTube sync from frontend ===')
     console.log('Sync options:', options)
 
     try {
       const { data: authData } = await supabase.auth.getSession()
       if (!authData.session) {
-        throw new Error('Não autenticado')
+        throw new Error('Usuário não autenticado')
       }
 
-      console.log('User authenticated, calling sync function...')
+      console.log('User authenticated, preparing request...')
 
       // Simular progresso inicial
       setProgress({ step: 'validation', current: 1, total: 5, message: 'Validando conexão com YouTube...' })
       await new Promise(resolve => setTimeout(resolve, 500))
 
-      setProgress({ step: 'fetching', current: 2, total: 5, message: 'Buscando lista de vídeos...' })
-      await new Promise(resolve => setTimeout(resolve, 500))
+      setProgress({ step: 'fetching', current: 2, total: 5, message: 'Enviando requisição para o servidor...' })
+      
+      // Preparar o body da requisição
+      const requestBody = { options }
+      console.log('Request body to be sent:', requestBody)
 
+      console.log('Calling youtube-sync edge function...')
       const response = await supabase.functions.invoke('youtube-sync', {
-        body: { options },
+        body: requestBody,
         headers: {
-          Authorization: `Bearer ${authData.session.access_token}`,
           'Content-Type': 'application/json'
         }
       })
 
-      console.log('Sync function response:', response)
+      console.log('Edge function response received:', {
+        data: response.data,
+        error: response.error,
+        status: response.status
+      })
 
       if (response.error) {
-        console.error('Sync function error:', response.error)
-        throw new Error(response.error.message || 'Erro na função de sincronização')
+        console.error('Edge function returned error:', response.error)
+        
+        // Tentar extrair uma mensagem de erro mais específica
+        let errorMessage = 'Erro na sincronização'
+        let errorDetails = ''
+        
+        if (typeof response.error === 'object') {
+          errorMessage = response.error.message || response.error.error || errorMessage
+          errorDetails = response.error.details || response.error.suggestion || ''
+        } else if (typeof response.error === 'string') {
+          errorMessage = response.error
+        }
+
+        // Mostrar erro específico baseado no tipo
+        if (errorMessage.includes('YouTube not connected') || errorMessage.includes('No YouTube tokens found')) {
+          throw new Error('YouTube não conectado. Vá em Configurações > APIs para conectar sua conta.')
+        } else if (errorMessage.includes('Empty request body')) {
+          throw new Error('Erro na comunicação. Tente novamente em alguns segundos.')
+        } else if (errorMessage.includes('Unauthorized')) {
+          throw new Error('Sessão expirada. Faça login novamente.')
+        } else {
+          throw new Error(`${errorMessage}${errorDetails ? ` - ${errorDetails}` : ''}`)
+        }
+      }
+
+      if (!response.data) {
+        console.error('No data received from edge function')
+        throw new Error('Nenhum dado recebido do servidor')
       }
 
       console.log('Sync completed successfully:', response.data)
@@ -83,7 +116,10 @@ export function useYouTubeSync() {
       }
 
     } catch (error) {
-      console.error('Erro na sincronização:', error)
+      console.error('=== Error in frontend sync ===')
+      console.error('Error type:', error.constructor.name)
+      console.error('Error message:', error.message)
+      
       setProgress({ 
         step: 'error', 
         current: 0, 
@@ -97,6 +133,7 @@ export function useYouTubeSync() {
         description: error.message || 'Não foi possível sincronizar com o YouTube',
         variant: 'destructive'
       })
+      
       throw error
     } finally {
       setSyncing(false)

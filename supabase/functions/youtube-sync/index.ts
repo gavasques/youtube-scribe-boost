@@ -93,6 +93,8 @@ serve(async (req) => {
   try {
     console.log('=== YouTube Sync Function Called ===')
     console.log('Request method:', req.method)
+    console.log('Content-Type header:', req.headers.get('content-type'))
+    console.log('Authorization header present:', !!req.headers.get('authorization'))
 
     // Verificar se é método POST
     if (req.method !== 'POST') {
@@ -100,6 +102,35 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Method not allowed' }),
         { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Ler o body uma única vez e armazenar
+    let bodyText: string
+    try {
+      bodyText = await req.text()
+      console.log('Raw body length:', bodyText.length)
+      console.log('Raw body preview:', bodyText.substring(0, 200))
+    } catch (bodyError) {
+      console.error('Error reading request body:', bodyError)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to read request body', 
+          details: bodyError.message 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verificar se body está vazio
+    if (!bodyText || bodyText.trim() === '') {
+      console.error('Empty request body received')
+      return new Response(
+        JSON.stringify({ 
+          error: 'Empty request body',
+          details: 'Request body is required with sync options'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -114,34 +145,20 @@ serve(async (req) => {
     if (authError || !user) {
       console.error('Authentication error:', authError)
       return new Response(
-        JSON.stringify({ error: 'Unauthorized', details: authError }),
+        JSON.stringify({ error: 'Unauthorized', details: authError?.message }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     console.log('Authenticated user ID:', user.id)
 
-    // Validar e fazer parse do body com tratamento de erro
-    let requestBody;
-    let options: SyncOptions;
+    // Fazer parse do JSON
+    let requestBody: any
+    let options: SyncOptions
     
     try {
-      const contentType = req.headers.get('content-type')
-      console.log('Content-Type:', contentType)
-      
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Invalid content-type. Expected application/json')
-      }
-
-      const bodyText = await req.text()
-      console.log('Raw body received:', bodyText)
-      
-      if (!bodyText || bodyText.trim() === '') {
-        throw new Error('Empty request body')
-      }
-
       requestBody = JSON.parse(bodyText)
-      console.log('Parsed request body:', requestBody)
+      console.log('Parsed request body successfully:', Object.keys(requestBody))
 
       // Extrair options do body
       if (!requestBody.options) {
@@ -149,7 +166,12 @@ serve(async (req) => {
       }
 
       options = requestBody.options as SyncOptions
-      console.log('Sync options extracted:', options)
+      console.log('Sync options extracted:', {
+        type: options.type,
+        maxVideos: options.maxVideos,
+        includeRegular: options.includeRegular,
+        includeShorts: options.includeShorts
+      })
 
     } catch (jsonError) {
       console.error('JSON parsing error:', jsonError)
@@ -157,19 +179,20 @@ serve(async (req) => {
         JSON.stringify({ 
           error: 'Invalid JSON in request body', 
           details: jsonError.message,
-          received: await req.text()
+          bodyReceived: bodyText.substring(0, 500)
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Validar options
+    // Validar options obrigatórios
     if (!options.hasOwnProperty('type') || !options.hasOwnProperty('maxVideos')) {
       console.error('Invalid options structure:', options)
       return new Response(
         JSON.stringify({ 
           error: 'Invalid options structure',
-          details: 'Missing required fields: type, maxVideos'
+          details: 'Missing required fields: type, maxVideos',
+          received: Object.keys(options)
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -177,7 +200,7 @@ serve(async (req) => {
 
     // Função para enviar progresso
     const sendProgress = (progress: SyncProgress) => {
-      console.log('Progress:', progress)
+      console.log('Progress:', progress.step, '-', progress.message)
     }
 
     sendProgress({
@@ -202,7 +225,11 @@ serve(async (req) => {
     if (tokenError || !tokenData) {
       console.error('YouTube tokens not found:', tokenError)
       return new Response(
-        JSON.stringify({ error: 'YouTube not connected', details: tokenError }),
+        JSON.stringify({ 
+          error: 'YouTube not connected', 
+          details: 'No YouTube tokens found for user. Please connect your YouTube account first.',
+          suggestion: 'Go to Settings > API Settings > YouTube to connect your account'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -217,6 +244,7 @@ serve(async (req) => {
 
     console.log('Token expires at:', expiresAt.toISOString())
     console.log('Current time:', now.toISOString())
+    console.log('Token valid for:', Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60), 'minutes')
 
     if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
       console.log('Token expiring soon, refreshing...')
@@ -246,7 +274,14 @@ serve(async (req) => {
           .eq('user_id', user.id)
       } else {
         console.error('Failed to refresh token:', refreshData)
-        throw new Error('Failed to refresh access token')
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to refresh YouTube token',
+            details: 'Please reconnect your YouTube account',
+            suggestion: 'Go to Settings > API Settings > YouTube to reconnect'
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
     }
 
@@ -258,8 +293,8 @@ serve(async (req) => {
     })
 
     // Buscar vídeos do canal
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`
-    console.log('Fetching videos from:', searchUrl)
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${Math.min(options.maxVideos, 50)}`
+    console.log('Fetching videos from YouTube API...')
 
     const channelResponse = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -269,17 +304,24 @@ serve(async (req) => {
     
     if (!channelResponse.ok) {
       console.error('YouTube API error:', channelData)
-      throw new Error(`YouTube API error: ${channelData.error?.message || 'Unknown error'}`)
+      return new Response(
+        JSON.stringify({ 
+          error: 'YouTube API error',
+          details: channelData.error?.message || 'Failed to fetch videos from YouTube',
+          code: channelData.error?.code
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    console.log('Found videos:', channelData.items?.length || 0)
+    console.log('Found videos from API:', channelData.items?.length || 0)
     const videoIds = channelData.items?.map((item: any) => item.id.videoId) || []
 
     if (videoIds.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'Nenhum vídeo encontrado',
+          message: 'Nenhum vídeo encontrado no canal',
           stats: { processed: 0, new: 0, updated: 0, errors: 0 }
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -296,24 +338,30 @@ serve(async (req) => {
     // Buscar detalhes completos dos vídeos em lotes
     const batchSize = 50
     const allVideos: YouTubeVideo[] = []
+    const errors: string[] = []
 
     for (let i = 0; i < videoIds.length; i += batchSize) {
       const batch = videoIds.slice(i, i + batchSize)
-      // Buscar todos os dados possíveis: snippet, contentDetails, statistics, status
       const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${batch.join(',')}`
       
       console.log(`Fetching batch ${Math.floor(i/batchSize) + 1}, videos: ${batch.length}`)
       
-      const detailsResponse = await fetch(detailsUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      })
+      try {
+        const detailsResponse = await fetch(detailsUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
 
-      const detailsData = await detailsResponse.json()
-      if (detailsResponse.ok) {
-        allVideos.push(...detailsData.items)
-        console.log(`Batch completed, total videos so far: ${allVideos.length}`)
-      } else {
-        console.error('Error fetching video details:', detailsData)
+        const detailsData = await detailsResponse.json()
+        if (detailsResponse.ok) {
+          allVideos.push(...detailsData.items)
+          console.log(`Batch completed, total videos so far: ${allVideos.length}`)
+        } else {
+          console.error('Error fetching video details batch:', detailsData)
+          errors.push(`Erro ao buscar lote ${Math.floor(i/batchSize) + 1}: ${detailsData.error?.message}`)
+        }
+      } catch (batchError) {
+        console.error('Network error fetching batch:', batchError)
+        errors.push(`Erro de rede no lote ${Math.floor(i/batchSize) + 1}`)
       }
     }
 
@@ -323,7 +371,7 @@ serve(async (req) => {
       step: 'processing',
       current: 4,
       total: 5,
-      message: 'Processando e salvando todos os dados dos vídeos...'
+      message: 'Processando e salvando dados dos vídeos...'
     })
 
     const stats = {
@@ -333,12 +381,10 @@ serve(async (req) => {
       errors: 0
     }
 
-    const errors: string[] = []
-
     // Função para detectar se é Short
     const isShort = (duration: string) => {
       const { seconds } = parseDuration(duration)
-      return seconds <= 60 // 60 segundos ou menos = Short
+      return seconds <= 60
     }
 
     for (const video of allVideos) {
@@ -348,8 +394,6 @@ serve(async (req) => {
         const videoType = isShort(video.contentDetails.duration) ? 'SHORT' : 'REGULAR'
         const durationData = parseDuration(video.contentDetails.duration)
         const thumbnailUrl = getBestThumbnail(video.snippet.thumbnails)
-        
-        console.log(`Video type: ${videoType}, Duration: ${video.contentDetails.duration} (${durationData.formatted})`)
         
         // Filtrar por tipo se necessário
         if (videoType === 'REGULAR' && !options.includeRegular) {
@@ -369,7 +413,7 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .maybeSingle()
 
-        // Preparar todos os dados do vídeo
+        // Preparar dados do vídeo
         const videoData = {
           user_id: user.id,
           youtube_id: video.id,
@@ -381,8 +425,6 @@ serve(async (req) => {
           current_description: video.snippet.description || '',
           original_tags: video.snippet.tags || [],
           current_tags: video.snippet.tags || [],
-          
-          // Novos campos com todos os metadados
           views_count: parseInt(video.statistics.viewCount || '0'),
           likes_count: parseInt(video.statistics.likeCount || '0'),
           comments_count: parseInt(video.statistics.commentCount || '0'),
@@ -391,25 +433,11 @@ serve(async (req) => {
           duration_formatted: durationData.formatted,
           privacy_status: video.status.privacyStatus,
           category_id: video.snippet.categoryId,
-          
           updated_at: new Date().toISOString()
         }
 
-        console.log('Complete video data to save:', {
-          youtube_id: videoData.youtube_id,
-          title: videoData.title,
-          video_type: videoData.video_type,
-          views_count: videoData.views_count,
-          likes_count: videoData.likes_count,
-          duration_formatted: videoData.duration_formatted,
-          privacy_status: videoData.privacy_status
-        })
-
         if (existingVideo) {
-          console.log('Video exists, updating with complete data...')
-          
-          // Atualizar vídeo existente sempre, ou apenas se syncMetadata estiver ativo
-          if (options.syncMetadata || true) { // Sempre atualizar para garantir dados completos
+          if (options.syncMetadata) {
             const { error: updateError } = await supabaseService
               .from('videos')
               .update(videoData)
@@ -421,12 +449,9 @@ serve(async (req) => {
             }
             
             stats.updated++
-            console.log('Video updated successfully with complete data')
+            console.log('Video updated successfully')
           }
         } else {
-          console.log('Creating new video with complete data...')
-          
-          // Criar novo vídeo
           const { error: insertError } = await supabaseService
             .from('videos')
             .insert(videoData)
@@ -437,7 +462,7 @@ serve(async (req) => {
           }
           
           stats.new++
-          console.log('New video created successfully with complete data')
+          console.log('New video created successfully')
         }
 
         stats.processed++
@@ -453,16 +478,19 @@ serve(async (req) => {
       step: 'complete',
       current: 5,
       total: 5,
-      message: 'Sincronização concluída com todos os dados!'
+      message: 'Sincronização concluída!'
     })
 
-    console.log('=== Sync completed with complete data ===')
+    console.log('=== Sync completed successfully ===')
     console.log('Final stats:', stats)
+    if (errors.length > 0) {
+      console.log('Errors encountered:', errors)
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Sincronização concluída com sucesso - todos os dados foram salvos',
+        message: 'Sincronização concluída com sucesso',
         stats,
         errors: errors.length > 0 ? errors : undefined
       }),
@@ -474,8 +502,13 @@ serve(async (req) => {
     console.error('Error type:', error.constructor.name)
     console.error('Error message:', error.message)
     console.error('Error stack:', error.stack)
+    
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ 
+        error: 'Internal server error', 
+        details: error.message,
+        type: error.constructor.name 
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
