@@ -34,6 +34,8 @@ serve(async (req) => {
     }
 
     console.log('Authenticated user ID:', user.id)
+    console.log('User ID length:', user.id.length)
+    console.log('User ID format validation:', /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id))
 
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
     if (!clientId) {
@@ -46,10 +48,11 @@ serve(async (req) => {
 
     console.log('Google Client ID found:', clientId.substring(0, 10) + '...')
 
-    // Gerar state para segurança
-    const state = crypto.randomUUID()
-    const secureState = `${user.id}-${state}`
-    console.log('Generated state:', secureState)
+    // Gerar state para segurança - usar separador único
+    const randomState = crypto.randomUUID()
+    const secureState = `${user.id}|||${randomState}`
+    console.log('Generated complete state:', secureState)
+    console.log('State parts:', { userId: user.id, randomPart: randomState })
 
     // Obter a origin da requisição
     const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/')
@@ -89,7 +92,7 @@ serve(async (req) => {
     console.log('Full URL:', authUrl.toString())
     console.log('URL parameters:')
     authUrl.searchParams.forEach((value, key) => {
-      console.log(`  ${key}: ${key === 'client_id' ? value.substring(0, 10) + '...' : value}`)
+      console.log(`  ${key}: ${key === 'client_id' ? value.substring(0, 10) + '...' : key === 'state' ? `${value.substring(0, 20)}...` : value}`)
     })
 
     return new Response(
@@ -97,7 +100,8 @@ serve(async (req) => {
         authUrl: authUrl.toString(), 
         state: secureState,
         redirectUri: redirectUri,
-        clientId: clientId.substring(0, 10) + '...'
+        clientId: clientId.substring(0, 10) + '...',
+        userId: user.id
       }),
       { 
         status: 200, 

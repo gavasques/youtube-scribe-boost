@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Função para validar UUID
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(uuid)
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -51,17 +57,36 @@ serve(async (req) => {
       )
     }
 
-    // Extrair user_id do state
-    const userId = state.split('-')[0]
-    if (!userId) {
-      console.error('Invalid state parameter format:', state)
+    // Extrair user_id do state usando o novo separador
+    console.log('=== State Parsing ===')
+    console.log('Complete state received:', state)
+    
+    const stateParts = state.split('|||')
+    console.log('State parts:', stateParts)
+    
+    if (stateParts.length !== 2) {
+      console.error('Invalid state format - expected 2 parts separated by |||, got:', stateParts.length)
       return new Response(
-        JSON.stringify({ error: 'Invalid state parameter' }),
+        JSON.stringify({ error: 'Invalid state parameter format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('Extracted user ID from state:', userId)
+    const userId = stateParts[0]
+    const randomPart = stateParts[1]
+    
+    console.log('Extracted user ID:', userId)
+    console.log('Random part:', randomPart)
+    console.log('User ID length:', userId.length)
+    console.log('User ID is valid UUID:', isValidUUID(userId))
+
+    if (!isValidUUID(userId)) {
+      console.error('Invalid UUID format for user_id:', userId)
+      return new Response(
+        JSON.stringify({ error: 'Invalid user ID format in state parameter' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
@@ -176,6 +201,9 @@ serve(async (req) => {
 
     // Salvar tokens no banco
     console.log('=== Saving tokens to database ===')
+    console.log('Using user_id for database:', userId)
+    console.log('User ID validation before save:', isValidUUID(userId))
+    
     const { error: dbError } = await supabaseClient
       .from('youtube_tokens')
       .upsert({
@@ -192,6 +220,9 @@ serve(async (req) => {
 
     if (dbError) {
       console.error('Database error when saving tokens:', dbError)
+      console.error('Database error code:', dbError.code)
+      console.error('Database error message:', dbError.message)
+      console.error('Database error details:', dbError.details)
       return new Response(
         JSON.stringify({ error: 'Failed to save tokens', details: dbError }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -210,7 +241,8 @@ serve(async (req) => {
           name: channel?.snippet?.title,
           thumbnail: channel?.snippet?.thumbnails?.default?.url,
           subscriberCount: channel?.statistics?.subscriberCount
-        }
+        },
+        userId: userId
       }),
       { 
         status: 200, 
