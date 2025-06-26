@@ -58,7 +58,8 @@ export function usePrompts() {
         .from('prompts')
         .insert([{
           ...data,
-          user_id: user.id
+          user_id: user.id,
+          is_active: false // Novos prompts criados pelo usuário começam inativos
         }])
         .select()
         .single()
@@ -83,9 +84,31 @@ export function usePrompts() {
     }
   }
 
-  // Atualizar prompt
+  // Atualizar prompt (só permite editar prompts do próprio usuário)
   const updatePrompt = async (id: string, data: PromptFormData) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado para editar prompts.',
+          variant: 'destructive',
+        })
+        return { data: null, error: 'User not authenticated' }
+      }
+
+      // Verificar se o prompt pertence ao usuário
+      const promptToUpdate = prompts.find(p => p.id === id)
+      if (promptToUpdate?.user_id && promptToUpdate.user_id !== user.id) {
+        toast({
+          title: 'Erro',
+          description: 'Você só pode editar seus próprios prompts.',
+          variant: 'destructive',
+        })
+        return { data: null, error: 'Permission denied' }
+      }
+
       const { data: updatedPrompt, error } = await supabase
         .from('prompts')
         .update({
@@ -116,9 +139,30 @@ export function usePrompts() {
     }
   }
 
-  // Ativar/desativar prompt
+  // Ativar/desativar prompt (só permite para prompts do próprio usuário)
   const togglePromptActive = async (prompt: Prompt) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado para alterar status de prompts.',
+          variant: 'destructive',
+        })
+        return { data: null, error: 'User not authenticated' }
+      }
+
+      // Verificar se o prompt pertence ao usuário
+      if (prompt.user_id && prompt.user_id !== user.id) {
+        toast({
+          title: 'Erro',
+          description: 'Você só pode alterar status de seus próprios prompts.',
+          variant: 'destructive',
+        })
+        return { data: null, error: 'Permission denied' }
+      }
+
       const { data: updatedPrompt, error } = await supabase
         .from('prompts')
         .update({ is_active: !prompt.is_active })
@@ -198,9 +242,40 @@ export function usePrompts() {
     }
   }
 
-  // Remover prompt
+  // Remover prompt (só permite para prompts do próprio usuário)
   const deletePrompt = async (prompt: Prompt) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado para remover prompts.',
+          variant: 'destructive',
+        })
+        return { error: 'User not authenticated' }
+      }
+
+      // Verificar se o prompt pertence ao usuário
+      if (prompt.user_id && prompt.user_id !== user.id) {
+        toast({
+          title: 'Erro',
+          description: 'Você só pode remover seus próprios prompts.',
+          variant: 'destructive',
+        })
+        return { error: 'Permission denied' }
+      }
+
+      // Não permitir remoção de prompts globais
+      if (!prompt.user_id) {
+        toast({
+          title: 'Erro',
+          description: 'Prompts globais não podem ser removidos.',
+          variant: 'destructive',
+        })
+        return { error: 'Cannot delete global prompt' }
+      }
+
       const { error } = await supabase
         .from('prompts')
         .delete()
