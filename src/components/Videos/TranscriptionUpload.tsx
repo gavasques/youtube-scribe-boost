@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react'
+import { parseFile, isValidFileType, getFileTypeDisplayName } from '@/utils/fileParserUtils'
 
 interface TranscriptionUploadProps {
   value: string
@@ -24,31 +26,32 @@ export function TranscriptionUpload({
   progress = 0 
 }: TranscriptionUploadProps) {
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = async (file: File) => {
+    if (!isValidFileType(file)) {
+      setUploadError('Tipo de arquivo não suportado. Use: .txt, .docx, .csv, .srt, .vtt')
+      return
+    }
+
+    setUploading(true)
+    setUploadError(null)
+
     try {
-      setUploadError(null)
+      const parsed = await parseFile(file)
+      onChange(parsed.content)
       
-      // Validar tipo de arquivo
-      const validTypes = ['.txt', '.srt', '.vtt']
-      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
-      
-      if (!validTypes.includes(fileExtension)) {
-        throw new Error('Tipo de arquivo não suportado. Use .txt, .srt ou .vtt')
+      // Optionally call the original onFileUpload for compatibility
+      if (onFileUpload) {
+        await onFileUpload(file)
       }
-
-      // Validar tamanho
-      if (file.size > 100000) { // 100KB
-        throw new Error('Arquivo muito grande. Máximo 100KB.')
-      }
-
-      const content = await onFileUpload(file)
-      onChange(content)
       
     } catch (error) {
-      setUploadError(error.message)
+      setUploadError(error instanceof Error ? error.message : 'Erro ao processar arquivo')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -77,6 +80,10 @@ export function TranscriptionUpload({
     if (files.length > 0) {
       handleFileSelect(files[0])
     }
+    // Reset input to allow re-uploading same file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   const wordCount = value.split(/\s+/).filter(Boolean).length
@@ -101,22 +108,30 @@ export function TranscriptionUpload({
             Arraste um arquivo de transcrição ou clique para selecionar
           </p>
           <p className="text-xs text-muted-foreground mb-3">
-            Formatos suportados: .txt, .srt, .vtt (máximo 100KB)
+            Formatos suportados (máximo 5MB):
           </p>
+          <div className="flex flex-wrap gap-1 justify-center mb-3">
+            {['txt', 'docx', 'csv', 'srt', 'vtt'].map(ext => (
+              <Badge key={ext} variant="outline" className="text-xs">
+                {getFileTypeDisplayName(ext)}
+              </Badge>
+            ))}
+          </div>
           <Button 
             type="button" 
             variant="outline" 
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            disabled={processing}
+            disabled={processing || uploading}
+            className="gap-2"
           >
-            <FileText className="w-4 h-4 mr-2" />
-            Selecionar Arquivo
+            <FileText className="w-4 h-4" />
+            {uploading ? 'Processando...' : 'Selecionar Arquivo'}
           </Button>
           <Input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.srt,.vtt"
+            accept=".txt,.docx,.csv,.srt,.vtt"
             onChange={handleFileInputChange}
             className="hidden"
           />
@@ -137,12 +152,17 @@ export function TranscriptionUpload({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Cole ou digite a transcrição do vídeo aqui..."
-          className="min-h-[200px]"
-          disabled={processing}
+          className="min-h-[200px] font-mono text-sm"
+          disabled={processing || uploading}
         />
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{wordCount} palavras</span>
-          <span>{charCount} caracteres</span>
+          <span>{wordCount} palavras • {charCount} caracteres</span>
+          {value.length > 0 && (
+            <span className="text-green-600 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              Pronto para processar
+            </span>
+          )}
         </div>
       </div>
 

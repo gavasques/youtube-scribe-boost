@@ -1,6 +1,7 @@
 
 import { useToast } from "@/hooks/use-toast"
 import { useAuditLog } from "@/hooks/useAuditLog"
+import { supabase } from "@/integrations/supabase/client"
 import { Video, VideoFormData } from "@/types/video"
 import { UPDATE_STATUS_LABELS } from "@/utils/videoConstants"
 
@@ -10,6 +11,14 @@ export function useVideoActions() {
 
   const handleUpdateStatusToggle = async (videoId: string, newStatus: string, videos: Video[]) => {
     try {
+      // Atualizar no banco de dados
+      const { error } = await supabase
+        .from('videos')
+        .update({ update_status: newStatus })
+        .eq('id', videoId)
+
+      if (error) throw error
+
       await logEvent({
         event_type: 'VIDEO_UPDATE',
         description: `Video status changed to: ${UPDATE_STATUS_LABELS[newStatus as keyof typeof UPDATE_STATUS_LABELS]}`,
@@ -26,11 +35,19 @@ export function useVideoActions() {
         description: `Status de atualização alterado para: ${UPDATE_STATUS_LABELS[newStatus as keyof typeof UPDATE_STATUS_LABELS]}`,
       })
     } catch (error) {
+      console.error('Erro ao atualizar status:', error)
+      
       await logEvent({
         event_type: 'VIDEO_UPDATE',
         description: `Failed to update video status: ${error instanceof Error ? error.message : 'Unknown error'}`,
         metadata: { video_id: videoId, error: String(error) },
         severity: 'MEDIUM'
+      })
+
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível atualizar o status do vídeo",
+        variant: "destructive"
       })
     }
   }
@@ -48,6 +65,22 @@ export function useVideoActions() {
     if (!editingVideo) return
 
     try {
+      // Preparar dados para atualização
+      const updateData: any = {
+        category_id: data.category_id || null,
+        update_status: data.update_status,
+        transcription: data.transcription || null,
+        updated_at: new Date().toISOString()
+      }
+
+      // Atualizar no banco de dados
+      const { error } = await supabase
+        .from('videos')
+        .update(updateData)
+        .eq('id', editingVideo.id)
+
+      if (error) throw error
+
       await logEvent({
         event_type: 'VIDEO_UPDATE',
         description: `Video updated successfully: ${editingVideo.title}`,
@@ -64,11 +97,19 @@ export function useVideoActions() {
         description: "As alterações foram salvas com sucesso.",
       })
     } catch (error) {
+      console.error('Erro ao salvar vídeo:', error)
+
       await logEvent({
         event_type: 'VIDEO_UPDATE',
         description: `Failed to update video: ${error instanceof Error ? error.message : 'Unknown error'}`,
         metadata: { video_id: editingVideo.id, error: String(error) },
         severity: 'HIGH'
+      })
+
+      toast({
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar as alterações",
+        variant: "destructive"
       })
     }
   }

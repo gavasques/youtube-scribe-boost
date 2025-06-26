@@ -227,7 +227,7 @@ export function VideoModal({ open, onClose, onSave, video, categories }: VideoMo
                 <Textarea
                   value={video.original_description || "Nenhuma descrição disponível"}
                   readOnly
-                  className="bg-muted min-h-[100px]"
+                  className="bg-muted min-h-[200px]"
                 />
               </div>
 
