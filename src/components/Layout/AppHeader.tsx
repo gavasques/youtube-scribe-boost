@@ -4,7 +4,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useLocation, useNavigate } from "react-router-dom"
-import { RefreshCw, Bell, User, LogOut, Home } from "lucide-react"
+import { User, LogOut, Home } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 
 const routeTitles: Record<string, string> = {
@@ -70,14 +70,6 @@ export function AppHeader() {
       </div>
       
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-all duration-200">
-          <RefreshCw className="w-4 h-4" />
-          Sincronizar
-        </Button>
-        <Button variant="ghost" size="sm" className="text-amber-600 hover:bg-amber-50 hover:text-amber-700 transition-all duration-200">
-          <Bell className="w-4 h-4" />
-        </Button>
-        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all duration-200">
