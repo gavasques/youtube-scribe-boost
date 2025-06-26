@@ -1,28 +1,16 @@
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useLocation, useNavigate } from "react-router-dom"
 import { User, LogOut, Home } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
-
-const routeTitles: Record<string, string> = {
-  "/": "Dashboard",
-  "/videos": "Vídeos",
-  "/blocks": "Blocos",
-  "/categories": "Categorias", 
-  "/prompts": "Prompts IA",
-  "/schedule": "Agenda",
-  "/settings": "Configurações",
-  "/approvals": "Aprovações",
-}
+import { DynamicBreadcrumb } from "./DynamicBreadcrumb"
 
 export function AppHeader() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
-  const currentTitle = routeTitles[location.pathname] || "Página"
 
   const handleSignOut = async () => {
     await signOut()
@@ -50,23 +38,7 @@ export function AppHeader() {
           </Button>
         )}
         
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/" className="text-blue-600 hover:text-purple-600 transition-colors">
-                Início
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            {location.pathname !== "/" && (
-              <>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="text-purple-700 font-medium">{currentTitle}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </>
-            )}
-          </BreadcrumbList>
-        </Breadcrumb>
+        <DynamicBreadcrumb />
       </div>
       
       <div className="flex items-center gap-2">
