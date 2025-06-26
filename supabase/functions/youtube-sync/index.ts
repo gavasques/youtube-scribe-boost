@@ -121,7 +121,8 @@ serve(async (req) => {
   debugLog('=== YouTube Sync Function Started ===', {
     method: req.method,
     url: req.url,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    hasBody: req.body !== null
   })
 
   if (req.method === 'OPTIONS') {
@@ -145,7 +146,8 @@ serve(async (req) => {
     const bodyText = await req.text()
     debugLog('Request body received', {
       bodyLength: bodyText.length,
-      hasContent: bodyText.length > 0
+      hasContent: bodyText.length > 0,
+      contentPreview: bodyText.substring(0, 200)
     })
 
     if (!bodyText || bodyText.trim() === '') {
@@ -153,7 +155,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Empty request body',
-          details: 'Sync options are required'
+          details: 'Sync options are required',
+          received: 'Empty or null body'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -163,16 +166,32 @@ serve(async (req) => {
       requestBody = JSON.parse(bodyText)
       debugLog('Request body parsed successfully', {
         hasOptions: !!requestBody.options,
-        optionsKeys: requestBody.options ? Object.keys(requestBody.options) : []
+        hasTest: !!requestBody.test,
+        optionsKeys: requestBody.options ? Object.keys(requestBody.options) : [],
+        allKeys: Object.keys(requestBody)
       })
     } catch (parseError) {
       errorLog('JSON parsing failed', parseError)
       return new Response(
         JSON.stringify({ 
           error: 'Invalid JSON format',
-          details: parseError.message
+          details: parseError.message,
+          received: bodyText.substring(0, 200)
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Handle test connectivity request
+    if (requestBody.test) {
+      debugLog('Test connectivity request received')
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Edge function is accessible',
+          timestamp: new Date().toISOString()
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -181,7 +200,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Missing sync options',
-          details: 'Request must include sync options'
+          details: 'Request must include sync options',
+          received: Object.keys(requestBody)
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -239,7 +259,8 @@ serve(async (req) => {
 
     debugLog('YouTube tokens found', {
       channelId: tokenData.channel_id,
-      expiresAt: tokenData.expires_at
+      expiresAt: tokenData.expires_at,
+      hasRefreshToken: !!tokenData.refresh_token
     })
 
     // Check and refresh token if needed
@@ -251,7 +272,7 @@ serve(async (req) => {
     debugLog('Token expiry check', {
       expiresAt: expiresAt.toISOString(),
       minutesUntilExpiry: Math.round(timeUntilExpiry / 1000 / 60),
-      needsRefresh: timeUntilExpiry < 10 * 60 * 1000 // 10 minutes buffer
+      needsRefresh: timeUntilExpiry < 10 * 60 * 1000
     })
 
     if (timeUntilExpiry < 10 * 60 * 1000) {
@@ -260,16 +281,18 @@ serve(async (req) => {
       
       if (newToken) {
         accessToken = newToken
+        const newExpiresAt = new Date(Date.now() + (3600 * 1000))
+        
         await supabaseService
           .from('youtube_tokens')
           .update({
             access_token: newToken,
-            expires_at: new Date(Date.now() + (3600 * 1000)).toISOString(),
+            expires_at: newExpiresAt.toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq('user_id', user.id)
         
-        debugLog('Token refreshed and updated')
+        debugLog('Token refreshed and updated', { newExpiresAt: newExpiresAt.toISOString() })
       } else {
         errorLog('Token refresh failed')
         return new Response(
@@ -317,7 +340,7 @@ serve(async (req) => {
     const searchData = await searchResponse.json()
     const videoIds = searchData.items?.map((item: any) => item.id.videoId) || []
     
-    debugLog('Video IDs retrieved', { count: videoIds.length })
+    debugLog('Video IDs retrieved', { count: videoIds.length, videoIds })
 
     if (videoIds.length === 0) {
       debugLog('No videos found')
@@ -453,7 +476,11 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    errorLog('=== Critical error in youtube-sync ===', error)
+    errorLog('=== Critical error in youtube-sync ===', {
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack
+    })
     
     return new Response(
       JSON.stringify({ 

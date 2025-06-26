@@ -52,6 +52,16 @@ class Logger {
     if (!this.shouldLog(LogLevel.ERROR)) return
     console.error(this.formatMessage(LogLevel.ERROR, message, error))
     
+    // Send structured error data to console for debugging
+    if (error && typeof error === 'object') {
+      console.error('[YT-SYNC] Error Details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        cause: error.cause
+      })
+    }
+    
     if (!this.isDevelopment) {
       this.sendToMonitoring({
         level: LogLevel.ERROR,

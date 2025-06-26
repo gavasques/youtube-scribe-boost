@@ -39,31 +39,94 @@ export function useYouTubeSync() {
 
   const validateConnection = async (): Promise<boolean> => {
     try {
+      logger.info('=== SYNC VALIDATION START ===')
       logger.info('Validating YouTube connection...')
       
       const { data: authData, error: authError } = await supabase.auth.getSession()
       if (authError || !authData.session) {
+        logger.error('Authentication failed', { authError })
         throw new Error('User not authenticated')
       }
 
+      logger.info('Auth session validated', { userId: authData.session.user.id })
+
       const { data: tokenCheck } = await supabase
         .from('youtube_tokens')
-        .select('id, channel_id, expires_at')
+        .select('id, channel_id, expires_at, access_token')
         .eq('user_id', authData.session.user.id)
         .maybeSingle()
 
       if (!tokenCheck) {
+        logger.error('No YouTube tokens found in database')
         throw new Error('YouTube not connected')
       }
 
-      logger.info('YouTube connection validated', { 
+      logger.info('YouTube tokens found', { 
         channelId: tokenCheck.channel_id,
-        tokenExpiry: tokenCheck.expires_at 
+        tokenExpiry: tokenCheck.expires_at,
+        hasAccessToken: !!tokenCheck.access_token
       })
 
+      // Verificar se token está expirado
+      const expiresAt = new Date(tokenCheck.expires_at)
+      const now = new Date()
+      const isExpired = expiresAt <= now
+      const expiresInMinutes = Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60)
+      
+      logger.info('Token expiry check', {
+        expiresAt: expiresAt.toISOString(),
+        expiresInMinutes,
+        isExpired
+      })
+
+      if (isExpired) {
+        logger.warn('Token is expired, attempting refresh...')
+        const refreshed = await refreshTokenIfNeeded()
+        if (!refreshed) {
+          throw new Error('Token expired and refresh failed')
+        }
+      }
+
+      logger.info('=== SYNC VALIDATION SUCCESS ===')
       return true
     } catch (error) {
-      logger.error('YouTube connection validation failed', error)
+      logger.error('=== SYNC VALIDATION FAILED ===', error)
+      return false
+    }
+  }
+
+  const refreshTokenIfNeeded = async (): Promise<boolean> => {
+    try {
+      logger.info('Attempting token refresh...')
+      
+      const { data: authData } = await supabase.auth.getSession()
+      if (!authData.session) {
+        logger.error('No session for token refresh')
+        return false
+      }
+
+      const response = await supabase.functions.invoke('youtube-refresh-token', {
+        headers: {
+          'Authorization': `Bearer ${authData.session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      logger.info('Token refresh response', {
+        hasData: !!response.data,
+        hasError: !!response.error,
+        errorDetails: response.error
+      })
+
+      if (response.error) {
+        logger.error('Token refresh failed', response.error)
+        return false
+      }
+
+      logger.info('Token refreshed successfully')
+      return true
+    } catch (error) {
+      logger.error('Token refresh error', error)
       return false
     }
   }
@@ -71,7 +134,7 @@ export function useYouTubeSync() {
   const prepareRequestBody = async (options: SyncOptions) => {
     const { data: authData } = await supabase.auth.getSession()
     
-    return {
+    const requestBody = {
       options: {
         type: options.type,
         includeRegular: options.includeRegular,
@@ -82,18 +145,77 @@ export function useYouTubeSync() {
       timestamp: new Date().toISOString(),
       userId: authData?.session?.user.id
     }
+
+    logger.info('Request body prepared', {
+      optionsKeys: Object.keys(requestBody.options),
+      hasUserId: !!requestBody.userId,
+      bodySize: JSON.stringify(requestBody).length
+    })
+
+    return requestBody
+  }
+
+  const testEdgeFunctionConnectivity = async (): Promise<boolean> => {
+    try {
+      logger.info('=== TESTING EDGE FUNCTION CONNECTIVITY ===')
+      
+      const { data: authData } = await supabase.auth.getSession()
+      if (!authData.session) {
+        logger.error('No auth session for function test')
+        return false
+      }
+
+      // Teste simples com payload mínimo
+      const testPayload = {
+        test: true,
+        timestamp: new Date().toISOString()
+      }
+
+      logger.info('Calling youtube-sync function for connectivity test...', {
+        hasAuth: !!authData.session.access_token,
+        payload: testPayload
+      })
+
+      const response = await supabase.functions.invoke('youtube-sync', {
+        body: testPayload,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authData.session.access_token}`
+        }
+      })
+
+      logger.info('Edge function test response', {
+        hasData: !!response.data,
+        hasError: !!response.error,
+        status: response.status,
+        errorMessage: response.error?.message
+      })
+
+      return !response.error
+    } catch (error) {
+      logger.error('Edge function connectivity test failed', error)
+      return false
+    }
   }
 
   const callSyncFunction = async (requestBody: any): Promise<SyncResult> => {
-    logger.info('Calling YouTube sync function...', {
+    logger.info('=== CALLING SYNC FUNCTION ===')
+    logger.info('Sync function call initiated', {
       bodySize: JSON.stringify(requestBody).length,
-      optionsPresent: !!requestBody.options
+      optionsPresent: !!requestBody.options,
+      timestamp: requestBody.timestamp
     })
 
     const { data: authData } = await supabase.auth.getSession()
     if (!authData.session) {
       throw new Error('No active session')
     }
+
+    logger.info('Making function call with auth', {
+      hasAccessToken: !!authData.session.access_token,
+      userId: authData.session.user.id
+    })
 
     const response = await supabase.functions.invoke('youtube-sync', {
       body: requestBody,
@@ -107,14 +229,14 @@ export function useYouTubeSync() {
     logger.info('Sync function response received', {
       hasData: !!response.data,
       hasError: !!response.error,
+      status: response.status,
       dataKeys: response.data ? Object.keys(response.data) : [],
       errorDetails: response.error
     })
 
     if (response.error) {
-      logger.error('Sync function returned error', response.error)
+      logger.error('=== SYNC FUNCTION ERROR ===', response.error)
       
-      // Handle specific error types
       const errorMessage = typeof response.error === 'object' 
         ? response.error.message || response.error.details || 'Unknown error'
         : response.error.toString()
@@ -125,20 +247,28 @@ export function useYouTubeSync() {
         throw new Error('Sessão expirada. Faça login novamente.')
       } else if (errorMessage.includes('Token refresh failed')) {
         throw new Error('Token expirado. Reconecte sua conta do YouTube nas configurações.')
+      } else if (errorMessage.includes('Empty request body')) {
+        throw new Error('Erro de comunicação com o servidor. Dados não enviados corretamente.')
       } else {
-        throw new Error(errorMessage)
+        throw new Error(`Erro do servidor: ${errorMessage}`)
       }
     }
 
     if (!response.data) {
+      logger.error('No data received from sync function')
       throw new Error('Nenhum dado recebido do servidor')
     }
 
     const responseData = response.data as any
     if (!responseData.stats) {
-      logger.error('Invalid response format', responseData)
+      logger.error('Invalid response format - missing stats', responseData)
       throw new Error('Formato de resposta inválido do servidor')
     }
+
+    logger.info('=== SYNC FUNCTION SUCCESS ===', {
+      stats: responseData.stats,
+      hasErrors: !!responseData.errors
+    })
 
     return {
       stats: responseData.stats,
@@ -151,55 +281,74 @@ export function useYouTubeSync() {
     setProgress({ 
       step: 'starting', 
       current: 0, 
-      total: 6, 
-      message: 'Iniciando sincronização...' 
+      total: 8, 
+      message: 'Iniciando diagnóstico...' 
     })
     
-    logger.info('=== Starting YouTube sync ===', { options })
+    logger.info('=== STARTING YOUTUBE SYNC ===', { options })
 
     try {
-      // Step 1: Validate connection
+      // Step 1: Test Edge Function connectivity
+      setProgress({ 
+        step: 'connectivity', 
+        current: 1, 
+        total: 8, 
+        message: 'Testando conectividade com servidor...' 
+      })
+
+      const isConnected = await testEdgeFunctionConnectivity()
+      if (!isConnected) {
+        throw new Error('Não foi possível conectar com o servidor de sincronização')
+      }
+
+      // Step 2: Validate connection
       setProgress({ 
         step: 'validation', 
-        current: 1, 
-        total: 6, 
+        current: 2, 
+        total: 8, 
         message: 'Validando conexão com YouTube...' 
       })
 
-      const isConnected = await validateConnection()
-      if (!isConnected) {
+      const isValid = await validateConnection()
+      if (!isValid) {
         throw new Error('YouTube não conectado. Vá em Configurações > APIs para conectar sua conta.')
       }
 
-      // Step 2: Prepare request
+      // Step 3: Refresh token if needed
+      setProgress({ 
+        step: 'token-refresh', 
+        current: 3, 
+        total: 8, 
+        message: 'Verificando validade do token...' 
+      })
+
+      await refreshTokenIfNeeded()
+
+      // Step 4: Prepare request
       setProgress({ 
         step: 'preparing', 
-        current: 2, 
-        total: 6, 
+        current: 4, 
+        total: 8, 
         message: 'Preparando dados para sincronização...' 
       })
 
       const requestBody = await prepareRequestBody(options)
-      logger.info('Request body prepared', {
-        bodyKeys: Object.keys(requestBody),
-        optionsValid: !!requestBody.options
-      })
 
-      // Step 3: Call sync function
+      // Step 5: Call sync function
       setProgress({ 
         step: 'syncing', 
-        current: 3, 
-        total: 6, 
-        message: 'Sincronizando com YouTube...' 
+        current: 5, 
+        total: 8, 
+        message: 'Executando sincronização...' 
       })
 
       const result = await callSyncFunction(requestBody)
 
-      // Step 4: Process results
+      // Step 6: Process results
       setProgress({ 
         step: 'processing', 
-        current: 4, 
-        total: 6, 
+        current: 6, 
+        total: 8, 
         message: 'Processando resultados...' 
       })
 
@@ -209,11 +358,19 @@ export function useYouTubeSync() {
         errorCount: result.errors?.length || 0
       })
 
-      // Step 5: Show results
+      // Step 7: Validate data in database
+      setProgress({ 
+        step: 'validation', 
+        current: 7, 
+        total: 8, 
+        message: 'Validando dados na base...' 
+      })
+
+      // Step 8: Complete
       setProgress({ 
         step: 'complete', 
-        current: 6, 
-        total: 6, 
+        current: 8, 
+        total: 8, 
         message: 'Sincronização concluída com sucesso!' 
       })
 
@@ -235,7 +392,7 @@ export function useYouTubeSync() {
       return result
 
     } catch (error) {
-      logger.error('=== Error in YouTube sync ===', {
+      logger.error('=== SYNC ERROR ===', {
         errorType: error.constructor.name,
         errorMessage: error.message,
         errorStack: error.stack
@@ -244,7 +401,7 @@ export function useYouTubeSync() {
       setProgress({ 
         step: 'error', 
         current: 0, 
-        total: 6, 
+        total: 8, 
         message: 'Erro na sincronização',
         errors: [error.message || 'Erro desconhecido']
       })
@@ -259,7 +416,7 @@ export function useYouTubeSync() {
     } finally {
       setSyncing(false)
       // Clear progress after delay
-      setTimeout(() => setProgress(null), 5000)
+      setTimeout(() => setProgress(null), 10000)
     }
   }
 
