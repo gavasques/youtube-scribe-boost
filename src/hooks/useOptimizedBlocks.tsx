@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/integrations/supabase/client'
-import { Block, BlockFormData } from '@/types/block'
+import { Block, BlockUI, BlockFormData } from '@/types/block'
 import { useToast } from '@/hooks/use-toast'
 
 export function useOptimizedBlocks() {
@@ -169,16 +169,16 @@ export function useOptimizedBlocks() {
     }
   }
 
-  const toggleBlockActive = async (block: Block) => {
+  const toggleBlockActive = async (blockUI: BlockUI) => {
     try {
-      if (block.type === 'MANUAL') {
+      if (blockUI.type === 'MANUAL') {
         throw new Error('O bloco "Descrições dos Vídeos" está sempre ativo.')
       }
 
       const { data: updatedBlock, error } = await supabase
         .from('blocks')
-        .update({ is_active: !block.is_active })
-        .eq('id', block.id)
+        .update({ is_active: !blockUI.isActive })
+        .eq('id', blockUI.id)
         .select()
         .single()
 
@@ -186,12 +186,12 @@ export function useOptimizedBlocks() {
 
       // Atualizar estado local
       setBlocks(prev => prev.map(b => 
-        b.id === block.id ? updatedBlock as Block : b
+        b.id === blockUI.id ? updatedBlock as Block : b
       ))
 
       toast({
-        title: block.is_active ? 'Bloco desativado' : 'Bloco ativado',
-        description: `O bloco "${block.title}" foi ${block.is_active ? 'desativado' : 'ativado'}.`,
+        title: blockUI.isActive ? 'Bloco desativado' : 'Bloco ativado',
+        description: `O bloco "${blockUI.title}" foi ${blockUI.isActive ? 'desativado' : 'ativado'}.`,
       })
       
       return { data: updatedBlock, error: null }
@@ -206,25 +206,25 @@ export function useOptimizedBlocks() {
     }
   }
 
-  const deleteBlock = async (block: Block) => {
+  const deleteBlock = async (blockUI: BlockUI) => {
     try {
-      if (block.type === 'MANUAL') {
+      if (blockUI.type === 'MANUAL') {
         throw new Error('O bloco "Descrições dos Vídeos" não pode ser removido.')
       }
 
       const { error } = await supabase
         .from('blocks')
         .delete()
-        .eq('id', block.id)
+        .eq('id', blockUI.id)
 
       if (error) throw error
 
       // Atualizar estado local
-      setBlocks(prev => prev.filter(b => b.id !== block.id))
+      setBlocks(prev => prev.filter(b => b.id !== blockUI.id))
       
       toast({
         title: 'Bloco removido',
-        description: `O bloco "${block.title}" foi removido com sucesso.`,
+        description: `O bloco "${blockUI.title}" foi removido com sucesso.`,
       })
       
       return { error: null }

@@ -7,7 +7,7 @@ import { BlockForm } from "@/components/Blocks/BlockForm"
 import { useOptimizedBlocks } from "@/hooks/useOptimizedBlocks"
 import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
 import { OptimizedLoading } from "@/components/ui/optimized-loading"
-import { Block } from "@/types/block"
+import { BlockUI } from "@/types/block"
 
 export default function Blocks() {
   const { 
@@ -28,7 +28,7 @@ export default function Blocks() {
   } = useOptimizedCategories()
   
   const [showForm, setShowForm] = useState(false)
-  const [editingBlock, setEditingBlock] = useState<Block | null>(null)
+  const [editingBlock, setEditingBlock] = useState<BlockUI | null>(null)
 
   const handleCreateBlock = async (data: any) => {
     const result = await createBlock(data)
