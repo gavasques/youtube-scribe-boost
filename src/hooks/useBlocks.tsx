@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { Block, BlockFormData } from '@/types/block'
@@ -214,17 +213,8 @@ export function useBlocks() {
       const currentBlock = blocks.find(b => b.id === blockId)
       if (!currentBlock) return
 
-      // Não permitir mover o bloco MANUAL
-      if (currentBlock.type === 'MANUAL') {
-        toast({
-          title: 'Ação não permitida',
-          description: 'O bloco "Descrições dos Vídeos" pode ser reordenado apenas alterando sua prioridade.',
-        })
-        return
-      }
-
-      // Aumentar prioridade em 10
-      const newPriority = currentBlock.priority + 10
+      // Aumentar prioridade em 1
+      const newPriority = currentBlock.priority + 1
 
       const { error } = await supabase
         .from('blocks')
@@ -256,17 +246,8 @@ export function useBlocks() {
       const currentBlock = blocks.find(b => b.id === blockId)
       if (!currentBlock) return
 
-      // Não permitir mover o bloco MANUAL
-      if (currentBlock.type === 'MANUAL') {
-        toast({
-          title: 'Ação não permitida',
-          description: 'O bloco "Descrições dos Vídeos" pode ser reordenado apenas alterando sua prioridade.',
-        })
-        return
-      }
-
-      // Diminuir prioridade em 10 (mínimo 0)
-      const newPriority = Math.max(0, currentBlock.priority - 10)
+      // Diminuir prioridade em 1 (mínimo 0)
+      const newPriority = Math.max(0, currentBlock.priority - 1)
 
       const { error } = await supabase
         .from('blocks')
