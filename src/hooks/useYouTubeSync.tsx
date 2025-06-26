@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
+import { logger } from '@/core/Logger'
 
 interface SyncOptions {
   type: 'full' | 'incremental'
@@ -41,17 +42,19 @@ export function useYouTubeSync() {
     setProgress({ 
       step: 'starting', 
       current: 0, 
-      total: 5, 
+      total: 3, 
       message: 'Iniciando sincronização...' 
     })
 
     try {
-      // Step 1: Test connectivity
+      logger.info('Starting YouTube sync', { options })
+
+      // Step 1: Verificar autenticação
       setProgress({ 
-        step: 'connectivity', 
+        step: 'auth', 
         current: 1, 
-        total: 5, 
-        message: 'Testando conectividade...' 
+        total: 3, 
+        message: 'Verificando autenticação...' 
       })
 
       const { data: authData } = await supabase.auth.getSession()
@@ -59,78 +62,48 @@ export function useYouTubeSync() {
         throw new Error('Usuário não autenticado')
       }
 
-      // Step 2: Test edge function
-      setProgress({ 
-        step: 'testing', 
-        current: 2, 
-        total: 5, 
-        message: 'Verificando servidor...' 
-      })
-
-      const testResponse = await supabase.functions.invoke('youtube-sync', {
-        body: { test: true },
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authData.session.access_token}`
-        }
-      })
-
-      if (testResponse.error) {
-        console.error('Test failed:', testResponse.error)
-        throw new Error('Falha na conectividade com o servidor')
-      }
-
-      // Step 3: Prepare sync
-      setProgress({ 
-        step: 'preparing', 
-        current: 3, 
-        total: 5, 
-        message: 'Preparando sincronização...' 
-      })
-
-      const requestBody = {
-        options: {
-          type: options.type,
-          includeRegular: options.includeRegular,
-          includeShorts: options.includeShorts,
-          syncMetadata: options.syncMetadata,
-          maxVideos: options.maxVideos
-        },
-        timestamp: new Date().toISOString()
-      }
-
-      // Step 4: Execute sync
+      // Step 2: Executar sincronização
       setProgress({ 
         step: 'syncing', 
-        current: 4, 
-        total: 5, 
+        current: 2, 
+        total: 3, 
         message: 'Sincronizando vídeos...' 
       })
 
-      const syncResponse = await supabase.functions.invoke('youtube-sync', {
-        body: requestBody,
+      logger.info('Calling Edge Function', { 
+        options,
+        hasAuth: !!authData.session?.access_token 
+      })
+
+      const response = await supabase.functions.invoke('youtube-sync', {
+        body: { options },
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authData.session.access_token}`
         }
       })
 
-      if (syncResponse.error) {
-        console.error('Sync failed:', syncResponse.error)
-        throw new Error(`Erro na sincronização: ${syncResponse.error.message || 'Erro desconhecido'}`)
+      logger.info('Edge Function Response', { 
+        error: response.error,
+        data: response.data 
+      })
+
+      if (response.error) {
+        logger.error('Sync failed', response.error)
+        throw new Error(`Erro na sincronização: ${response.error.message || 'Erro desconhecido'}`)
       }
 
-      if (!syncResponse.data) {
+      if (!response.data) {
         throw new Error('Nenhum dado retornado pelo servidor')
       }
 
-      const result = syncResponse.data as { stats: SyncStats; errors?: string[] }
+      const result = response.data as { stats: SyncStats; errors?: string[] }
 
-      // Step 5: Complete
+      // Step 3: Concluído
       setProgress({ 
         step: 'complete', 
-        current: 5, 
-        total: 5, 
+        current: 3, 
+        total: 3, 
         message: 'Sincronização concluída!' 
       })
 
@@ -149,18 +122,20 @@ export function useYouTubeSync() {
         })
       }
 
+      logger.info('Sync completed successfully', { stats: result.stats })
+
       return {
         stats: result.stats,
         errors: result.errors
       }
 
     } catch (error) {
-      console.error('Sync error:', error)
+      logger.error('Sync error', error)
       
       setProgress({ 
         step: 'error', 
         current: 0, 
-        total: 5, 
+        total: 3, 
         message: 'Erro na sincronização',
         errors: [error.message || 'Erro desconhecido']
       })

@@ -91,7 +91,8 @@ function getBestThumbnail(thumbnails: any): string | null {
 serve(async (req) => {
   log('=== YouTube Sync Function Started ===', {
     method: req.method,
-    url: req.url
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
   })
 
   if (req.method === 'OPTIONS') {
@@ -106,27 +107,29 @@ serve(async (req) => {
   }
 
   try {
-    // Parse request body
-    let requestBody: any
+    // Leitura mais robusta do request body
+    let requestBody: any = {}
+    
     try {
-      const bodyText = await req.text()
-      log('Raw request body', { length: bodyText.length, content: bodyText })
+      const contentType = req.headers.get('content-type') || ''
+      log('Content-Type header', contentType)
       
-      if (!bodyText.trim()) {
-        throw new Error('Empty request body')
+      if (contentType.includes('application/json')) {
+        const bodyText = await req.text()
+        log('Request body text', { length: bodyText.length, content: bodyText.substring(0, 500) })
+        
+        if (bodyText.trim()) {
+          requestBody = JSON.parse(bodyText)
+        }
+      } else {
+        log('Non-JSON content type, using empty body')
       }
       
-      requestBody = JSON.parse(bodyText)
       log('Parsed request body', requestBody)
     } catch (parseError) {
       logError('Failed to parse request body', parseError)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid request format',
-          details: parseError.message
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      // Usar body vazio em caso de erro
+      requestBody = {}
     }
 
     // Handle test request
@@ -142,20 +145,16 @@ serve(async (req) => {
       )
     }
 
-    // Validate sync options
-    if (!requestBody.options) {
-      logError('Missing options in request', requestBody)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Missing sync options',
-          received: Object.keys(requestBody)
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Extrair opções com valores padrão
+    const options: SyncOptions = {
+      type: requestBody.options?.type || 'incremental',
+      includeRegular: requestBody.options?.includeRegular !== false,
+      includeShorts: requestBody.options?.includeShorts !== false,
+      syncMetadata: requestBody.options?.syncMetadata !== false,
+      maxVideos: requestBody.options?.maxVideos || 50
     }
-
-    const options: SyncOptions = requestBody.options
-    log('Sync options validated', options)
+    
+    log('Sync options (with defaults)', options)
 
     // Create Supabase clients
     const supabaseClient = createClient(
