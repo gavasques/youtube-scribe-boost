@@ -53,46 +53,29 @@ serve(async (req) => {
   }
 
   try {
+    console.log('=== YouTube Sync Function Called ===')
+    console.log('Request method:', req.method)
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
-    // Verificar autenticação
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-
+    // Verificar autenticação usando o mesmo método do oauth-start
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
+      console.error('Authentication error:', authError)
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized', details: authError }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('Authenticated user ID:', user.id)
 
     const { options }: { options: SyncOptions } = await req.json()
-
-    // Buscar tokens do YouTube
-    const { data: tokenData, error: tokenError } = await supabaseClient
-      .from('youtube_tokens')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-
-    if (tokenError || !tokenData) {
-      return new Response(
-        JSON.stringify({ error: 'YouTube not connected' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    console.log('Sync options:', options)
 
     // Função para enviar progresso
     const sendProgress = (progress: SyncProgress) => {
@@ -106,13 +89,40 @@ serve(async (req) => {
       message: 'Validando conexão com YouTube...'
     })
 
+    // Buscar tokens do YouTube usando o service role para acessar todos os dados
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const { data: tokenData, error: tokenError } = await supabaseService
+      .from('youtube_tokens')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
+    if (tokenError || !tokenData) {
+      console.error('YouTube tokens not found:', tokenError)
+      return new Response(
+        JSON.stringify({ error: 'YouTube not connected', details: tokenError }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('Found YouTube tokens for user:', user.id)
+    console.log('Channel ID:', tokenData.channel_id)
+
     // Verificar se token é válido e renovar se necessário
     let accessToken = tokenData.access_token
     const expiresAt = new Date(tokenData.expires_at)
     const now = new Date()
 
+    console.log('Token expires at:', expiresAt.toISOString())
+    console.log('Current time:', now.toISOString())
+
     if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
-      // Token expira em menos de 5 minutos, renovar
+      console.log('Token expiring soon, refreshing...')
+      
       const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -126,16 +136,20 @@ serve(async (req) => {
 
       const refreshData = await refreshResponse.json()
       if (refreshResponse.ok) {
+        console.log('Token refreshed successfully')
         accessToken = refreshData.access_token
         
         // Atualizar token no banco
-        await supabaseClient
+        await supabaseService
           .from('youtube_tokens')
           .update({
             access_token: accessToken,
             expires_at: new Date(Date.now() + (refreshData.expires_in * 1000)).toISOString()
           })
           .eq('user_id', user.id)
+      } else {
+        console.error('Failed to refresh token:', refreshData)
+        throw new Error('Failed to refresh access token')
       }
     }
 
@@ -147,20 +161,22 @@ serve(async (req) => {
     })
 
     // Buscar vídeos do canal
-    const channelResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      }
-    )
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`
+    console.log('Fetching videos from:', searchUrl)
+
+    const channelResponse = await fetch(searchUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
 
     const channelData = await channelResponse.json()
     
     if (!channelResponse.ok) {
+      console.error('YouTube API error:', channelData)
       throw new Error(`YouTube API error: ${channelData.error?.message || 'Unknown error'}`)
     }
 
-    const videoIds = channelData.items.map((item: any) => item.id.videoId)
+    console.log('Found videos:', channelData.items?.length || 0)
+    const videoIds = channelData.items?.map((item: any) => item.id.videoId) || []
 
     if (videoIds.length === 0) {
       return new Response(
@@ -186,18 +202,24 @@ serve(async (req) => {
 
     for (let i = 0; i < videoIds.length; i += batchSize) {
       const batch = videoIds.slice(i, i + batchSize)
-      const detailsResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${batch.join(',')}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }
-      )
+      const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${batch.join(',')}`
+      
+      console.log(`Fetching batch ${Math.floor(i/batchSize) + 1}, videos: ${batch.length}`)
+      
+      const detailsResponse = await fetch(detailsUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
 
       const detailsData = await detailsResponse.json()
       if (detailsResponse.ok) {
         allVideos.push(...detailsData.items)
+        console.log(`Batch completed, total videos so far: ${allVideos.length}`)
+      } else {
+        console.error('Error fetching video details:', detailsData)
       }
     }
+
+    console.log('Total videos fetched:', allVideos.length)
 
     sendProgress({
       step: 'processing',
@@ -230,14 +252,23 @@ serve(async (req) => {
 
     for (const video of allVideos) {
       try {
+        console.log(`Processing video: ${video.snippet.title}`)
+        
         const videoType = isShort(video.contentDetails.duration) ? 'SHORT' : 'REGULAR'
+        console.log(`Video type: ${videoType}, Duration: ${video.contentDetails.duration}`)
         
         // Filtrar por tipo se necessário
-        if (videoType === 'REGULAR' && !options.includeRegular) continue
-        if (videoType === 'SHORT' && !options.includeShorts) continue
+        if (videoType === 'REGULAR' && !options.includeRegular) {
+          console.log('Skipping regular video due to filter')
+          continue
+        }
+        if (videoType === 'SHORT' && !options.includeShorts) {
+          console.log('Skipping short video due to filter')
+          continue
+        }
 
         // Verificar se vídeo já existe
-        const { data: existingVideo } = await supabaseClient
+        const { data: existingVideo } = await supabaseService
           .from('videos')
           .select('*')
           .eq('youtube_id', video.id)
@@ -251,43 +282,53 @@ serve(async (req) => {
           title: video.snippet.title,
           video_type: videoType,
           published_at: video.snippet.publishedAt,
-          original_description: video.snippet.description,
-          current_description: video.snippet.description,
+          original_description: video.snippet.description || '',
+          current_description: video.snippet.description || '',
           original_tags: video.snippet.tags || [],
           current_tags: video.snippet.tags || [],
           updated_at: new Date().toISOString()
         }
 
-        if (existingVideo) {
-          // Fazer backup da descrição atual se for diferente
-          if (options.syncMetadata && existingVideo.current_description !== video.snippet.description) {
-            await supabaseClient
-              .from('description_backups')
-              .insert({
-                video_id: existingVideo.id,
-                user_id: user.id,
-                description: existingVideo.current_description,
-                backup_reason: 'sync_update',
-                created_at: new Date().toISOString()
-              })
-          }
+        console.log('Video data to save:', {
+          youtube_id: videoData.youtube_id,
+          title: videoData.title,
+          video_type: videoData.video_type,
+          user_id: videoData.user_id
+        })
 
-          // Atualizar vídeo existente
+        if (existingVideo) {
+          console.log('Video exists, updating...')
+          
+          // Atualizar vídeo existente apenas se syncMetadata estiver ativo
           if (options.syncMetadata) {
-            await supabaseClient
+            const { error: updateError } = await supabaseService
               .from('videos')
               .update(videoData)
               .eq('id', existingVideo.id)
             
+            if (updateError) {
+              console.error('Error updating video:', updateError)
+              throw updateError
+            }
+            
             stats.updated++
+            console.log('Video updated successfully')
           }
         } else {
+          console.log('Creating new video...')
+          
           // Criar novo vídeo
-          await supabaseClient
+          const { error: insertError } = await supabaseService
             .from('videos')
             .insert(videoData)
           
+          if (insertError) {
+            console.error('Error inserting video:', insertError)
+            throw insertError
+          }
+          
           stats.new++
+          console.log('New video created successfully')
         }
 
         stats.processed++
@@ -306,6 +347,9 @@ serve(async (req) => {
       message: 'Sincronização concluída!'
     })
 
+    console.log('=== Sync completed ===')
+    console.log('Final stats:', stats)
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -317,7 +361,10 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in youtube-sync:', error)
+    console.error('=== Critical error in youtube-sync ===')
+    console.error('Error type:', error.constructor.name)
+    console.error('Error message:', error.message)
+    console.error('Error stack:', error.stack)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

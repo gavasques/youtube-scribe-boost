@@ -24,6 +24,8 @@ export function useYouTubeSync() {
 
   const syncWithYouTube = async (options: SyncOptions): Promise<{ stats: SyncStats; errors?: string[] }> => {
     setSyncing(true)
+    console.log('=== Starting YouTube sync ===')
+    console.log('Sync options:', options)
 
     try {
       const { data: authData } = await supabase.auth.getSession()
@@ -31,16 +33,29 @@ export function useYouTubeSync() {
         throw new Error('Não autenticado')
       }
 
+      console.log('User authenticated, calling sync function...')
+
       const response = await supabase.functions.invoke('youtube-sync', {
         body: { options },
         headers: {
-          Authorization: `Bearer ${authData.session.access_token}`
+          Authorization: `Bearer ${authData.session.access_token}`,
+          'Content-Type': 'application/json'
         }
       })
 
+      console.log('Sync function response:', response)
+
       if (response.error) {
-        throw new Error(response.error.message)
+        console.error('Sync function error:', response.error)
+        throw new Error(response.error.message || 'Erro na função de sincronização')
       }
+
+      console.log('Sync completed successfully:', response.data)
+
+      toast({
+        title: 'Sincronização concluída!',
+        description: `${response.data.stats.processed} vídeos processados. ${response.data.stats.new} novos, ${response.data.stats.updated} atualizados.`,
+      })
 
       return {
         stats: response.data.stats,
@@ -51,7 +66,7 @@ export function useYouTubeSync() {
       console.error('Erro na sincronização:', error)
       toast({
         title: 'Erro na sincronização',
-        description: 'Não foi possível sincronizar com o YouTube',
+        description: error.message || 'Não foi possível sincronizar com o YouTube',
         variant: 'destructive'
       })
       throw error
