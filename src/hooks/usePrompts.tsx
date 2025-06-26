@@ -9,17 +9,24 @@ export function usePrompts() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  // Buscar prompts do usuário
+  // Buscar prompts do usuário e prompts globais
   const fetchPrompts = async () => {
     try {
       setLoading(true)
+      console.log('Fetching prompts...')
+      
+      // Buscar todos os prompts (globais e do usuário)
       const { data, error } = await supabase
         .from('prompts')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching prompts:', error)
+        throw error
+      }
       
+      console.log('Prompts fetched:', data)
       setPrompts((data || []) as Prompt[])
     } catch (error) {
       console.error('Erro ao buscar prompts:', error)
@@ -36,11 +43,22 @@ export function usePrompts() {
   // Criar novo prompt
   const createPrompt = async (data: PromptFormData) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado para criar prompts.',
+          variant: 'destructive',
+        })
+        return { data: null, error: 'User not authenticated' }
+      }
+
       const { data: newPrompt, error } = await supabase
         .from('prompts')
         .insert([{
           ...data,
-          user_id: (await supabase.auth.getUser()).data.user?.id
+          user_id: user.id
         }])
         .select()
         .single()
@@ -134,6 +152,17 @@ export function usePrompts() {
   // Duplicar prompt
   const duplicatePrompt = async (prompt: Prompt) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado para duplicar prompts.',
+          variant: 'destructive',
+        })
+        return { data: null, error: 'User not authenticated' }
+      }
+
       const { data: duplicatedPrompt, error } = await supabase
         .from('prompts')
         .insert([{
@@ -144,7 +173,7 @@ export function usePrompts() {
           max_tokens: prompt.max_tokens,
           top_p: prompt.top_p,
           is_active: false,
-          user_id: (await supabase.auth.getUser()).data.user?.id
+          user_id: user.id
         }])
         .select()
         .single()
