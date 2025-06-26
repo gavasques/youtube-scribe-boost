@@ -5,15 +5,21 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useVideoModal } from "./VideoModalProvider"
-import { FileText, Upload, Wand2, CheckCircle, AlertCircle } from "lucide-react"
+import { FileText, Upload, Wand2, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react"
 import { useState, useRef } from "react"
-import { parseFile, isValidFileType, getFileTypeDisplayName } from "@/utils/fileParserUtils"
+import { parseFile, isValidFileType, getFileTypeDisplayName, getFileTypeRecommendation } from "@/utils/fileParserUtils"
 
 export function VideoTranscription() {
   const { video, setVideo, setIsDirty } = useVideoModal()
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadWarnings, setUploadWarnings] = useState<string[]>([])
   const [dragOver, setDragOver] = useState(false)
+  const [lastUploadInfo, setLastUploadInfo] = useState<{
+    fileName: string
+    fileType: string
+    encoding?: string
+  } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!video) return null
@@ -25,21 +31,36 @@ export function VideoTranscription() {
 
   const handleFileUpload = async (file: File) => {
     if (!isValidFileType(file)) {
-      setUploadError('Tipo de arquivo não suportado. Use: .txt, .docx, .csv, .srt, .vtt')
+      setUploadError('Tipo de arquivo não suportado. Use: .txt (recomendado), .docx, .csv, .srt, .vtt')
       return
     }
 
     setUploading(true)
     setUploadError(null)
+    setUploadWarnings([])
 
     try {
       const parsed = await parseFile(file)
+      
+      // Set the content
       handleTranscriptionChange(parsed.content)
       
-      // Show success message with file info
+      // Store upload info
+      setLastUploadInfo({
+        fileName: file.name,
+        fileType: parsed.fileType,
+        encoding: parsed.encoding
+      })
+      
+      // Show warnings if any
+      if (parsed.warnings && parsed.warnings.length > 0) {
+        setUploadWarnings(parsed.warnings)
+      }
+      
       console.log(`Arquivo processado: ${parsed.fileType.toUpperCase()}, ${parsed.wordCount} palavras, ${parsed.characterCount} caracteres`)
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Erro ao processar arquivo')
+      setLastUploadInfo(null)
     } finally {
       setUploading(false)
     }
@@ -114,11 +135,16 @@ export function VideoTranscription() {
               Arraste um arquivo de transcrição ou clique para selecionar
             </p>
             <p className="text-xs text-muted-foreground mb-3">
-              Formatos: .txt, .docx, .csv, .srt, .vtt (máximo 5MB)
+              Formatos: .txt (recomendado), .docx, .csv, .srt, .vtt (máximo 10MB)
             </p>
             <div className="flex flex-wrap gap-1 justify-center mb-3">
               {['txt', 'docx', 'csv', 'srt', 'vtt'].map(ext => (
-                <Badge key={ext} variant="outline" className="text-xs">
+                <Badge 
+                  key={ext} 
+                  variant={ext === 'txt' ? 'default' : 'outline'} 
+                  className={`text-xs ${ext === 'txt' ? 'bg-green-100 text-green-800' : ''}`}
+                  title={getFileTypeRecommendation(ext)}
+                >
                   {getFileTypeDisplayName(ext)}
                 </Badge>
               ))}
@@ -149,6 +175,37 @@ export function VideoTranscription() {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{uploadError}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Upload Warnings */}
+        {uploadWarnings.length > 0 && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-1">
+                <p className="font-medium">Avisos sobre o arquivo:</p>
+                {uploadWarnings.map((warning, index) => (
+                  <p key={index} className="text-sm">• {warning}</p>
+                ))}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Upload Success Info */}
+        {lastUploadInfo && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <div className="text-sm">
+                <p><strong>Arquivo processado:</strong> {lastUploadInfo.fileName}</p>
+                <p><strong>Tipo:</strong> {lastUploadInfo.fileType.toUpperCase()}</p>
+                {lastUploadInfo.encoding && (
+                  <p><strong>Codificação:</strong> {lastUploadInfo.encoding}</p>
+                )}
+              </div>
+            </AlertDescription>
           </Alert>
         )}
 

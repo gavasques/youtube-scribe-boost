@@ -7,8 +7,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react'
-import { parseFile, isValidFileType, getFileTypeDisplayName } from '@/utils/fileParserUtils'
+import { Upload, FileText, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react'
+import { parseFile, isValidFileType, getFileTypeDisplayName, getFileTypeRecommendation } from '@/utils/fileParserUtils'
 
 interface TranscriptionUploadProps {
   value: string
@@ -26,22 +26,43 @@ export function TranscriptionUpload({
   progress = 0 
 }: TranscriptionUploadProps) {
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadWarnings, setUploadWarnings] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [lastUploadInfo, setLastUploadInfo] = useState<{
+    fileName: string
+    fileType: string
+    encoding?: string
+  } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = async (file: File) => {
     if (!isValidFileType(file)) {
-      setUploadError('Tipo de arquivo não suportado. Use: .txt, .docx, .csv, .srt, .vtt')
+      setUploadError('Tipo de arquivo não suportado. Use: .txt (recomendado), .docx, .csv, .srt, .vtt')
       return
     }
 
     setUploading(true)
     setUploadError(null)
+    setUploadWarnings([])
 
     try {
       const parsed = await parseFile(file)
+      
+      // Set the content
       onChange(parsed.content)
+      
+      // Store upload info
+      setLastUploadInfo({
+        fileName: file.name,
+        fileType: parsed.fileType,
+        encoding: parsed.encoding
+      })
+      
+      // Show warnings if any
+      if (parsed.warnings && parsed.warnings.length > 0) {
+        setUploadWarnings(parsed.warnings)
+      }
       
       // Optionally call the original onFileUpload for compatibility
       if (onFileUpload) {
@@ -50,6 +71,7 @@ export function TranscriptionUpload({
       
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Erro ao processar arquivo')
+      setLastUploadInfo(null)
     } finally {
       setUploading(false)
     }
@@ -108,11 +130,16 @@ export function TranscriptionUpload({
             Arraste um arquivo de transcrição ou clique para selecionar
           </p>
           <p className="text-xs text-muted-foreground mb-3">
-            Formatos suportados (máximo 5MB):
+            Formatos suportados (máximo 10MB):
           </p>
           <div className="flex flex-wrap gap-1 justify-center mb-3">
             {['txt', 'docx', 'csv', 'srt', 'vtt'].map(ext => (
-              <Badge key={ext} variant="outline" className="text-xs">
+              <Badge 
+                key={ext} 
+                variant={ext === 'txt' ? 'default' : 'outline'} 
+                className={`text-xs ${ext === 'txt' ? 'bg-green-100 text-green-800' : ''}`}
+                title={getFileTypeRecommendation(ext)}
+              >
                 {getFileTypeDisplayName(ext)}
               </Badge>
             ))}
@@ -142,6 +169,35 @@ export function TranscriptionUpload({
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{uploadError}</AlertDescription>
+        </Alert>
+      )}
+
+      {uploadWarnings.length > 0 && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-1">
+              <p className="font-medium">Avisos sobre o arquivo:</p>
+              {uploadWarnings.map((warning, index) => (
+                <p key={index} className="text-sm">• {warning}</p>
+              ))}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {lastUploadInfo && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            <div className="text-sm">
+              <p><strong>Arquivo processado:</strong> {lastUploadInfo.fileName}</p>
+              <p><strong>Tipo:</strong> {lastUploadInfo.fileType.toUpperCase()}</p>
+              {lastUploadInfo.encoding && (
+                <p><strong>Codificação:</strong> {lastUploadInfo.encoding}</p>
+              )}
+            </div>
+          </AlertDescription>
         </Alert>
       )}
 
