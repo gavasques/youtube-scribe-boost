@@ -24,9 +24,9 @@ export function useVideoTranscription() {
     }
   }, [])
 
-  const updateTranscription = useCallback(async (videoId: string, updates: Partial<VideoTranscription>) => {
+  const updateTranscription = useCallback(async (videoId: string, transcription: string, sourceType: 'manual' | 'auto' | 'uploaded' = 'manual') => {
     try {
-      const updated = await VideoTranscriptionService.updateVideoTranscription(videoId, updates)
+      const updated = await VideoTranscriptionService.updateTranscription(videoId, transcription, sourceType)
       setTranscriptions(prev => ({ ...prev, [videoId]: updated }))
       toast({
         title: 'Transcrição atualizada',
