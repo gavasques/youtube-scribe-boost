@@ -4,16 +4,8 @@ import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/core/Logger'
 import { errorHandler } from '@/core/ErrorHandler'
-
-interface Category {
-  id: string
-  name: string
-  description?: string
-  color_hex?: string
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
+import { Category, CategoryFormData } from '@/types/category'
+import { useCategoryActions } from '@/hooks/useCategoryActions'
 
 interface UseOptimizedCategoriesResult {
   categories: Category[]
@@ -21,6 +13,13 @@ interface UseOptimizedCategoriesResult {
   error: string | null
   refreshCategories: () => Promise<void>
   totalCount: number
+  activeCategories: Category[]
+  fetchCategories: () => Promise<void>
+  createCategory: (data: CategoryFormData) => Promise<{ data?: Category; error?: string }>
+  updateCategory: (id: string, data: CategoryFormData) => Promise<{ data?: Category; error?: string }>
+  deleteCategory: (category: Category) => Promise<{ error?: string }>
+  toggleCategoryActive: (category: Category) => Promise<{ data?: Category; error?: string }>
+  isActionLoading: boolean
 }
 
 export function useOptimizedCategories(): UseOptimizedCategoriesResult {
@@ -29,6 +28,14 @@ export function useOptimizedCategories(): UseOptimizedCategoriesResult {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
+
+  const { 
+    createCategory: createCategoryAction,
+    updateCategory: updateCategoryAction,
+    deleteCategory: deleteCategoryAction,
+    toggleCategoryActive: toggleCategoryActiveAction,
+    isLoading: isActionLoading
+  } = useCategoryActions()
 
   const fetchCategories = useCallback(async () => {
     if (!user?.id) {
@@ -46,7 +53,6 @@ export function useOptimizedCategories(): UseOptimizedCategoriesResult {
         .from('categories')
         .select('*', { count: 'exact' })
         .eq('user_id', user.id)
-        .eq('is_active', true)
         .order('name', { ascending: true })
 
       if (fetchError) throw fetchError
@@ -70,13 +76,50 @@ export function useOptimizedCategories(): UseOptimizedCategoriesResult {
     fetchCategories()
   }, [fetchCategories])
 
+  const createCategory = async (data: CategoryFormData) => {
+    const result = await createCategoryAction(data)
+    if (result.data) {
+      await fetchCategories()
+    }
+    return result
+  }
+
+  const updateCategory = async (id: string, data: CategoryFormData) => {
+    const result = await updateCategoryAction(id, data)
+    if (result.data) {
+      await fetchCategories()
+    }
+    return result
+  }
+
+  const deleteCategory = async (category: Category) => {
+    const result = await deleteCategoryAction(category)
+    if (!result.error) {
+      await fetchCategories()
+    }
+    return result
+  }
+
+  const toggleCategoryActive = async (category: Category) => {
+    const result = await toggleCategoryActiveAction(category)
+    if (result.data) {
+      await fetchCategories()
+    }
+    return result
+  }
+
   // Memoize category options for forms
   const categoryOptions = useMemo(() => 
     categories.map(cat => ({
       value: cat.id,
       label: cat.name,
-      color: cat.color_hex
+      color: undefined
     })), 
+    [categories]
+  )
+
+  const activeCategories = useMemo(() => 
+    categories.filter(cat => cat.is_active), 
     [categories]
   )
 
@@ -85,6 +128,13 @@ export function useOptimizedCategories(): UseOptimizedCategoriesResult {
     loading,
     error,
     refreshCategories: fetchCategories,
-    totalCount
+    totalCount,
+    activeCategories,
+    fetchCategories,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    toggleCategoryActive,
+    isActionLoading
   }
 }

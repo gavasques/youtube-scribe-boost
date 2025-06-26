@@ -13,10 +13,10 @@ import { BlockUI } from "@/types/block"
 export default function Blocks() {
   const { 
     blocks, 
-    loading: blocksLoading, 
-    createBlock, 
-    updateBlock, 
-    toggleBlockActive, 
+    loading: blocksLoading,
+    createBlock,
+    updateBlock,
+    toggleBlockActive,
     deleteBlock,
     moveBlockUp,
     moveBlockDown
@@ -24,7 +24,7 @@ export default function Blocks() {
   
   const { 
     activeCategories, 
-    loading: categoriesLoading, 
+    loading: categoriesLoading,
     fetchCategories 
   } = useOptimizedCategories()
   

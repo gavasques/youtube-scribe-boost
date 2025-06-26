@@ -4,19 +4,8 @@ import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/core/Logger'
 import { errorHandler } from '@/core/ErrorHandler'
-
-interface Prompt {
-  id: string
-  name: string
-  content: string
-  type: 'SUMMARY' | 'DESCRIPTION' | 'TAGS' | 'CUSTOM'
-  model_name: string
-  temperature: number
-  max_tokens: number
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
+import { Prompt, PromptFormData } from '@/types/prompt'
+import { usePromptActions } from '@/hooks/usePromptActions'
 
 interface UseOptimizedPromptsResult {
   prompts: Prompt[]
@@ -24,6 +13,8 @@ interface UseOptimizedPromptsResult {
   error: string | null
   refreshPrompts: () => Promise<void>
   totalCount: number
+  setPrompts: React.Dispatch<React.SetStateAction<Prompt[]>>
+  fetchPrompts: () => Promise<void>
 }
 
 export function useOptimizedPrompts(): UseOptimizedPromptsResult {
@@ -75,8 +66,9 @@ export function useOptimizedPrompts(): UseOptimizedPromptsResult {
   // Memoize prompts by type
   const promptsByType = useMemo(() => {
     const grouped = prompts.reduce((acc, prompt) => {
-      if (!acc[prompt.type]) acc[prompt.type] = []
-      acc[prompt.type].push(prompt)
+      const key = 'CUSTOM' // Default type since type doesn't exist in our schema
+      if (!acc[key]) acc[key] = []
+      acc[key].push(prompt)
       return acc
     }, {} as Record<string, Prompt[]>)
     return grouped
@@ -92,6 +84,8 @@ export function useOptimizedPrompts(): UseOptimizedPromptsResult {
     loading,
     error,
     refreshPrompts: fetchPrompts,
-    totalCount
+    totalCount,
+    setPrompts,
+    fetchPrompts
   }
 }

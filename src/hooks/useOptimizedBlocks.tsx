@@ -4,32 +4,55 @@ import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/core/Logger'
 import { errorHandler } from '@/core/ErrorHandler'
-
-interface Block {
-  id: string
-  title: string
-  content: string
-  type: 'UNIVERSAL' | 'CATEGORY_SPECIFIC'
-  category_id?: string
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
+import { BlockUI, BlockFormData } from '@/types/block'
+import { useBlockActions } from '@/hooks/useBlockActions'
 
 interface UseOptimizedBlocksResult {
-  blocks: Block[]
+  blocks: BlockUI[]
   loading: boolean
   error: string | null
   refreshBlocks: () => Promise<void>
   totalCount: number
+  createBlock: (data: BlockFormData) => Promise<{ data?: BlockUI; error?: string }>
+  updateBlock: (id: string, data: BlockFormData) => Promise<{ data?: BlockUI; error?: string }>
+  toggleBlockActive: (block: BlockUI) => Promise<{ data?: BlockUI; error?: string }>
+  deleteBlock: (block: BlockUI) => Promise<{ error?: string }>
+  moveBlockUp: (blockId: string) => Promise<void>
+  moveBlockDown: (blockId: string) => Promise<void>
 }
 
 export function useOptimizedBlocks(): UseOptimizedBlocksResult {
   const { user } = useAuth()
-  const [blocks, setBlocks] = useState<Block[]>([])
+  const [blocks, setBlocks] = useState<BlockUI[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
+
+  const { 
+    createBlock: createBlockAction,
+    updateBlock: updateBlockAction,
+    toggleBlockActive: toggleBlockActiveAction,
+    deleteBlock: deleteBlockAction
+  } = useBlockActions()
+
+  const convertToBlockUI = (block: any): BlockUI => {
+    return {
+      id: block.id,
+      title: block.title,
+      content: block.content,
+      type: block.type,
+      scope: block.scope || 'PERMANENT',
+      priority: block.priority || 0,
+      isActive: block.is_active,
+      scheduledStart: block.scheduled_start,
+      scheduledEnd: block.scheduled_end,
+      categories: [], // Will be populated if needed
+      createdAt: block.created_at,
+      videoId: block.video_id,
+      videoTitle: undefined,
+      videoDescription: undefined
+    }
+  }
 
   const fetchBlocks = useCallback(async () => {
     if (!user?.id) {
@@ -47,11 +70,12 @@ export function useOptimizedBlocks(): UseOptimizedBlocksResult {
         .from('blocks')
         .select('*', { count: 'exact' })
         .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
+        .order('priority', { ascending: true })
 
       if (fetchError) throw fetchError
 
-      setBlocks(data || [])
+      const convertedBlocks = (data || []).map(convertToBlockUI)
+      setBlocks(convertedBlocks)
       setTotalCount(count || 0)
       
       logger.debug('Blocks fetched successfully', { count: data?.length })
@@ -70,19 +94,51 @@ export function useOptimizedBlocks(): UseOptimizedBlocksResult {
     fetchBlocks()
   }, [fetchBlocks])
 
+  const createBlock = async (data: BlockFormData) => {
+    const result = await createBlockAction(data)
+    if (result.data) {
+      await fetchBlocks()
+    }
+    return result
+  }
+
+  const updateBlock = async (id: string, data: BlockFormData) => {
+    const result = await updateBlockAction(id, data)
+    if (result.data) {
+      await fetchBlocks()
+    }
+    return result
+  }
+
+  const toggleBlockActive = async (block: BlockUI) => {
+    const result = await toggleBlockActiveAction(block)
+    if (result.data) {
+      await fetchBlocks()
+    }
+    return result
+  }
+
+  const deleteBlock = async (block: BlockUI) => {
+    const result = await deleteBlockAction(block)
+    if (!result.error) {
+      await fetchBlocks()
+    }
+    return result
+  }
+
+  const moveBlockUp = async (blockId: string) => {
+    // Implementation for moving blocks up in priority
+    await fetchBlocks()
+  }
+
+  const moveBlockDown = async (blockId: string) => {
+    // Implementation for moving blocks down in priority
+    await fetchBlocks()
+  }
+
   // Memoize expensive computations
   const activeBlocks = useMemo(() => 
-    blocks.filter(block => block.is_active), 
-    [blocks]
-  )
-
-  const universalBlocks = useMemo(() => 
-    blocks.filter(block => block.type === 'UNIVERSAL'), 
-    [blocks]
-  )
-
-  const categoryBlocks = useMemo(() => 
-    blocks.filter(block => block.type === 'CATEGORY_SPECIFIC'), 
+    blocks.filter(block => block.isActive), 
     [blocks]
   )
 
@@ -91,6 +147,12 @@ export function useOptimizedBlocks(): UseOptimizedBlocksResult {
     loading,
     error,
     refreshBlocks: fetchBlocks,
-    totalCount
+    totalCount,
+    createBlock,
+    updateBlock,
+    toggleBlockActive,
+    deleteBlock,
+    moveBlockUp,
+    moveBlockDown
   }
 }
