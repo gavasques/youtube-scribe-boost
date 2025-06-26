@@ -6,6 +6,7 @@ import { BlocksTable } from "@/components/Blocks/BlocksTable"
 import { BlockForm } from "@/components/Blocks/BlockForm"
 import { useOptimizedBlocks } from "@/hooks/useOptimizedBlocks"
 import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
+import { useBlockActions } from "@/hooks/useBlockActions"
 import { OptimizedLoading } from "@/components/ui/optimized-loading"
 import { BlockUI } from "@/types/block"
 
@@ -26,6 +27,8 @@ export default function Blocks() {
     loading: categoriesLoading, 
     fetchCategories 
   } = useOptimizedCategories()
+  
+  const { validateBlockAction } = useBlockActions()
   
   const [showForm, setShowForm] = useState(false)
   const [editingBlock, setEditingBlock] = useState<BlockUI | null>(null)
@@ -49,21 +52,21 @@ export default function Blocks() {
 
   const handleToggleActive = async (blockId: string) => {
     const block = blocks.find(b => b.id === blockId)
-    if (block) {
+    if (block && validateBlockAction(block, 'toggle')) {
       await toggleBlockActive(block)
     }
   }
 
   const handleDeleteBlock = async (blockId: string) => {
     const block = blocks.find(b => b.id === blockId)
-    if (block) {
+    if (block && validateBlockAction(block, 'delete')) {
       await deleteBlock(block)
     }
   }
 
   const handleEdit = (tableBlock: any) => {
     const originalBlock = blocks.find(b => b.id === tableBlock.id)
-    if (originalBlock) {
+    if (originalBlock && validateBlockAction(originalBlock, 'edit')) {
       setEditingBlock(originalBlock)
       setShowForm(true)
     }
@@ -75,14 +78,12 @@ export default function Blocks() {
   }
 
   const handleFormOpen = () => {
-    // Lazy load categorias apenas quando o formulário for aberto
     if (!categoriesLoading) {
       fetchCategories()
     }
     setShowForm(true)
   }
 
-  // Converter dados do bloco para o formato do formulário
   const convertBlockForForm = useMemo(() => {
     if (!editingBlock) return null
     
@@ -102,14 +103,12 @@ export default function Blocks() {
     }
   }, [editingBlock])
 
-  // Loading state principal apenas para blocos
   if (blocksLoading) {
     return <OptimizedLoading type="blocks" />
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
@@ -128,7 +127,6 @@ export default function Blocks() {
         </Button>
       </div>
 
-      {/* Content - Tabela otimizada */}
       <BlocksTable
         blocks={blocks}
         onEdit={handleEdit}
@@ -138,7 +136,6 @@ export default function Blocks() {
         onMoveDown={moveBlockDown}
       />
 
-      {/* Empty State */}
       {!blocksLoading && blocks.length === 0 && (
         <div className="text-center py-12">
           <div className="mx-auto w-24 h-24 bg-gradient-to-br from-purple-100 to-violet-100 rounded-full flex items-center justify-center mb-4">
@@ -155,7 +152,6 @@ export default function Blocks() {
         </div>
       )}
 
-      {/* Form Modal - com lazy loading de categorias */}
       <BlockForm
         open={showForm}
         onClose={handleCloseForm}
