@@ -4,7 +4,6 @@ import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { OpenAISettings } from "./OpenAISettings"
 import { BitlySettings } from "./BitlySettings"
 import { YouTubeSettings } from "./YouTubeSettings"
-import { GeneralApiSettings } from "./GeneralApiSettings"
 
 interface ApiConfig {
   openai: {
@@ -18,11 +17,6 @@ interface ApiConfig {
     enabled: boolean
     customDomain: string
     status: 'connected' | 'disconnected' | 'error'
-  }
-  general: {
-    rateLimitEnabled: boolean
-    batchProcessing: boolean
-    cacheEnabled: boolean
   }
 }
 
@@ -39,11 +33,6 @@ export function ApiSettings() {
       enabled: false,
       customDomain: "",
       status: 'disconnected'
-    },
-    general: {
-      rateLimitEnabled: true,
-      batchProcessing: true,
-      cacheEnabled: true
     }
   })
 
@@ -75,42 +64,6 @@ export function ApiSettings() {
     }))
   }
 
-  const updateGeneralConfig = <T extends keyof ApiConfig['general']>(
-    key: T,
-    value: ApiConfig['general'][T]
-  ) => {
-    setConfig(prev => ({
-      ...prev,
-      general: {
-        ...prev.general,
-        [key]: value
-      }
-    }))
-  }
-
-  const handleResetDefaults = () => {
-    console.log('ApiSettings: Resetting to defaults')
-    setConfig({
-      openai: {
-        enabled: true,
-        model: "gpt-4o-mini",
-        temperature: 0.7,
-        maxTokens: 2000,
-        status: 'disconnected'
-      },
-      bitly: {
-        enabled: false,
-        customDomain: "",
-        status: 'disconnected'
-      },
-      general: {
-        rateLimitEnabled: true,
-        batchProcessing: true,
-        cacheEnabled: true
-      }
-    })
-  }
-
   return (
     <div className="space-y-6">
       <OpenAISettings 
@@ -124,12 +77,6 @@ export function ApiSettings() {
       />
       
       <YouTubeSettings />
-      
-      <GeneralApiSettings 
-        config={config.general} 
-        onUpdate={updateGeneralConfig}
-        onResetDefaults={handleResetDefaults}
-      />
     </div>
   )
 }
