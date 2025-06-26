@@ -32,9 +32,10 @@ export function useAccountForm() {
     
     const validation = validateForm(emailSchema, emailForm.newEmail)
     if (!validation.success) {
+      const firstError = Object.values(validation.errors).flat().find(error => typeof error === 'string')
       showErrorToast({ 
         title: "Email inválido", 
-        description: Object.values(validation.errors).flat()[0] 
+        description: firstError || "Email inválido"
       })
       return
     }
@@ -56,7 +57,7 @@ export function useAccountForm() {
     } catch (error: any) {
       showErrorToast({ 
         title: "Erro ao atualizar email", 
-        description: error.message || "Tente novamente mais tarde" 
+        description: error?.message || "Tente novamente mais tarde" 
       })
     } finally {
       setEmailForm(prev => ({ ...prev, loading: false }))
@@ -73,9 +74,10 @@ export function useAccountForm() {
 
     const validation = validateForm(passwordSchema, passwordForm.newPassword)
     if (!validation.success) {
+      const firstError = Object.values(validation.errors).flat().find(error => typeof error === 'string')
       showErrorToast({ 
         title: "Senha inválida", 
-        description: Object.values(validation.errors).flat()[0] 
+        description: firstError || "Senha inválida"
       })
       return
     }
@@ -97,7 +99,7 @@ export function useAccountForm() {
     } catch (error: any) {
       showErrorToast({ 
         title: "Erro ao atualizar senha", 
-        description: error.message || "Tente novamente mais tarde" 
+        description: error?.message || "Tente novamente mais tarde" 
       })
     } finally {
       setPasswordForm(prev => ({ ...prev, loading: false }))

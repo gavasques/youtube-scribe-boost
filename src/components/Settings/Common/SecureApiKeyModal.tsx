@@ -50,9 +50,10 @@ export function SecureApiKeyModal({ service, children, onStatusChange }: SecureA
   const handleSave = async () => {
     const validation = validateForm(config?.validation || apiKeySchema, apiKey)
     if (!validation.success) {
+      const firstError = Object.values(validation.errors).flat().find(error => typeof error === 'string')
       showErrorToast({
         title: "Erro",
-        description: Object.values(validation.errors).flat()[0] || "API key inválida"
+        description: firstError || "API key inválida"
       })
       return
     }
