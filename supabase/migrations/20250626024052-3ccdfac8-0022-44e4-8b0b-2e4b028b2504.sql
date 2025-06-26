@@ -1,16 +1,29 @@
 
--- Inserir categorias iniciais para o usuário autenticado
-INSERT INTO public.categories (user_id, name, description, icon, color, parent_id, is_active) VALUES
-  (auth.uid(), 'Importação', 'Vídeos sobre importação de produtos', 'package', '#f97316', NULL, true),
-  (auth.uid(), 'Internacionalização', 'Expansão internacional de negócios', 'globe', '#22c55e', NULL, true),
-  (auth.uid(), 'Amazon', 'Vendas na plataforma Amazon', 'shopping-cart', '#3b82f6', NULL, true),
-  (auth.uid(), 'Sem Categoria', 'Vídeos não categorizados', 'folder', '#6b7280', NULL, true);
+-- Habilitar RLS na tabela categories
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 
--- Inserir subcategorias para Amazon
-INSERT INTO public.categories (user_id, name, description, icon, color, parent_id, is_active) VALUES
-  (auth.uid(), 'FBA', 'Fulfillment by Amazon', 'shopping-cart', '#3b82f6', (SELECT id FROM public.categories WHERE name = 'Amazon' AND user_id = auth.uid()), true),
-  (auth.uid(), 'PPC', 'Anúncios pagos Amazon', 'shopping-cart', '#3b82f6', (SELECT id FROM public.categories WHERE name = 'Amazon' AND user_id = auth.uid()), true);
+-- Políticas RLS para categorias
+CREATE POLICY "Users can view their own categories" 
+  ON public.categories 
+  FOR SELECT 
+  USING (auth.uid() = user_id);
 
--- Inserir subcategoria para Importação
-INSERT INTO public.categories (user_id, name, description, icon, color, parent_id, is_active) VALUES
-  (auth.uid(), 'AliExpress', 'Importação via AliExpress', 'package', '#f97316', (SELECT id FROM public.categories WHERE name = 'Importação' AND user_id = auth.uid()), true);
+CREATE POLICY "Users can create their own categories" 
+  ON public.categories 
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own categories" 
+  ON public.categories 
+  FOR UPDATE 
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own categories" 
+  ON public.categories 
+  FOR DELETE 
+  USING (auth.uid() = user_id);
+
+-- Índices para melhor performance
+CREATE INDEX idx_categories_user_id ON public.categories(user_id);
+CREATE INDEX idx_categories_parent_id ON public.categories(parent_id);
+CREATE INDEX idx_categories_is_active ON public.categories(is_active);
