@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, Edit, Power, Trash, Calendar, Globe, FolderTree, Clock } from "lucide-react"
+import { Search, MoreHorizontal, Edit, Power, Trash, Calendar, Globe, FolderTree, ChevronUp, ChevronDown } from "lucide-react"
 
 export interface Block {
   id: string
@@ -32,7 +32,6 @@ export interface Block {
   scheduledStart?: string
   scheduledEnd?: string
   categories: string[]
-  videosAffected: number
   createdAt: string
 }
 
@@ -41,9 +40,11 @@ interface BlocksTableProps {
   onEdit: (block: Block) => void
   onToggleActive: (blockId: string) => void
   onDelete: (blockId: string) => void
+  onMoveUp: (blockId: string) => void
+  onMoveDown: (blockId: string) => void
 }
 
-export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete }: BlocksTableProps) {
+export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete, onMoveUp, onMoveDown }: BlocksTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -136,12 +137,12 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete }: Blocks
                 <TableHead>Tipo</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Escopo</TableHead>
-                <TableHead>Vídeos</TableHead>
+                <TableHead>Ordem</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredBlocks.map((block) => (
+              {filteredBlocks.map((block, index) => (
                 <TableRow key={block.id}>
                   <TableCell>
                     <div>
@@ -171,8 +172,24 @@ export function BlocksTable({ blocks, onEdit, onToggleActive, onDelete }: Blocks
                   <TableCell>{getScopeBadge(block)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      {block.videosAffected}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onMoveUp(block.id)}
+                        disabled={index === 0}
+                        className="h-6 w-6 p-0"
+                      >
+                        <ChevronUp className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onMoveDown(block.id)}
+                        disabled={index === filteredBlocks.length - 1}
+                        className="h-6 w-6 p-0"
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                      </Button>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">

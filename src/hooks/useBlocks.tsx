@@ -9,14 +9,14 @@ export function useBlocks() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  // Buscar blocos do usuário
+  // Buscar blocos do usuário - ordenados por data de criação (mais recente primeiro)
   const fetchBlocks = async () => {
     try {
       setLoading(true)
       const { data, error } = await supabase
         .from('blocks')
         .select('*')
-        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) throw error
       
@@ -95,6 +95,78 @@ export function useBlocks() {
         variant: 'destructive',
       })
       return { data: null, error }
+    }
+  }
+
+  // Mover bloco para cima na ordem
+  const moveBlockUp = async (blockId: string) => {
+    try {
+      const currentIndex = blocks.findIndex(b => b.id === blockId)
+      if (currentIndex <= 0) return
+
+      const currentBlock = blocks[currentIndex]
+      const previousBlock = blocks[currentIndex - 1]
+      
+      // Ajustar created_at para simular reordenação
+      const newCreatedAt = new Date(new Date(previousBlock.created_at).getTime() + 1000).toISOString()
+
+      const { error } = await supabase
+        .from('blocks')
+        .update({ created_at: newCreatedAt })
+        .eq('id', blockId)
+
+      if (error) throw error
+
+      // Recarregar lista
+      await fetchBlocks()
+      
+      toast({
+        title: 'Bloco movido',
+        description: 'O bloco foi movido para cima.',
+      })
+    } catch (error) {
+      console.error('Erro ao mover bloco:', error)
+      toast({
+        title: 'Erro',
+        description: 'Erro ao mover bloco.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  // Mover bloco para baixo na ordem
+  const moveBlockDown = async (blockId: string) => {
+    try {
+      const currentIndex = blocks.findIndex(b => b.id === blockId)
+      if (currentIndex >= blocks.length - 1) return
+
+      const currentBlock = blocks[currentIndex]
+      const nextBlock = blocks[currentIndex + 1]
+      
+      // Ajustar created_at para simular reordenação
+      const newCreatedAt = new Date(new Date(nextBlock.created_at).getTime() - 1000).toISOString()
+
+      const { error } = await supabase
+        .from('blocks')
+        .update({ created_at: newCreatedAt })
+        .eq('id', blockId)
+
+      if (error) throw error
+
+      // Recarregar lista
+      await fetchBlocks()
+      
+      toast({
+        title: 'Bloco movido',
+        description: 'O bloco foi movido para baixo.',
+      })
+    } catch (error) {
+      console.error('Erro ao mover bloco:', error)
+      toast({
+        title: 'Erro',
+        description: 'Erro ao mover bloco.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -209,6 +281,8 @@ export function useBlocks() {
     toggleBlockActive,
     duplicateBlock,
     deleteBlock,
+    moveBlockUp,
+    moveBlockDown,
     fetchBlocks
   }
 }

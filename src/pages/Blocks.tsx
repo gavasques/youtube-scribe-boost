@@ -1,9 +1,9 @@
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { BlocksTable } from "@/components/Blocks/BlocksTable"
 import { BlockForm } from "@/components/Blocks/BlockForm"
-import { BlockPreview } from "@/components/Blocks/BlockPreview"
 import { useBlocks } from "@/hooks/useBlocks"
 import { Block } from "@/types/block"
 
@@ -15,12 +15,13 @@ export default function Blocks() {
     updateBlock, 
     toggleBlockActive, 
     duplicateBlock, 
-    deleteBlock 
+    deleteBlock,
+    moveBlockUp,
+    moveBlockDown
   } = useBlocks()
   
   const [showForm, setShowForm] = useState(false)
   const [editingBlock, setEditingBlock] = useState<Block | null>(null)
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
 
   const categories = ["Tutoriais", "Programação", "Gaming", "Reviews", "Tecnologia", "Lifestyle"]
 
@@ -55,6 +56,14 @@ export default function Blocks() {
     }
   }
 
+  const handleMoveUp = async (blockId: string) => {
+    await moveBlockUp(blockId)
+  }
+
+  const handleMoveDown = async (blockId: string) => {
+    await moveBlockDown(blockId)
+  }
+
   const handleEdit = (tableBlock: any) => {
     // Find the original block from the database
     const originalBlock = blocks.find(b => b.id === tableBlock.id)
@@ -82,24 +91,6 @@ export default function Blocks() {
     scheduledStart: block.scheduled_start || undefined,
     scheduledEnd: block.scheduled_end || undefined,
     categories: [], // Placeholder - categories would need to be implemented
-    videosAffected: 0, // Placeholder - would need to be calculated
-    createdAt: block.created_at
-  }))
-
-  // Convert Block from database to the format expected by BlockPreview
-  const convertedBlocksForPreview = blocks.map(block => ({
-    id: block.id,
-    title: block.title,
-    description: block.description || undefined,
-    content: block.content,
-    type: (block.type === 'CATEGORY_SPECIFIC' ? 'CATEGORY' : block.type) as 'GLOBAL' | 'CATEGORY',
-    scope: block.scope as 'PERMANENT' | 'SCHEDULED',
-    priority: block.priority,
-    isActive: block.is_active,
-    scheduledStart: block.scheduled_start || undefined,
-    scheduledEnd: block.scheduled_end || undefined,
-    categories: [], // Placeholder - categories would need to be implemented
-    videosAffected: 0, // Placeholder - would need to be calculated
     createdAt: block.created_at
   }))
 
@@ -143,36 +134,21 @@ export default function Blocks() {
             Gerencie os blocos de conteúdo para suas descrições
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setViewMode(viewMode === 'table' ? 'grid' : 'table')}
-            className="border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300"
-          >
-            {viewMode === 'table' ? 'Ver em Grade' : 'Ver em Tabela'}
-          </Button>
-          <Button className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0" onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4" />
-            Novo Bloco
-          </Button>
-        </div>
+        <Button className="gap-2 bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 border-0" onClick={() => setShowForm(true)}>
+          <Plus className="w-4 h-4" />
+          Novo Bloco
+        </Button>
       </div>
 
-      {/* Content */}
-      {viewMode === 'table' ? (
-        <BlocksTable
-          blocks={convertedBlocks}
-          onEdit={handleEdit}
-          onToggleActive={handleToggleActive}
-          onDelete={handleDeleteBlock}
-        />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {convertedBlocksForPreview.map((block) => (
-            <BlockPreview key={block.id} block={block} />
-          ))}
-        </div>
-      )}
+      {/* Content - Apenas tabela */}
+      <BlocksTable
+        blocks={convertedBlocks}
+        onEdit={handleEdit}
+        onToggleActive={handleToggleActive}
+        onDelete={handleDeleteBlock}
+        onMoveUp={handleMoveUp}
+        onMoveDown={handleMoveDown}
+      />
 
       {/* Empty State */}
       {!loading && blocks.length === 0 && (
