@@ -35,12 +35,13 @@ export function useOptimizedPrompts(): UseOptimizedPromptsResult {
       setLoading(true)
       setError(null)
 
-      logger.debug('Fetching optimized prompts', { userId: user.id })
+      logger.debug('Fetching prompts (user + global)', { userId: user.id })
 
+      // Buscar prompts do usuário E prompts globais (user_id NULL)
       const { data, count, error: fetchError } = await supabase
         .from('prompts')
         .select('*', { count: 'exact' })
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},user_id.is.null`)
         .order('updated_at', { ascending: false })
 
       if (fetchError) throw fetchError
@@ -64,24 +65,8 @@ export function useOptimizedPrompts(): UseOptimizedPromptsResult {
     fetchPrompts()
   }, [fetchPrompts])
 
-  // Memoize prompts by type
-  const promptsByType = useMemo(() => {
-    const grouped = prompts.reduce((acc, prompt) => {
-      const key = 'CUSTOM' // Default type since type doesn't exist in our schema
-      if (!acc[key]) acc[key] = []
-      acc[key].push(prompt)
-      return acc
-    }, {} as Record<string, Prompt[]>)
-    return grouped
-  }, [prompts])
-
-  const activePrompts = useMemo(() => 
-    prompts.filter(prompt => prompt.is_active), 
-    [prompts]
-  )
-
   return {
-    prompts: activePrompts,
+    prompts, // Retornando todos os prompts, não apenas os ativos
     loading,
     error,
     refreshPrompts: fetchPrompts,

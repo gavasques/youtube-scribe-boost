@@ -1,4 +1,9 @@
 
+-- Atualizar prompts existentes para ter o user_id correto
+UPDATE public.prompts 
+SET user_id = 'b7e6c153-e441-4778-9ec5-eb637c6d8c82'
+WHERE user_id IS NULL AND name IN ('Resumo de Vídeo', 'Geração de Capítulos', 'Descrição para YouTube');
+
 -- Habilitar RLS na tabela prompts se não estiver habilitado
 ALTER TABLE public.prompts ENABLE ROW LEVEL SECURITY;
 
