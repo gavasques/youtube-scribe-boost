@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -52,7 +51,7 @@ export function VideoAIContent() {
           <Brain className="w-4 h-4" />
           Conteúdo IA
           {(hasSummary || hasDescription) && (
-            <Badge variant="success" className="ml-auto">
+            <Badge variant="default" className="ml-auto bg-green-100 text-green-800 border-green-200">
               Processado
             </Badge>
           )}
