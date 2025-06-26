@@ -1,10 +1,10 @@
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { BlocksTable } from "@/components/Blocks/BlocksTable"
 import { BlockForm } from "@/components/Blocks/BlockForm"
 import { useBlocks } from "@/hooks/useBlocks"
+import { useCategories } from "@/hooks/useCategories"
 import { Block } from "@/types/block"
 
 export default function Blocks() {
@@ -20,10 +20,13 @@ export default function Blocks() {
     moveBlockDown
   } = useBlocks()
   
+  const { categories, loading: categoriesLoading } = useCategories()
+  
   const [showForm, setShowForm] = useState(false)
   const [editingBlock, setEditingBlock] = useState<Block | null>(null)
 
-  const categories = ["Tutoriais", "Programação", "Gaming", "Reviews", "Tecnologia", "Lifestyle"]
+  // Filtrar apenas categorias ativas
+  const activeCategories = categories.filter(cat => cat.is_active)
 
   const handleCreateBlock = async (data: any) => {
     const result = await createBlock(data)
@@ -112,12 +115,12 @@ export default function Blocks() {
     createdAt: block.created_at
   })
 
-  if (loading) {
+  if (loading || categoriesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Carregando blocos...</p>
+          <p className="mt-2 text-muted-foreground">Carregando...</p>
         </div>
       </div>
     )
@@ -174,7 +177,7 @@ export default function Blocks() {
         onClose={handleCloseForm}
         onSave={editingBlock ? handleEditBlock : handleCreateBlock}
         block={editingBlock ? convertBlockForForm(editingBlock) : null}
-        categories={categories}
+        categories={activeCategories}
       />
     </div>
   )
