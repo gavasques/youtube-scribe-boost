@@ -1,12 +1,12 @@
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Brain, Plus, Search } from "lucide-react"
-import { useState, useEffect, useMemo } from "react"
-import { Prompt, PromptFormData, PromptType } from "@/types/prompt"
+import { useState, useMemo } from "react"
+import { Prompt, PromptFormData } from "@/types/prompt"
 import { PromptCard } from "@/components/Prompts/PromptCard"
 import { PromptEditor } from "@/components/Prompts/PromptEditor"
 import { usePrompts } from "@/hooks/usePrompts"
@@ -25,16 +25,7 @@ export default function Prompts() {
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [typeFilter, setTypeFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-
-  const promptTypes = [
-    { value: "SUMMARY_GENERATOR", label: "Gerador de Resumo" },
-    { value: "CHAPTER_GENERATOR", label: "Gerador de Capítulos" },
-    { value: "DESCRIPTION_GENERATOR", label: "Gerador de Descrição" },
-    { value: "TAG_GENERATOR", label: "Gerador de Tags" },
-    { value: "CATEGORY_CLASSIFIER", label: "Classificador de Categoria" },
-  ]
 
   // Filtrar prompts usando useMemo para otimização
   const filteredPrompts = useMemo(() => {
@@ -43,12 +34,9 @@ export default function Prompts() {
     if (searchTerm) {
       filtered = filtered.filter(prompt => 
         prompt.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        prompt.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        prompt.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        prompt.prompt.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    }
-
-    if (typeFilter !== "all") {
-      filtered = filtered.filter(prompt => prompt.type === typeFilter)
     }
 
     if (statusFilter !== "all") {
@@ -58,7 +46,7 @@ export default function Prompts() {
     }
 
     return filtered
-  }, [prompts, searchTerm, typeFilter, statusFilter])
+  }, [prompts, searchTerm, statusFilter])
 
   const handleNewPrompt = () => {
     setSelectedPrompt(null)
@@ -91,8 +79,12 @@ export default function Prompts() {
     await deletePrompt(prompt)
   }
 
-  const getActiveCount = (type: PromptType) => {
-    return prompts.filter(p => p.type === type && p.is_active).length
+  const getActiveCount = () => {
+    return prompts.filter(p => p.is_active).length
+  }
+
+  const getTotalCount = () => {
+    return prompts.length
   }
 
   if (loading) {
@@ -141,7 +133,7 @@ export default function Prompts() {
           <CardTitle className="text-lg text-amber-800">Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-amber-600" />
               <Input
@@ -151,19 +143,6 @@ export default function Prompts() {
                 className="pl-9 border-amber-300 focus:border-amber-500"
               />
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="border-amber-300 focus:border-amber-500">
-                <SelectValue placeholder="Tipo de prompt" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                {promptTypes.map(type => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="border-amber-300 focus:border-amber-500">
                 <SelectValue placeholder="Status" />
@@ -178,32 +157,34 @@ export default function Prompts() {
         </CardContent>
       </Card>
 
-      {/* Estatísticas por tipo */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {promptTypes.map((type, index) => {
-          const colors = [
-            'from-blue-500 to-cyan-500',
-            'from-emerald-500 to-teal-500',
-            'from-purple-500 to-violet-500',
-            'from-rose-500 to-pink-500',
-            'from-amber-500 to-orange-500'
-          ];
-          return (
-            <Card key={type.value} className="border-0 shadow-lg">
-              <CardContent className="p-4 text-center">
-                <div className={`text-2xl font-bold bg-gradient-to-r ${colors[index % colors.length]} bg-clip-text text-transparent`}>
-                  {getActiveCount(type.value as PromptType)}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {type.label}
-                </div>
-                <Badge variant="outline" className="mt-1 border-emerald-300 text-emerald-700">
-                  Ativo
-                </Badge>
-              </CardContent>
-            </Card>
-          )
-        })}
+      {/* Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="border-0 shadow-lg">
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
+              {getActiveCount()}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Prompts Ativos
+            </div>
+            <Badge variant="outline" className="mt-1 border-emerald-300 text-emerald-700">
+              Em Uso
+            </Badge>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-lg">
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
+              {getTotalCount()}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Total de Prompts
+            </div>
+            <Badge variant="outline" className="mt-1 border-blue-300 text-blue-700">
+              Criados
+            </Badge>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Lista de prompts */}

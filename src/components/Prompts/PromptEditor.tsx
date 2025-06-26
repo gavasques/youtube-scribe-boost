@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Badge } from "@/components/ui/badge"
 import { Brain, Play, Save, TestTube } from "lucide-react"
-import { Prompt, PromptFormData, PromptType } from "@/types/prompt"
+import { Prompt, PromptFormData } from "@/types/prompt"
 import { useForm } from "react-hook-form"
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
@@ -22,14 +20,6 @@ interface PromptEditorProps {
   onSave: (data: PromptFormData) => void
 }
 
-const promptTypes: { value: PromptType; label: string }[] = [
-  { value: "SUMMARY_GENERATOR", label: "Gerador de Resumo" },
-  { value: "CHAPTER_GENERATOR", label: "Gerador de Capítulos" },
-  { value: "DESCRIPTION_GENERATOR", label: "Gerador de Descrição" },
-  { value: "TAG_GENERATOR", label: "Gerador de Tags" },
-  { value: "CATEGORY_CLASSIFIER", label: "Classificador de Categoria" },
-]
-
 export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProps) {
   const [testResult, setTestResult] = useState<string>("")
   const [isTestingPrompt, setIsTestingPrompt] = useState(false)
@@ -39,9 +29,7 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
     defaultValues: {
       name: prompt?.name || "",
       description: prompt?.description || "",
-      type: prompt?.type || "SUMMARY_GENERATOR",
-      system_prompt: prompt?.system_prompt || "",
-      user_prompt: prompt?.user_prompt || "",
+      prompt: prompt?.prompt || "",
       temperature: prompt?.temperature || 0.7,
       max_tokens: prompt?.max_tokens || 1000,
       top_p: prompt?.top_p || 0.9,
@@ -63,7 +51,8 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
     
     // Simular chamada para API
     setTimeout(() => {
-      setTestResult(`Resultado do teste para "${data.type}":\n\nSystem: ${data.system_prompt.substring(0, 100)}...\nUser: ${data.user_prompt.substring(0, 100)}...\nInput: ${data.test_input}\n\n[Resultado simulado da IA]`)
+      const processedPrompt = data.prompt.replace('{transcription}', data.test_input || '')
+      setTestResult(`Prompt processado:\n\n${processedPrompt}\n\n[Resultado simulado da IA baseado no prompt acima]`)
       setIsTestingPrompt(false)
       toast({
         title: "Teste executado",
@@ -111,24 +100,16 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
 
               <FormField
                 control={form.control}
-                name="type"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tipo do Prompt</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tipo" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {promptTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Descrição</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Descreva brevemente o que este prompt faz"
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -137,52 +118,15 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
 
             <FormField
               control={form.control}
-              name="description"
+              name="prompt"
+              rules={{ required: "Prompt é obrigatório" }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descrição</FormLabel>
+                  <FormLabel>Prompt</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Descreva o que este prompt faz"
-                      className="resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="system_prompt"
-              rules={{ required: "System prompt é obrigatório" }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>System Prompt</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Defina o contexto e comportamento do sistema..."
-                      className="min-h-[120px] font-mono text-sm"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="user_prompt"
-              rules={{ required: "User prompt é obrigatório" }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>User Prompt</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Defina a instrução específica para o usuário..."
-                      className="min-h-[120px] font-mono text-sm"
+                      placeholder="Digite o prompt completo aqui. Use {transcription} para onde a transcrição será inserida..."
+                      className="min-h-[200px] font-mono text-sm"
                       {...field}
                     />
                   </FormControl>
@@ -224,7 +168,8 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
                     name="max_tokens"
                     rules={{ 
                       required: "Max tokens é obrigatório",
-                      min: { value: 100, message: "Mínimo 100 tokens" }
+                      min: { value: 1, message: "Mínimo 1 token" },
+                      max: { value: 8000, message: "Máximo 8000 tokens" }
                     }}
                     render={({ field }) => (
                       <FormItem>
@@ -232,7 +177,8 @@ export function PromptEditor({ open, onClose, prompt, onSave }: PromptEditorProp
                         <FormControl>
                           <Input 
                             type="number" 
-                            min={100}
+                            min={1}
+                            max={8000}
                             placeholder="1000"
                             {...field}
                             onChange={(e) => field.onChange(parseInt(e.target.value))}

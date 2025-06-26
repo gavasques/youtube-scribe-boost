@@ -14,28 +14,6 @@ interface PromptCardProps {
   onDelete: (prompt: Prompt) => void
 }
 
-const getTypeLabel = (type: string) => {
-  const labels = {
-    "SUMMARY_GENERATOR": "Gerador de Resumo",
-    "CHAPTER_GENERATOR": "Gerador de Capítulos",
-    "DESCRIPTION_GENERATOR": "Gerador de Descrição", 
-    "TAG_GENERATOR": "Gerador de Tags",
-    "CATEGORY_CLASSIFIER": "Classificador de Categoria",
-  }
-  return labels[type as keyof typeof labels] || type
-}
-
-const getTypeColor = (type: string) => {
-  const colors = {
-    "SUMMARY_GENERATOR": "bg-blue-100 text-blue-800",
-    "CHAPTER_GENERATOR": "bg-green-100 text-green-800",
-    "DESCRIPTION_GENERATOR": "bg-purple-100 text-purple-800",
-    "TAG_GENERATOR": "bg-orange-100 text-orange-800",
-    "CATEGORY_CLASSIFIER": "bg-pink-100 text-pink-800",
-  }
-  return colors[type as keyof typeof colors] || "bg-gray-100 text-gray-800"
-}
-
 export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDelete }: PromptCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -47,13 +25,9 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
               {prompt.name}
             </CardTitle>
             <div className="flex gap-2">
-              <Badge className={getTypeColor(prompt.type)}>
-                {getTypeLabel(prompt.type)}
-              </Badge>
               <Badge variant={prompt.is_active ? "default" : "secondary"}>
                 {prompt.is_active ? "Ativo" : "Inativo"}
               </Badge>
-              <Badge variant="outline">v{prompt.version}</Badge>
             </div>
           </div>
           <div className="flex gap-1">
@@ -122,6 +96,12 @@ export function PromptCard({ prompt, onEdit, onToggleActive, onDuplicate, onDele
         <p className="text-sm text-muted-foreground mb-4">
           {prompt.description}
         </p>
+        <div className="bg-muted/50 p-3 rounded-md mb-4">
+          <p className="text-xs text-muted-foreground mb-1">Preview do Prompt:</p>
+          <p className="text-sm font-mono line-clamp-3">
+            {prompt.prompt}
+          </p>
+        </div>
         <div className="text-xs text-muted-foreground">
           <div>Atualizado em: {new Date(prompt.updated_at).toLocaleDateString('pt-BR')}</div>
           <div className="mt-1">

@@ -72,8 +72,7 @@ export function usePrompts() {
         .from('prompts')
         .update({
           ...data,
-          updated_at: new Date().toISOString(),
-          version: String(parseFloat(prompts.find(p => p.id === id)?.version || '1.0') + 0.1)
+          updated_at: new Date().toISOString()
         })
         .eq('id', id)
         .select()
@@ -102,15 +101,6 @@ export function usePrompts() {
   // Ativar/desativar prompt
   const togglePromptActive = async (prompt: Prompt) => {
     try {
-      // Se estiver ativando, desativar outros do mesmo tipo
-      if (!prompt.is_active) {
-        await supabase
-          .from('prompts')
-          .update({ is_active: false })
-          .eq('type', prompt.type)
-          .neq('id', prompt.id)
-      }
-
       const { data: updatedPrompt, error } = await supabase
         .from('prompts')
         .update({ is_active: !prompt.is_active })
@@ -121,16 +111,12 @@ export function usePrompts() {
       if (error) throw error
 
       setPrompts(prev => prev.map(p => 
-        p.type === prompt.type && p.id !== prompt.id
-          ? { ...p, is_active: false }
-          : p.id === prompt.id 
-          ? updatedPrompt as Prompt
-          : p
+        p.id === prompt.id ? updatedPrompt as Prompt : p
       ))
 
       toast({
         title: prompt.is_active ? 'Prompt desativado' : 'Prompt ativado',
-        description: !prompt.is_active ? 'Outros prompts do mesmo tipo foram desativados.' : '',
+        description: 'Status do prompt alterado com sucesso.',
       })
       
       return { data: updatedPrompt, error: null }
@@ -153,14 +139,11 @@ export function usePrompts() {
         .insert([{
           name: `${prompt.name} (Cópia)`,
           description: prompt.description,
-          type: prompt.type,
-          system_prompt: prompt.system_prompt,
-          user_prompt: prompt.user_prompt,
+          prompt: prompt.prompt,
           temperature: prompt.temperature,
           max_tokens: prompt.max_tokens,
           top_p: prompt.top_p,
           is_active: false,
-          version: '1.0',
           user_id: (await supabase.auth.getUser()).data.user?.id
         }])
         .select()
