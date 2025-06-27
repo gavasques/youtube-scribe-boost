@@ -1,4 +1,3 @@
-
 export interface SyncOptions {
   type: 'full' | 'incremental'
   includeRegular: boolean
@@ -52,5 +51,7 @@ export interface BatchSyncState {
   isPaused: boolean
   totalStats: SyncStats
   allErrors: string[]
-  pageToken?: string
+  pagesProcessed?: number
+  emptyPages?: number
+  maxEmptyPages?: number
 }

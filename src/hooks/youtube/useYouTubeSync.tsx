@@ -63,10 +63,13 @@ export const useYouTubeSync = () => {
     let totalErrors = 0
     let allErrors: string[] = []
     let totalEstimated = 0
+    let consecutiveEmptyPages = 0
+    const maxEmptyPages = 5
+    let pageCount = 0
 
     try {
       do {
-        logger.info(`[BATCH-SYNC] Iniciando página com token: ${pageToken || 'primeira página'}`)
+        logger.info(`[BATCH-SYNC] Iniciando página ${pageCount + 1} com token: ${pageToken || 'primeira página'}`)
 
         if (batchSync.isPaused) {
           logger.info('[BATCH-SYNC] Sincronização pausada. Aguardando...')
@@ -89,7 +92,10 @@ export const useYouTubeSync = () => {
         const syncResult = await performSync(
           { ...options, syncAll: true, pageToken },
           (progressUpdate: SyncProgress) => {
-            setProgress(progressUpdate)
+            setProgress({
+              ...progressUpdate,
+              message: `${progressUpdate.message} (Página ${pageCount + 1}${consecutiveEmptyPages > 0 ? `, ${consecutiveEmptyPages} páginas sem vídeos novos` : ''})`
+            })
             totalEstimated = progressUpdate.totalVideosEstimated || 0
           }
         )
@@ -100,6 +106,17 @@ export const useYouTubeSync = () => {
         totalUpdated += syncResult.stats.updated
         totalErrors += syncResult.stats.errors
         allErrors = [...allErrors, ...(syncResult.errors || [])]
+        pageCount++
+
+        // Verificar se a página atual trouxe vídeos novos
+        const hasNewVideos = syncResult.stats.new > 0
+        if (hasNewVideos) {
+          consecutiveEmptyPages = 0
+          logger.info(`[BATCH-SYNC] Página ${pageCount} trouxe ${syncResult.stats.new} vídeos novos. Continuando...`)
+        } else {
+          consecutiveEmptyPages++
+          logger.info(`[BATCH-SYNC] Página ${pageCount} sem vídeos novos (${consecutiveEmptyPages}/${maxEmptyPages}). ${syncResult.stats.updated} atualizados.`)
+        }
 
         updateBatchStats(
           {
@@ -112,14 +129,51 @@ export const useYouTubeSync = () => {
           syncResult.errors
         )
 
-        logger.info(`[BATCH-SYNC] Página concluída. Processados: ${syncResult.stats.processed}, Novos: ${syncResult.stats.new}, Atualizados: ${syncResult.stats.updated}, Erros: ${syncResult.stats.errors}. Próxima página? ${!!pageToken}`)
+        logger.info(`[BATCH-SYNC] Página ${pageCount} concluída. Processados: ${syncResult.stats.processed}, Novos: ${syncResult.stats.new}, Atualizados: ${syncResult.stats.updated}, Erros: ${syncResult.stats.errors}`)
 
-      } while (pageToken && batchSync.isRunning)
+        // Condições para continuar:
+        // 1. Tem próxima página (pageToken existe)
+        // 2. Não excedeu o limite de páginas consecutivas sem vídeos novos
+        // 3. Sincronização ainda está rodando
+        const shouldContinue = pageToken && 
+                              consecutiveEmptyPages < maxEmptyPages && 
+                              batchSync.isRunning
 
-      logger.info('[BATCH-SYNC] Sincronização completa!')
+        if (!shouldContinue) {
+          if (!pageToken) {
+            logger.info('[BATCH-SYNC] Não há mais páginas para processar.')
+          } else if (consecutiveEmptyPages >= maxEmptyPages) {
+            logger.info(`[BATCH-SYNC] Parando após ${consecutiveEmptyPages} páginas consecutivas sem vídeos novos.`)
+          } else if (!batchSync.isRunning) {
+            logger.info('[BATCH-SYNC] Sincronização interrompida pelo usuário.')
+          }
+          break
+        }
+
+        // Pequeno delay entre páginas para evitar rate limiting
+        if (pageToken) {
+          logger.info('[BATCH-SYNC] Aguardando 2s antes da próxima página...')
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+
+      } while (pageToken && consecutiveEmptyPages < maxEmptyPages && batchSync.isRunning)
+
+      logger.info('[BATCH-SYNC] Sincronização completa!', {
+        totalPages: pageCount,
+        totalNew,
+        totalUpdated,
+        totalProcessed,
+        totalErrors,
+        consecutiveEmptyPages
+      })
+
+      const message = totalNew > 0 
+        ? `Sincronização completa! ${totalNew} vídeos novos, ${totalUpdated} atualizados em ${pageCount} páginas.`
+        : `Sincronização completa! ${totalUpdated} vídeos atualizados, nenhum vídeo novo encontrado em ${pageCount} páginas.`
+
       toast({
         title: "Sincronização Completa",
-        description: `Todos os vídeos sincronizados! Novos: ${totalNew}, Atualizados: ${totalUpdated}, Processados: ${totalProcessed}, Erros: ${totalErrors}`,
+        description: message,
       })
 
     } catch (error: any) {
@@ -134,7 +188,7 @@ export const useYouTubeSync = () => {
       stopBatchSync()
       logger.info('[BATCH-SYNC] Limpando estado e finalizando sincronização.')
     }
-  }, [performSync, toast, startBatchSync, batchSync.isPaused, stopBatchSync, updateBatchStats])
+  }, [performSync, toast, startBatchSync, batchSync.isPaused, batchSync.isRunning, stopBatchSync, updateBatchStats])
 
   useEffect(() => {
     if (!syncing) return

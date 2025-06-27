@@ -422,6 +422,8 @@ serve(async (req) => {
 
     const stats = { processed: 0, new: 0, updated: 0, errors: 0, totalEstimated: totalResults }
     const errors: string[] = []
+    const newVideoTitles: string[] = []
+    const updatedVideoTitles: string[] = []
 
     for (const video of videos) {
       try {
@@ -432,7 +434,7 @@ serve(async (req) => {
         if (videoType === 'REGULAR' && !options.includeRegular) continue
         if (videoType === 'SHORT' && !options.includeShorts) continue
 
-        log(`Processing video: ${video.snippet.title}`)
+        const videoTitle = video.snippet.title
 
         const { data: existingVideo } = await supabaseService
           .from('videos')
@@ -445,7 +447,7 @@ serve(async (req) => {
           user_id: user.id,
           youtube_id: video.id,
           youtube_url: `https://www.youtube.com/watch?v=${video.id}`,
-          title: video.snippet.title,
+          title: videoTitle,
           video_type: videoType,
           published_at: video.snippet.publishedAt,
           updated_at: new Date().toISOString()
@@ -476,6 +478,8 @@ serve(async (req) => {
               })
 
             stats.updated++
+            updatedVideoTitles.push(videoTitle)
+            log(`Updated existing video: ${videoTitle}`)
           }
         } else {
           const { data: newVideo, error: insertError } = await supabaseService
@@ -503,6 +507,8 @@ serve(async (req) => {
             })
 
           stats.new++
+          newVideoTitles.push(videoTitle)
+          log(`Added new video: ${videoTitle}`)
         }
 
         stats.processed++
@@ -529,13 +535,16 @@ serve(async (req) => {
       totalPages: estimatedTotalPages
     }
 
-    log('Sync completed', { 
+    log('Sync completed successfully', { 
       stats, 
       errorCount: errors.length,
       hasMorePages,
       nextPageToken: nextPageToken ? 'present' : 'none',
       currentPage,
-      totalPages: estimatedTotalPages
+      totalPages: estimatedTotalPages,
+      newVideos: newVideoTitles.length > 0 ? newVideoTitles.slice(0, 3) : 'none',
+      updatedVideos: updatedVideoTitles.length > 0 ? updatedVideoTitles.slice(0, 3) : 'none',
+      quotaUsed: 2 // Search + Details requests
     })
 
     return new Response(

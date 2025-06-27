@@ -11,7 +11,10 @@ export const useBatchSync = () => {
     canPause: false,
     isPaused: false,
     totalStats: { processed: 0, new: 0, updated: 0, errors: 0 },
-    allErrors: []
+    allErrors: [],
+    pagesProcessed: 0,
+    emptyPages: 0,
+    maxEmptyPages: 5 // Stop after 5 consecutive pages with no new videos
   })
 
   const pauseBatchSync = () => {
@@ -28,22 +31,43 @@ export const useBatchSync = () => {
       canPause: false,
       isPaused: false,
       totalStats: { processed: 0, new: 0, updated: 0, errors: 0 },
-      allErrors: []
+      allErrors: [],
+      pagesProcessed: 0,
+      emptyPages: 0,
+      maxEmptyPages: 5
     })
   }
 
   const updateBatchStats = (newStats: SyncStats, errors: string[] = []) => {
-    setBatchSync(prev => ({
-      ...prev,
-      totalStats: {
-        processed: prev.totalStats.processed + newStats.processed,
-        new: prev.totalStats.new + newStats.new,
-        updated: prev.totalStats.updated + newStats.updated,
-        errors: prev.totalStats.errors + newStats.errors,
-        totalEstimated: newStats.totalEstimated
-      },
-      allErrors: [...prev.allErrors, ...errors]
-    }))
+    setBatchSync(prev => {
+      const isEmptyPage = newStats.new === 0
+      const newEmptyPages = isEmptyPage ? prev.emptyPages + 1 : 0
+      
+      logger.info('[BATCH-SYNC] Updating stats:', {
+        newVideos: newStats.new,
+        isEmptyPage,
+        emptyPagesCount: newEmptyPages,
+        maxEmptyPages: prev.maxEmptyPages
+      })
+
+      return {
+        ...prev,
+        totalStats: {
+          processed: prev.totalStats.processed + newStats.processed,
+          new: prev.totalStats.new + newStats.new,
+          updated: prev.totalStats.updated + newStats.updated,
+          errors: prev.totalStats.errors + newStats.errors,
+          totalEstimated: newStats.totalEstimated
+        },
+        allErrors: [...prev.allErrors, ...errors],
+        pagesProcessed: prev.pagesProcessed + 1,
+        emptyPages: newEmptyPages
+      }
+    })
+  }
+
+  const shouldContinueSync = () => {
+    return batchSync.emptyPages < batchSync.maxEmptyPages && batchSync.isRunning
   }
 
   const startBatchSync = (options: Omit<SyncOptions, 'syncAll' | 'pageToken'>) => {
@@ -52,7 +76,10 @@ export const useBatchSync = () => {
       canPause: true,
       isPaused: false,
       totalStats: { processed: 0, new: 0, updated: 0, errors: 0 },
-      allErrors: []
+      allErrors: [],
+      pagesProcessed: 0,
+      emptyPages: 0,
+      maxEmptyPages: 5
     })
   }
 
@@ -62,6 +89,7 @@ export const useBatchSync = () => {
     resumeBatchSync,
     stopBatchSync,
     updateBatchStats,
-    startBatchSync
+    startBatchSync,
+    shouldContinueSync
   }
 }
