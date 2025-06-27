@@ -38,7 +38,7 @@ export function YouTubeQuotaStatus({ className = "" }: QuotaStatusProps) {
       const { data, error } = await supabase.rpc('get_quota_usage', {
         p_user_id: user.id,
         p_date: today
-      })
+      }) as { data: QuotaUsage[] | null, error: any }
 
       if (error) {
         console.error('Error fetching quota usage:', error)

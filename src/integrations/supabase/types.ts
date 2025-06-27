@@ -690,6 +690,14 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: string
       }
+      get_quota_usage: {
+        Args: { p_user_id: string; p_date: string }
+        Returns: {
+          requests_used: number
+          date: string
+          updated_at: string
+        }[]
+      }
       process_scheduled_tasks: {
         Args: Record<PropertyKey, never>
         Returns: undefined
