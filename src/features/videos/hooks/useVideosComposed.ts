@@ -40,8 +40,9 @@ export function useVideosComposed() {
 
     return {
       ...video,
-      // Ensure category_id is included (required by VideoWithRelations)
+      // Ensure required properties are included
       category_id: video.category_id || null,
+      published_at: video.published_at || null,
       
       // Add metadata fields directly to video for backward compatibility
       views_count: videoMetadata?.views_count || 0,
