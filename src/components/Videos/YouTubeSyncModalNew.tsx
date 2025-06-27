@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -38,7 +37,8 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           includeShorts,
           syncMetadata,
           deepScan: true,
-          maxEmptyPages: 15
+          maxEmptyPages: 15,
+          maxVideos: 100 // Adding required maxVideos property
         })
       } else {
         // Sincronização Incremental - apenas vídeos novos
@@ -46,7 +46,8 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           type: 'incremental',
           includeRegular,
           includeShorts,
-          syncMetadata
+          syncMetadata,
+          maxVideos: 50 // Adding required maxVideos property
         })
       }
       
@@ -182,25 +183,6 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             <div className="grid gap-3">
               <Card 
                 className={`cursor-pointer border-2 transition-colors ${
-                  syncType === 'incremental' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => setSyncType('incremental')}
-              >
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <RefreshCw className="w-4 h-4 text-blue-500" />
-                    Sincronização Incremental
-                    <Badge variant="secondary">Apenas Novos</Badge>
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Sincroniza apenas os vídeos novos desde a última sincronização. 
-                    Rápido e ideal para uso regular.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-
-              <Card 
-                className={`cursor-pointer border-2 transition-colors ${
                   syncType === 'complete' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
                 }`}
                 onClick={() => setSyncType('complete')}
@@ -214,6 +196,25 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
                   <CardDescription className="text-xs">
                     Sincroniza TODOS os vídeos do canal (~73 vídeos). 
                     Ideal para primeira sincronização ou carga completa.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card 
+                className={`cursor-pointer border-2 transition-colors ${
+                  syncType === 'incremental' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setSyncType('incremental')}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <RefreshCw className="w-4 h-4 text-blue-500" />
+                    Sincronização Incremental
+                    <Badge variant="secondary">Apenas Novos</Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Sincroniza apenas os vídeos novos desde a última sincronização. 
+                    Rápido e ideal para uso regular.
                   </CardDescription>
                 </CardHeader>
               </Card>
