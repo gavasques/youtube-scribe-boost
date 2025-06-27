@@ -13,7 +13,7 @@ import { useVideos } from "@/hooks/useVideos"
 import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
 import { useVideoFilters } from "@/hooks/useVideoFilters"
 import { useVideoActions } from "@/hooks/useVideoActions"
-import { useYouTubeSync } from "@/hooks/youtube/useYouTubeSync"
+import { useYouTubeSyncFixed } from "@/hooks/youtube/useYouTubeSyncFixed"
 import { MassUpdateButton } from "@/components/Videos/MassUpdateButton"
 
 export default function Videos() {
@@ -28,7 +28,8 @@ export default function Videos() {
     handleIgnoreVideo,
     handleUnignoreVideo
   } = useVideoActions()
-  const { syncing, progress, batchSync, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSync()
+  
+  const { syncing, progress, batchSync, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSyncFixed()
   
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -150,6 +151,7 @@ export default function Videos() {
         onVideoUpdate={handleVideoUpdate}
       />
 
+      {/* CORREÇÃO: Usar o modal corrigido */}
       <YouTubeSyncModalFixed
         open={showSyncModal}
         onClose={() => setShowSyncModal(false)}

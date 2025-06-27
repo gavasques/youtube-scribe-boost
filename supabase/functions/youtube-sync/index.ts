@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -63,7 +64,7 @@ function logError(message: string, error?: any) {
 
 async function checkQuotaUsage(supabaseService: any, userId: string, requestsNeeded: number = 100): Promise<boolean> {
   const today = new Date().toISOString().split('T')[0]
-  const dailyLimit = 10000 // YouTube API daily quota limit
+  const dailyLimit = 10000
   
   try {
     const { data: currentUsage } = await supabaseService
@@ -76,13 +77,7 @@ async function checkQuotaUsage(supabaseService: any, userId: string, requestsNee
     const used = currentUsage?.requests_used || 0
     const wouldExceed = (used + requestsNeeded) > dailyLimit
 
-    log('Quota check', {
-      currentUsage: used,
-      dailyLimit,
-      requestsNeeded,
-      wouldExceed
-    })
-
+    log('Quota check', { currentUsage: used, dailyLimit, requestsNeeded, wouldExceed })
     return !wouldExceed
   } catch (error) {
     logError('Quota check error', error)
@@ -122,13 +117,55 @@ async function updateQuotaUsage(supabaseService: any, userId: string, requestsUs
         })
     }
 
-    log('Quota usage updated', {
-      userId,
-      requestsUsed,
-      date: today
-    })
+    log('Quota usage updated', { userId, requestsUsed, date: today })
   } catch (error) {
     logError('Quota update error', error)
+  }
+}
+
+async function validateYouTubeConnection(supabaseService: any, userId: string): Promise<{ valid: boolean, tokens?: any, error?: string }> {
+  try {
+    log('Validating YouTube connection for user:', userId)
+    
+    const { data: tokenData, error: tokenError } = await supabaseService
+      .from('youtube_tokens')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (tokenError) {
+      logError('Error fetching YouTube tokens', tokenError)
+      return { valid: false, error: 'Erro ao buscar tokens do YouTube' }
+    }
+
+    if (!tokenData) {
+      log('No YouTube tokens found for user')
+      return { valid: false, error: 'YouTube não conectado. Conecte sua conta primeiro.' }
+    }
+
+    log('YouTube tokens found', { 
+      channelId: tokenData.channel_id,
+      hasAccessToken: !!tokenData.access_token,
+      hasRefreshToken: !!tokenData.refresh_token,
+      expiresAt: tokenData.expires_at
+    })
+
+    // Verificar se o token está válido ou precisa ser renovado
+    const expiresAt = new Date(tokenData.expires_at)
+    const now = new Date()
+    const needsRefresh = expiresAt <= now
+
+    log('Token validation', {
+      expiresAt: expiresAt.toISOString(),
+      now: now.toISOString(),
+      needsRefresh
+    })
+
+    return { valid: true, tokens: tokenData }
+
+  } catch (error) {
+    logError('Critical error validating YouTube connection', error)
+    return { valid: false, error: 'Erro crítico na validação da conexão YouTube' }
   }
 }
 
@@ -302,6 +339,21 @@ serve(async (req) => {
 
     log('User authenticated', { userId: user.id })
 
+    // VALIDAÇÃO ROBUSTA DE CONEXÃO YOUTUBE
+    const connectionValidation = await validateYouTubeConnection(supabaseService, user.id)
+    if (!connectionValidation.valid) {
+      log('YouTube connection validation failed', connectionValidation.error)
+      return new Response(
+        JSON.stringify({ 
+          error: connectionValidation.error || 'YouTube não conectado',
+          requiresConnection: true
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const tokenData = connectionValidation.tokens!
+
     // Check quota before proceeding
     const canProceed = await checkQuotaUsage(supabaseService, user.id, 100)
     if (!canProceed) {
@@ -313,20 +365,6 @@ serve(async (req) => {
           quotaExceeded: true
         }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const { data: tokenData, error: tokenError } = await supabaseService
-      .from('youtube_tokens')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (tokenError || !tokenData) {
-      logError('YouTube tokens not found', tokenError)
-      return new Response(
-        JSON.stringify({ error: 'YouTube not connected' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -342,7 +380,10 @@ serve(async (req) => {
       
       if (!newToken) {
         return new Response(
-          JSON.stringify({ error: 'Token refresh failed' }),
+          JSON.stringify({ 
+            error: 'Token refresh failed. Reconecte sua conta do YouTube.',
+            requiresConnection: true
+          }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }

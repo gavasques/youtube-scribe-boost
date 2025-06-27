@@ -7,6 +7,7 @@ export interface SyncState {
   isInitializing: boolean
   error: string | null
   lastSync: Date | null
+  hasYouTubeConnection: boolean
 }
 
 export const useYouTubeSyncState = () => {
@@ -14,16 +15,18 @@ export const useYouTubeSyncState = () => {
     isReady: false,
     isInitializing: true,
     error: null,
-    lastSync: null
+    lastSync: null,
+    hasYouTubeConnection: false
   })
 
-  const markReady = useCallback(() => {
-    logger.info('[SYNC-STATE] Marking sync system as ready')
+  const markReady = useCallback((hasConnection: boolean = false) => {
+    logger.info('[SYNC-STATE] Marking sync system as ready', { hasConnection })
     setState(prev => ({
       ...prev,
       isReady: true,
       isInitializing: false,
-      error: null
+      error: null,
+      hasYouTubeConnection: hasConnection
     }))
   }, [])
 
@@ -33,7 +36,8 @@ export const useYouTubeSyncState = () => {
       ...prev,
       isReady: false,
       isInitializing: false,
-      error
+      error,
+      hasYouTubeConnection: false
     }))
   }, [])
 
@@ -44,12 +48,21 @@ export const useYouTubeSyncState = () => {
     }))
   }, [])
 
+  const updateConnectionStatus = useCallback((hasConnection: boolean) => {
+    setState(prev => ({
+      ...prev,
+      hasYouTubeConnection: hasConnection,
+      isReady: hasConnection
+    }))
+  }, [])
+
   const resetState = useCallback(() => {
     setState({
       isReady: false,
       isInitializing: true,
       error: null,
-      lastSync: null
+      lastSync: null,
+      hasYouTubeConnection: false
     })
   }, [])
 
@@ -58,6 +71,7 @@ export const useYouTubeSyncState = () => {
     markReady,
     markError,
     markSyncComplete,
+    updateConnectionStatus,
     resetState
   }
 }
