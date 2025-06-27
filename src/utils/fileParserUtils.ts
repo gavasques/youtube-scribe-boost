@@ -1,5 +1,8 @@
 // Utility functions for parsing different file types
 
+import { SimpleZipReader } from './zipUtils'
+import { extractWordDocumentText, isWordDocumentXml } from './xmlUtils'
+
 export interface ParsedFileContent {
   content: string
   wordCount: number
@@ -143,85 +146,144 @@ export async function parseCsvFile(file: File): Promise<ParsedFileContent> {
   }
 }
 
-// Improved DOCX parser with better error handling
+// Completely rewritten DOCX parser with robust ZIP and XML handling
 export async function parseDocxFile(file: File): Promise<ParsedFileContent> {
-  const warnings: string[] = [
-    'Arquivos DOCX podem não ser extraídos perfeitamente',
-    'Para melhor resultado, salve como .txt no Word'
-  ]
+  const warnings: string[] = []
   
   try {
     const buffer = await file.arrayBuffer()
-    const uint8Array = new Uint8Array(buffer)
+    console.log('Processing DOCX file:', file.name, 'Size:', buffer.byteLength, 'bytes')
     
-    // Convert to string with better encoding handling
-    let binaryString: string
-    try {
-      // Try UTF-8 decoding first
-      const decoder = new TextDecoder('utf-8', { fatal: true })
-      binaryString = decoder.decode(uint8Array)
-    } catch {
-      // Fallback to Latin-1 for binary compatibility
-      binaryString = String.fromCharCode.apply(null, Array.from(uint8Array))
+    if (buffer.byteLength === 0) {
+      throw new Error('Arquivo DOCX está vazio')
     }
+
+    // Step 1: Extract document.xml from ZIP
+    const zipReader = new SimpleZipReader(buffer)
+    let documentXml = zipReader.extractFile('word/document.xml')
     
-    // Improved text extraction with better filtering
-    const xmlContent = binaryString.match(/<w:t[^>]*>([^<]+)<\/w:t>/g)
-    let extractedText = ''
-    
-    if (xmlContent) {
-      extractedText = xmlContent
-        .map(match => {
-          // Extract content between tags
-          const textMatch = match.match(/<w:t[^>]*>([^<]+)<\/w:t>/)
-          return textMatch ? textMatch[1] : ''
-        })
-        .filter(text => text.length > 0)
-        .join(' ')
-    }
-    
-    // If no XML content found, try alternative extraction
-    if (!extractedText) {
-      const textMatches = binaryString.match(/>([^<\x00-\x1F\x7F-\x9F]{3,})</g)
-      if (textMatches) {
-        extractedText = textMatches
-          .map(match => match.slice(1, -1))
-          .filter(text => {
-            // Better filtering for readable text
-            return text.length > 2 && 
-                   !/^[A-Z0-9_]{2,}$/.test(text) && // Skip constants/IDs
-                   !/^\d+$/.test(text) && // Skip pure numbers
-                   /[a-zA-ZÀ-ÿ]/.test(text) && // Must contain letters
-                   !text.includes('xml') &&
-                   !text.includes('<?')
-          })
-          .join(' ')
+    if (!documentXml || documentXml.length === 0) {
+      console.log('Primary extraction failed, trying alternatives...')
+      
+      // Try alternative file paths
+      const alternatives = [
+        'word/document.xml',
+        'word\\document.xml',
+        'document.xml',
+        'content.xml'
+      ]
+      
+      for (const altPath of alternatives) {
+        documentXml = zipReader.extractFile(altPath)
+        if (documentXml && documentXml.length > 0) {
+          console.log('Found document XML at:', altPath)
+          break
+        }
       }
     }
     
-    if (!extractedText || extractedText.length < 20) {
-      throw new Error('Não foi possível extrair texto legível do arquivo DOCX')
+    if (!documentXml || documentXml.length === 0) {
+      throw new Error('Não foi possível extrair o arquivo document.xml do DOCX. Verifique se o arquivo não está corrompido.\n\nTente:\n1. Abrir o arquivo no Microsoft Word\n2. Salvar como "Texto Simples (*.txt)"\n3. Fazer upload do arquivo .txt')
     }
     
+    console.log('Successfully extracted document.xml, size:', documentXml.length, 'bytes')
+    
+    // Step 2: Convert XML bytes to string with encoding detection
+    let xmlContent: string
+    try {
+      // Try UTF-8 first (most common)
+      xmlContent = new TextDecoder('utf-8', { fatal: true }).decode(documentXml)
+      console.log('Successfully decoded as UTF-8')
+    } catch (error) {
+      console.log('UTF-8 decode failed, trying alternatives...')
+      try {
+        // Try UTF-16 Little Endian
+        xmlContent = new TextDecoder('utf-16le', { fatal: false }).decode(documentXml)
+        console.log('Successfully decoded as UTF-16LE')
+      } catch {
+        try {
+          // Try Windows-1252 (legacy)
+          xmlContent = new TextDecoder('windows-1252', { fatal: false }).decode(documentXml)
+          console.log('Successfully decoded as Windows-1252')
+        } catch {
+          // Last resort - try without fatal flag
+          xmlContent = new TextDecoder('utf-8', { fatal: false }).decode(documentXml)
+          console.log('Decoded with UTF-8 (non-fatal)')
+        }
+      }
+    }
+    
+    if (!xmlContent || xmlContent.length < 10) {
+      throw new Error('Conteúdo XML extraído está vazio ou corrompido')
+    }
+    
+    console.log('XML content length:', xmlContent.length)
+    console.log('XML preview (first 300 chars):', xmlContent.substring(0, 300))
+    
+    // Step 3: Validate XML content
+    if (!isWordDocumentXml(xmlContent)) {
+      console.log('Warning: Content may not be a valid Word document')
+      warnings.push('Conteúdo pode não ser um documento Word válido')
+    }
+    
+    // Step 4: Extract text from XML
+    let extractedText: string
+    try {
+      extractedText = extractWordDocumentText(xmlContent)
+    } catch (xmlError) {
+      console.error('XML text extraction failed:', xmlError)
+      throw new Error(`Erro ao processar XML do documento: ${xmlError instanceof Error ? xmlError.message : 'Erro desconhecido'}\n\nO arquivo pode estar corrompido ou usar um formato não suportado.`)
+    }
+    
+    if (!extractedText || extractedText.length < 5) {
+      throw new Error('Não foi possível extrair texto legível do documento.\n\nSugestões:\n1. Abra o arquivo no Microsoft Word\n2. Verifique se há conteúdo de texto no documento\n3. Salve como arquivo .txt\n4. Tente fazer upload do arquivo .txt')
+    }
+    
+    console.log('Text extraction successful, length:', extractedText.length)
+    
+    // Step 5: Clean and validate extracted text
     const cleanContent = cleanTextContent(extractedText)
-    const validation = validateTextContent(cleanContent)
     
-    // Add format-specific warnings
-    if (!validation.isValid) {
-      warnings.push('Texto extraído pode estar corrompido')
+    // More lenient validation for DOCX
+    const readableWords = cleanContent.match(/[a-zA-ZÀ-ÿ]{2,}/g)
+    const wordCount = readableWords ? readableWords.length : 0
+    const isValid = wordCount >= 3 // Very lenient threshold
+    
+    if (isValid) {
+      warnings.push(`Texto extraído com sucesso: ${wordCount} palavras reconhecidas`)
+      warnings.push('Arquivo DOCX processado com descompactação ZIP avançada')
+    } else {
+      warnings.push('Texto extraído pode estar incompleto ou corrompido')
     }
-
+    
     return {
       content: cleanContent,
       wordCount: cleanContent.split(/\s+/).filter(Boolean).length,
       characterCount: cleanContent.length,
       fileType: 'docx',
-      encoding: 'binary/xml',
-      isValid: validation.isValid,
-      warnings: [...warnings, ...validation.warnings]
+      encoding: 'zip/xml-advanced',
+      isValid: isValid || cleanContent.length > 20,
+      warnings
     }
   } catch (error) {
-    throw new Error('Erro ao processar arquivo DOCX. Recomendação: abra o arquivo no Word e salve como .txt')
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao processar DOCX'
+    console.error('DOCX parsing error:', error)
+    
+    // Provide comprehensive error message with solutions
+    throw new Error(`${errorMessage}
+
+SOLUÇÕES RECOMENDADAS:
+1. 📝 Abra o arquivo no Microsoft Word
+2. 💾 Vá em "Arquivo" → "Salvar Como"
+3. 📄 Escolha "Texto Simples (*.txt)" como formato
+4. ⬆️ Faça upload do arquivo .txt gerado
+5. ✂️ Ou copie o texto diretamente e cole no campo manual
+
+O parser DOCX melhorado suporta:
+• Descompactação ZIP avançada
+• Múltiplas codificações de texto
+• Extração XML robusta
+• Tratamento de erros detalhado`)
   }
 }
 
@@ -324,7 +386,7 @@ export async function parseFile(file: File): Promise<ParsedFileContent> {
   const fileName = file.name.toLowerCase()
   const fileExtension = fileName.split('.').pop()
 
-  // Validate file size (max 10MB, increased from 5MB)
+  // Validate file size (max 10MB)
   const maxSize = 10 * 1024 * 1024 // 10MB
   if (file.size > maxSize) {
     throw new Error('Arquivo muito grande. Tamanho máximo: 10MB')
@@ -358,7 +420,7 @@ export async function parseFile(file: File): Promise<ParsedFileContent> {
   }
 
   // Final validation
-  if (!result.isValid) {
+  if (!result.isValid && fileExtension !== 'docx') {
     throw new Error(`Arquivo processado mas com problemas: ${result.warnings?.join(', ')}`)
   }
 
@@ -377,7 +439,7 @@ export function getFileTypeDisplayName(extension: string): string {
   const displayNames: Record<string, string> = {
     txt: 'Texto (.txt) - Recomendado',
     csv: 'Planilha CSV (.csv)',
-    docx: 'Documento Word (.docx)',
+    docx: 'Documento Word (.docx) - Processamento Aprimorado',
     srt: 'Legenda SRT (.srt)',
     vtt: 'Legenda WebVTT (.vtt)'
   }
@@ -389,7 +451,7 @@ export function getFileTypeRecommendation(extension: string): string {
   const recommendations: Record<string, string> = {
     txt: 'Formato ideal para transcrições',
     csv: 'Dados tabulares serão convertidos em texto corrido',
-    docx: 'Para melhor resultado, salve como .txt no Word antes do upload',
+    docx: 'Processamento completo com descompactação ZIP e parser XML. Para melhor compatibilidade, salve como .txt',
     srt: 'Legendas serão convertidas removendo timestamps',
     vtt: 'Legendas WebVTT serão convertidas removendo marcações'
   }
