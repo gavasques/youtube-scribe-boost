@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useYouTubeSync } from '@/hooks/useYouTubeSync'
+import { useYouTubeSync } from '@/hooks/youtube/useYouTubeSync'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
 import { Youtube, Zap, Database, AlertCircle, Infinity } from 'lucide-react'
 
