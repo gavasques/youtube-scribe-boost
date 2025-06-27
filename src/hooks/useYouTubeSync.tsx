@@ -1,9 +1,7 @@
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
-import { useRateLimiter } from '@/hooks/useRateLimiter'
-import { useDebounce } from '@/hooks/useDebounce'
 import { logger } from '@/core/Logger'
 
 interface SyncOptions {
@@ -62,9 +60,53 @@ interface BatchSyncState {
   pageToken?: string
 }
 
+// Rate Limiter simples e confiável
+class SimpleRateLimiter {
+  private requests: number[] = []
+  private maxRequests: number
+  private windowMs: number
+
+  constructor(maxRequests: number, windowMs: number) {
+    this.maxRequests = maxRequests
+    this.windowMs = windowMs
+  }
+
+  canMakeRequest(): boolean {
+    const now = Date.now()
+    // Remove requests antigas
+    this.requests = this.requests.filter(time => now - time < this.windowMs)
+    
+    if (this.requests.length >= this.maxRequests) {
+      return false
+    }
+    
+    this.requests.push(now)
+    return true
+  }
+
+  getRemainingTime(): number {
+    if (this.requests.length < this.maxRequests) return 0
+    
+    const oldestRequest = Math.min(...this.requests)
+    return this.windowMs - (Date.now() - oldestRequest)
+  }
+
+  getRemainingRequests(): number {
+    const now = Date.now()
+    this.requests = this.requests.filter(time => now - time < this.windowMs)
+    return Math.max(0, this.maxRequests - this.requests.length)
+  }
+}
+
+// Instância global do rate limiter - MUITO CONSERVADOR
+const rateLimiter = new SimpleRateLimiter(1, 300000) // 1 request a cada 5 minutos
+
 // Cache para evitar requisições duplicadas
 const syncCache = new Map<string, { result: any; timestamp: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
+
+// Função de sleep
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export function useYouTubeSync() {
   const { toast } = useToast()
@@ -81,176 +123,196 @@ export function useYouTubeSync() {
     allErrors: []
   })
   
-  // Rate limiting MUITO mais conservador
-  const youtubeRateLimiter = useRateLimiter({
-    maxRequests: 1,        // ✅ APENAS 1 request
-    windowMs: 300000,      // ✅ A cada 5 minutos
-    key: 'youtube_sync'
-  })
-  
   // Controle de requisições ativas
   const activeRequestRef = useRef<AbortController | null>(null)
   const lastRequestTimeRef = useRef<number>(0)
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>()
+  const isProcessingRef = useRef(false)
   
   // Função principal de sync com todas as melhorias
   const syncWithYouTube = useCallback(async (options: SyncOptions): Promise<SyncResult> => {
-    // 1. Verificar rate limiting ANTES de qualquer coisa
-    if (youtubeRateLimiter.checkRateLimit()) {
-      const remainingTime = youtubeRateLimiter.getRemainingTime()
-      const waitMinutes = Math.ceil(remainingTime / 60000)
+    // 1. Verificar se já está processando
+    if (isProcessingRef.current) {
+      throw new Error('Sincronização já em andamento. Aguarde a conclusão.')
+    }
+    
+    isProcessingRef.current = true
+    
+    try {
+      // 2. Verificar rate limiting ANTES de qualquer coisa
+      if (!rateLimiter.canMakeRequest()) {
+        const remainingTime = rateLimiter.getRemainingTime()
+        const waitMinutes = Math.ceil(remainingTime / 60000)
+        
+        throw new Error(`Rate limit atingido. Aguarde ${waitMinutes} minutos antes de tentar novamente.`)
+      }
       
-      throw new Error(`Rate limit atingido. Aguarde ${waitMinutes} minutos antes de tentar novamente.`)
-    }
-    
-    // 2. Verificar se há requisição ativa
-    if (activeRequestRef.current) {
-      activeRequestRef.current.abort()
-    }
-    
-    // 3. Criar novo AbortController
-    activeRequestRef.current = new AbortController()
-    
-    // 4. Verificar cache
-    const cacheKey = JSON.stringify(options)
-    const cached = syncCache.get(cacheKey)
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      logger.info('Usando resultado do cache para sync', { cacheKey })
-      return cached.result
-    }
-    
-    // 5. Garantir intervalo mínimo entre requests
-    const now = Date.now()
-    const timeSinceLastRequest = now - lastRequestTimeRef.current
-    const minInterval = 60000 // 1 minuto mínimo
-    
-    if (timeSinceLastRequest < minInterval) {
-      const waitTime = minInterval - timeSinceLastRequest
-      logger.info(`Aguardando ${waitTime}ms antes da próxima requisição`)
-      await new Promise(resolve => setTimeout(resolve, waitTime))
-    }
-    
-    lastRequestTimeRef.current = Date.now()
-    
-    // 6. Executar sync com retry robusto
-    let lastError: Error | null = null
-    
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        logger.info(`[YT-SYNC] Tentativa ${attempt}/3`, { options })
-        
-        setProgress({
-          step: 'connecting',
-          current: 0,
-          total: 3,
-          message: `Conectando ao YouTube (tentativa ${attempt}/3)...`
-        })
-        
-        // Verificar autenticação
-        const { data: authData } = await supabase.auth.getSession()
-        if (!authData.session) {
-          throw new Error('Usuário não autenticado')
-        }
-        
-        setProgress({
-          step: 'syncing',
-          current: 1,
-          total: 3,
-          message: 'Sincronizando vídeos...'
-        })
-        
-        // Chamar Edge Function com timeout
-        const response = await Promise.race([
-          supabase.functions.invoke('youtube-sync', {
-            body: { options },
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authData.session.access_token}`
-            }
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout na requisição')), 120000) // 2 minutos timeout
-          )
-        ]) as any
-        
-        if (response.error) {
-          throw new Error(response.error.message || 'Erro na sincronização')
-        }
-        
-        const result = response.data as SyncResult
-        
-        // Incrementar rate limiter
-        youtubeRateLimiter.incrementCount()
-        
-        // Salvar no cache
-        syncCache.set(cacheKey, {
-          result,
-          timestamp: Date.now()
-        })
-        
-        // Limpar cache antigo
-        for (const [key, value] of syncCache.entries()) {
-          if (Date.now() - value.timestamp > CACHE_TTL) {
-            syncCache.delete(key)
-          }
-        }
-        
-        logger.info('[YT-SYNC] Sincronização concluída com sucesso', { result })
-        return result
-        
-      } catch (error: any) {
-        lastError = error
-        logger.error(`[YT-SYNC] Tentativa ${attempt} falhou`, { error: error.message })
-        
-        // Se é erro 429, aguardar muito mais tempo
-        if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
-          if (attempt < 3) {
-            // Delays progressivos para erro 429: 2min, 5min, 10min
-            const delays = [120000, 300000, 600000] // 2min, 5min, 10min
-            const delay = delays[attempt - 1]
-            
-            logger.info(`[YT-SYNC] Erro 429 detectado. Aguardando ${delay / 1000}s antes da próxima tentativa...`)
-            
-            setProgress({
-              step: 'waiting',
-              current: attempt,
-              total: 3,
-              message: `Rate limit atingido. Aguardando ${Math.ceil(delay / 60000)} minutos...`
-            })
-            
-            await new Promise(resolve => setTimeout(resolve, delay))
-            continue
-          }
-        }
-        
-        // Para outros erros, aguardar menos tempo
-        if (attempt < 3) {
-          const normalDelay = 30000 * attempt // 30s, 60s
-          logger.info(`[YT-SYNC] Aguardando ${normalDelay / 1000}s antes da próxima tentativa...`)
+      // 3. Verificar se há requisição ativa
+      if (activeRequestRef.current) {
+        activeRequestRef.current.abort()
+      }
+      
+      // 4. Criar novo AbortController
+      activeRequestRef.current = new AbortController()
+      
+      // 5. Verificar cache
+      const cacheKey = JSON.stringify(options)
+      const cached = syncCache.get(cacheKey)
+      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+        logger.info('Usando resultado do cache para sync', { cacheKey })
+        return cached.result
+      }
+      
+      // 6. Garantir intervalo mínimo entre requests
+      const now = Date.now()
+      const timeSinceLastRequest = now - lastRequestTimeRef.current
+      const minInterval = 60000 // 1 minuto mínimo
+      
+      if (timeSinceLastRequest < minInterval) {
+        const waitTime = minInterval - timeSinceLastRequest
+        logger.info(`Aguardando ${waitTime}ms antes da próxima requisição`)
+        await sleep(waitTime)
+      }
+      
+      lastRequestTimeRef.current = Date.now()
+      
+      // 7. Executar sync com retry robusto
+      let lastError: Error | null = null
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          logger.info(`[YT-SYNC] Tentativa ${attempt}/3`, { options })
           
           setProgress({
-            step: 'retrying',
-            current: attempt,
+            step: 'connecting',
+            current: 0,
             total: 3,
-            message: `Erro encontrado. Tentando novamente em ${normalDelay / 1000}s...`
+            message: `Conectando ao YouTube (tentativa ${attempt}/3)...`
           })
           
-          await new Promise(resolve => setTimeout(resolve, normalDelay))
+          // Verificar autenticação
+          const { data: authData } = await supabase.auth.getSession()
+          if (!authData.session) {
+            throw new Error('Usuário não autenticado')
+          }
+          
+          setProgress({
+            step: 'syncing',
+            current: 1,
+            total: 3,
+            message: 'Sincronizando vídeos...'
+          })
+          
+          // Chamar Edge Function com timeout
+          const response = await Promise.race([
+            supabase.functions.invoke('youtube-sync', {
+              body: { options },
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authData.session.access_token}`
+              }
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout na requisição')), 120000) // 2 minutos timeout
+            )
+          ]) as any
+          
+          if (response.error) {
+            throw new Error(response.error.message || 'Erro na sincronização')
+          }
+          
+          const result = response.data as SyncResult
+          
+          // Salvar no cache
+          syncCache.set(cacheKey, {
+            result,
+            timestamp: Date.now()
+          })
+          
+          // Limpar cache antigo
+          for (const [key, value] of syncCache.entries()) {
+            if (Date.now() - value.timestamp > CACHE_TTL) {
+              syncCache.delete(key)
+            }
+          }
+          
+          logger.info('[YT-SYNC] Sincronização concluída com sucesso', { result })
+          return result
+          
+        } catch (error: any) {
+          lastError = error
+          logger.error(`[YT-SYNC] Tentativa ${attempt} falhou`, { error: error.message })
+          
+          // Se é erro 429, aguardar muito mais tempo
+          if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
+            if (attempt < 3) {
+              // Delays progressivos para erro 429: 3min, 7min, 15min
+              const delays = [180000, 420000, 900000] // 3min, 7min, 15min
+              const delay = delays[attempt - 1]
+              
+              logger.info(`[YT-SYNC] Erro 429 detectado. Aguardando ${delay / 1000}s antes da próxima tentativa...`)
+              
+              setProgress({
+                step: 'waiting',
+                current: attempt,
+                total: 3,
+                message: `Rate limit atingido. Aguardando ${Math.ceil(delay / 60000)} minutos...`
+              })
+              
+              await sleep(delay)
+              continue
+            }
+          }
+          
+          // Para outros erros, aguardar menos tempo
+          if (attempt < 3) {
+            const normalDelay = 30000 * attempt // 30s, 60s
+            logger.info(`[YT-SYNC] Aguardando ${normalDelay / 1000}s antes da próxima tentativa...`)
+            
+            setProgress({
+              step: 'retrying',
+              current: attempt,
+              total: 3,
+              message: `Erro encontrado. Tentando novamente em ${normalDelay / 1000}s...`
+            })
+            
+            await sleep(normalDelay)
+          }
         }
       }
+      
+      // Se chegou aqui, todas as tentativas falharam
+      throw lastError || new Error('Falha após 3 tentativas')
+      
+    } finally {
+      isProcessingRef.current = false
     }
-    
-    // Se chegou aqui, todas as tentativas falharam
-    throw lastError || new Error('Falha após 3 tentativas')
-    
-  }, [youtubeRateLimiter])
+  }, [])
   
-  // Função com debounce para evitar múltiplas chamadas
-  const debouncedSync = useDebounce(syncWithYouTube, 3000) // 3 segundos de debounce
+  // Implementação de debounce interna
+  const debouncedSync = useCallback(async (options: SyncOptions): Promise<SyncResult> => {
+    return new Promise((resolve, reject) => {
+      // Limpar timeout anterior
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+      
+      // Criar novo timeout
+      debounceTimeoutRef.current = setTimeout(async () => {
+        try {
+          const result = await syncWithYouTube(options)
+          resolve(result)
+        } catch (error) {
+          reject(error)
+        }
+      }, 3000) // 3 segundos de debounce
+    })
+  }, [syncWithYouTube])
   
   // Função pública que gerencia estados
   const startSync = useCallback(async (options: SyncOptions) => {
     // Verificar se já está sincronizando
-    if (syncing) {
+    if (syncing || isProcessingRef.current) {
       toast({
         title: "Sincronização em andamento",
         description: "Aguarde a sincronização atual terminar.",
@@ -260,8 +322,8 @@ export function useYouTubeSync() {
     }
     
     // Verificar rate limiting e mostrar feedback
-    if (youtubeRateLimiter.checkRateLimit()) {
-      const remainingTime = youtubeRateLimiter.getRemainingTime()
+    if (!rateLimiter.canMakeRequest()) {
+      const remainingTime = rateLimiter.getRemainingTime()
       const waitMinutes = Math.ceil(remainingTime / 60000)
       
       setError(`Rate limit atingido. Aguarde ${waitMinutes} minutos.`)
@@ -326,7 +388,7 @@ export function useYouTubeSync() {
       // Limpar progress após 5 segundos
       setTimeout(() => setProgress(null), 5000)
     }
-  }, [syncing, youtubeRateLimiter, debouncedSync, toast])
+  }, [syncing, debouncedSync, toast])
 
   const syncAllVideos = async (options: Omit<SyncOptions, 'syncAll' | 'pageToken'>) => {
     setBatchSync({
@@ -362,7 +424,7 @@ export function useYouTubeSync() {
           
           // Wait for resume
           while (batchSync.isPaused) {
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            await sleep(1000)
           }
         }
 
@@ -430,7 +492,7 @@ export function useYouTubeSync() {
         currentPage++
 
         // Add delay between requests to avoid rate limiting - AUMENTADO
-        await new Promise(resolve => setTimeout(resolve, 300000)) // 5 minutos entre páginas
+        await sleep(300000) // 5 minutos entre páginas
       }
 
       // Final success
@@ -519,6 +581,12 @@ export function useYouTubeSync() {
       activeRequestRef.current.abort()
       activeRequestRef.current = null
     }
+    
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current)
+    }
+    
+    isProcessingRef.current = false
     setSyncing(false)
     setProgress(null)
     setError(null)
@@ -533,15 +601,27 @@ export function useYouTubeSync() {
   // Função para verificar status do rate limit
   const getRateLimitStatus = useCallback(() => {
     return {
-      canMakeRequest: !youtubeRateLimiter.checkRateLimit(),
-      remainingTime: youtubeRateLimiter.getRemainingTime(),
-      remainingRequests: youtubeRateLimiter.getRemainingRequests()
+      canMakeRequest: rateLimiter.canMakeRequest(),
+      remainingTime: rateLimiter.getRemainingTime(),
+      remainingRequests: rateLimiter.getRemainingRequests()
     }
-  }, [youtubeRateLimiter])
+  }, [])
 
   const resetProgress = () => {
     setProgress(null)
   }
+
+  // Cleanup no unmount
+  useEffect(() => {
+    return () => {
+      if (activeRequestRef.current) {
+        activeRequestRef.current.abort()
+      }
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+    }
+  }, [])
   
   return {
     // Estados
