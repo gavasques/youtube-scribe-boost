@@ -125,6 +125,9 @@ export function SyncProgressCard({
   const progressPercentage = getProgressPercentage()
   const speed = batchSync.overallSpeed || progress?.processingSpeed
   const totalEstimated = batchSync.totalStats.totalEstimated || batchSync.lastPageStats?.totalChannelVideos || 0
+  
+  // CORREÇÃO: Detectar se está em modo deep scan
+  const isDeepScan = progress?.message?.includes('VARREDURA PROFUNDA') || false
 
   return (
     <Card className="mb-6">
@@ -136,10 +139,15 @@ export function SyncProgressCard({
             ) : (
               <CheckCircle className="w-4 h-4 text-green-500" />
             )}
-            Progresso da Sincronização
+            {isDeepScan ? 'Varredura Profunda em Progresso' : 'Progresso da Sincronização'}
             {totalEstimated > 0 && (
               <Badge variant="outline" className="ml-2">
                 ~{totalEstimated.toLocaleString()} vídeos no canal
+              </Badge>
+            )}
+            {isDeepScan && (
+              <Badge variant="secondary" className="ml-2 bg-purple-100 text-purple-800">
+                Modo Profundo
               </Badge>
             )}
           </div>
@@ -205,21 +213,21 @@ export function SyncProgressCard({
 
         {/* Processing Speed and ETA */}
         {speed && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className={`border rounded-lg p-3 ${isDeepScan ? 'bg-purple-50 border-purple-200' : 'bg-blue-50 border-blue-200'}`}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-blue-600" />
+                <Zap className={`w-4 h-4 ${isDeepScan ? 'text-purple-600' : 'text-blue-600'}`} />
                 <span className="font-medium">Velocidade:</span>
                 <span>{speed.videosPerMinute.toFixed(1)} vídeos/min</span>
               </div>
               <div className="flex items-center gap-2">
-                <Timer className="w-4 h-4 text-blue-600" />
+                <Timer className={`w-4 h-4 ${isDeepScan ? 'text-purple-600' : 'text-blue-600'}`} />
                 <span className="font-medium">Tempo decorrido:</span>
                 <span>{formatElapsedTime(speed.elapsedTimeMs)}</span>
               </div>
               {speed.eta && (
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-blue-600" />
+                  <Clock className={`w-4 h-4 ${isDeepScan ? 'text-purple-600' : 'text-blue-600'}`} />
                   <span className="font-medium">ETA:</span>
                   <span>{formatETA(speed.eta)}</span>
                 </div>
@@ -260,11 +268,21 @@ export function SyncProgressCard({
         )}
 
         {/* Progress Insights */}
-        {batchSync.emptyPages > 0 && batchSync.emptyPages < batchSync.maxEmptyPages && (
+        {batchSync.emptyPages > 0 && batchSync.emptyPages < batchSync.maxEmptyPages && !isDeepScan && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
             <div className="text-sm text-orange-800">
               📊 {batchSync.emptyPages} de {batchSync.maxEmptyPages} páginas consecutivas sem vídeos novos. 
               A sincronização continuará buscando vídeos mais antigos.
+            </div>
+          </div>
+        )}
+
+        {/* Deep Scan Info */}
+        {isDeepScan && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <div className="text-sm text-purple-800">
+              🔍 Varredura profunda ativa: processando TODOS os vídeos do canal, independente de serem novos. 
+              Isso pode levar tempo, mas garante que nenhum vídeo seja perdido.
             </div>
           </div>
         )}

@@ -67,27 +67,34 @@ export const useYouTubeSync = () => {
     const maxEmptyPages = options.maxEmptyPages || 5
     let pageCount = 0
     const deepScan = options.deepScan || false
+    
+    // CORREÇÃO: Variável para controlar a continuação sem depender do estado reativo
+    let shouldContinue = true
+
+    logger.info('[BATCH-SYNC] Iniciando sincronização em lote:', {
+      deepScan,
+      maxEmptyPages,
+      options
+    })
 
     try {
       do {
         logger.info(`[BATCH-SYNC] Iniciando página ${pageCount + 1} com token: ${pageToken || 'primeira página'}`)
 
-        if (batchSync.isPaused) {
+        // CORREÇÃO: Verificar pausa usando uma função de polling mais eficiente
+        while (batchSync.isPaused && shouldContinue) {
           logger.info('[BATCH-SYNC] Sincronização pausada. Aguardando...')
           setProgress(prev => ({ ...prev, message: 'Sincronização pausada. Retomando em breve...' }))
-
-          await new Promise<void>(resolve => {
-            const checkPaused = () => {
-              if (!batchSync.isPaused) {
-                logger.info('[BATCH-SYNC] Sincronização retomada.')
-                resolve()
-              } else {
-                setTimeout(checkPaused, 5000)
-              }
-            }
-            checkPaused()
-          })
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          
+          // Verificar se foi cancelada durante a pausa
+          if (!batchSync.isRunning) {
+            shouldContinue = false
+            break
+          }
         }
+
+        if (!shouldContinue) break
 
         const syncResult = await performSync(
           { ...options, syncAll: true, pageToken, deepScan, maxEmptyPages },
@@ -102,11 +109,13 @@ export const useYouTubeSync = () => {
             const etaInfo = progressUpdate.processingSpeed?.eta ? 
               ` | ETA: ${new Date(progressUpdate.processingSpeed.eta).toLocaleTimeString('pt-BR')}` : ''
 
+            const deepScanInfo = deepScan ? ' | VARREDURA PROFUNDA' : ''
+
             setProgress({
               ...progressUpdate,
-              message: `${progressUpdate.message} (Página ${pageCount + 1}${consecutiveEmptyPages > 0 ? `, ${consecutiveEmptyPages} páginas sem novos` : ''})${pageInfo}${speedInfo}${etaInfo}`
+              message: `${progressUpdate.message} (Página ${pageCount + 1}${consecutiveEmptyPages > 0 ? `, ${consecutiveEmptyPages} páginas sem novos` : ''})${pageInfo}${speedInfo}${etaInfo}${deepScanInfo}`
             })
-            totalEstimated = progressUpdate.totalVideosEstimated || syncResult.pageStats?.totalChannelVideos || 0
+            totalEstimated = progressUpdate.totalVideosEstimated || syncResult?.pageStats?.totalChannelVideos || 0
           }
         )
 
@@ -144,11 +153,10 @@ export const useYouTubeSync = () => {
 
         logger.info(`[BATCH-SYNC] Página ${pageCount} concluída. Processados: ${syncResult.stats.processed}, Novos: ${syncResult.stats.new}, Atualizados: ${syncResult.stats.updated}, Erros: ${syncResult.stats.errors}`)
 
-        // Enhanced continuation logic
-        const shouldContinue = shouldContinueSync(deepScan) &&
-                              pageToken && 
-                              (deepScan || consecutiveEmptyPages < maxEmptyPages) &&
-                              pageHasContent // Stop if page has no content at all
+        // CORREÇÃO: Lógica de continuação corrigida
+        shouldContinue = shouldContinueSync(deepScan, !!pageToken) && 
+                         batchSync.isRunning && 
+                         pageHasContent // Stop if page has no content at all
 
         if (!shouldContinue) {
           if (!pageToken) {
@@ -164,13 +172,13 @@ export const useYouTubeSync = () => {
         }
 
         // Adaptive delay based on processing speed
-        if (pageToken) {
+        if (pageToken && shouldContinue) {
           const delay = syncResult.processingSpeed.videosPerMinute > 30 ? 1000 : 2000
           logger.info(`[BATCH-SYNC] Aguardando ${delay}ms antes da próxima página...`)
           await new Promise(resolve => setTimeout(resolve, delay))
         }
 
-      } while (pageToken && shouldContinueSync(deepScan) && batchSync.isRunning)
+      } while (pageToken && shouldContinue)
 
       logger.info('[BATCH-SYNC] Sincronização completa!', {
         totalPages: pageCount,
@@ -183,12 +191,14 @@ export const useYouTubeSync = () => {
         totalEstimated
       })
 
-      const message = totalNew > 0 
-        ? `Sincronização completa! ${totalNew} vídeos novos, ${totalUpdated} atualizados em ${pageCount} páginas de ~${totalEstimated} vídeos do canal.`
-        : `Sincronização completa! ${totalUpdated} vídeos atualizados, nenhum vídeo novo encontrado em ${pageCount} páginas processadas.`
+      const message = deepScan 
+        ? `Varredura profunda completa! ${totalProcessed} vídeos processados (${totalNew} novos, ${totalUpdated} atualizados) em ${pageCount} páginas de ~${totalEstimated} vídeos do canal.`
+        : totalNew > 0 
+          ? `Sincronização completa! ${totalNew} vídeos novos, ${totalUpdated} atualizados em ${pageCount} páginas de ~${totalEstimated} vídeos do canal.`
+          : `Sincronização completa! ${totalUpdated} vídeos atualizados, nenhum vídeo novo encontrado em ${pageCount} páginas processadas.`
 
       toast({
-        title: "Sincronização Completa",
+        title: deepScan ? "Varredura Profunda Completa" : "Sincronização Completa",
         description: message,
       })
 
