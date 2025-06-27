@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -265,7 +266,12 @@ serve(async (req) => {
       
       if (bodyText.trim()) {
         requestBody = JSON.parse(bodyText)
-        log('Request body parsed successfully', requestBody)
+        log('Request body parsed successfully', {
+          hasOptions: !!requestBody.options,
+          optionsType: requestBody.options?.type,
+          optionsMaxVideos: requestBody.options?.maxVideos,
+          optionsPageToken: requestBody.options?.pageToken ? 'presente' : 'ausente'
+        })
       } else {
         log('Request body is empty, using defaults')
       }
@@ -290,14 +296,14 @@ serve(async (req) => {
       )
     }
 
-    // CORREÇÃO: Extract options com valores padrão seguros ANTES de usar
+    // CORREÇÃO PRINCIPAL: Extract options com propagação correta do pageToken
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
       includeShorts: requestBody.options?.includeShorts !== false,
       syncMetadata: requestBody.options?.syncMetadata !== false,
       maxVideos: requestBody.options?.maxVideos || 50,
-      pageToken: requestBody.options?.pageToken || undefined,
+      pageToken: requestBody.options?.pageToken || undefined, // CORREÇÃO: Manter undefined se não houver
       syncAll: requestBody.options?.syncAll || false,
       deepScan: requestBody.options?.deepScan || false,
       maxEmptyPages: requestBody.options?.maxEmptyPages || 15
@@ -305,7 +311,7 @@ serve(async (req) => {
     
     log('Sync options processed', {
       ...options,
-      pageToken: options.pageToken ? 'present' : 'none'
+      pageToken: options.pageToken ? `presente (${options.pageToken.substring(0, 20)}...)` : 'ausente'
     })
 
     const supabaseClient = createClient(
@@ -365,8 +371,9 @@ serve(async (req) => {
     const expiresAt = new Date(tokenData.expires_at)
     const now = new Date()
 
+    // CORREÇÃO: Verificar e renovar token OAuth se necessário (importante para paginação)
     if (expiresAt <= now) {
-      log('Token expired, refreshing...')
+      log('Token expired, refreshing for pagination compatibility...')
       const newToken = await refreshYouTubeToken(tokenData.refresh_token)
       
       if (!newToken) {
@@ -391,7 +398,7 @@ serve(async (req) => {
         })
         .eq('user_id', user.id)
       
-      log('Token refreshed successfully')
+      log('Token refreshed successfully for pagination')
     }
 
     // Get total channel video count for better progress tracking
@@ -401,17 +408,22 @@ serve(async (req) => {
       log('Channel video count retrieved', { totalChannelVideos })
     }
 
-    // CORREÇÃO: Build search URL com maxVideos dinâmico
+    // CORREÇÃO: Build search URL com pageToken corretamente propagado
     let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`
     
     if (options.pageToken) {
       searchUrl += `&pageToken=${options.pageToken}`
-      log('Using page token for pagination', { pageToken: options.pageToken })
+      log('Using pageToken for pagination', { 
+        pageToken: options.pageToken.substring(0, 20) + '...',
+        fullUrl: searchUrl.substring(0, 120) + '...'
+      })
+    } else {
+      log('First page request (no pageToken)')
     }
     
-    log('Fetching videos from YouTube', { 
+    log('Fetching videos from YouTube API', { 
       maxVideos: options.maxVideos, 
-      pageToken: options.pageToken,
+      hasPageToken: !!options.pageToken,
       syncAll: options.syncAll,
       deepScan: options.deepScan,
       totalChannelVideos,
@@ -451,31 +463,35 @@ serve(async (req) => {
     const totalResults = searchData.pageInfo?.totalResults || totalChannelVideos || 0
     const resultsPerPage = searchData.pageInfo?.resultsPerPage || 50
     
-    log('Video IDs fetched from search', { 
-      count: videoIds.length,
-      nextPageToken: nextPageToken ? 'present' : 'none',
+    // CORREÇÃO: Logs detalhados de paginação para debugging
+    log('Pagination details from YouTube API', { 
+      videosFound: videoIds.length,
+      nextPageToken: nextPageToken ? `presente (${nextPageToken.substring(0, 20)}...)` : 'ausente',
       totalResults,
       resultsPerPage,
       totalChannelVideos,
-      hasMoreVideos: !!nextPageToken,
-      firstFewIds: videoIds.slice(0, 3),
-      pageInfo: searchData.pageInfo
+      hasMorePages: !!nextPageToken,
+      currentPageToken: options.pageToken ? `${options.pageToken.substring(0, 20)}...` : 'primeira página',
+      pageInfo: searchData.pageInfo,
+      estimatedTotalPages: Math.ceil(totalResults / resultsPerPage)
     })
 
     if (videoIds.length === 0) {
       const elapsedTime = Date.now() - startTime
-      log('No video IDs found - returning empty result', {
-        searchUrl,
+      log('No videos found in this page', {
+        searchUrl: searchUrl.substring(0, 100) + '...',
         pageToken: options.pageToken,
         totalResults,
-        nextPageToken
+        nextPageToken,
+        possibleEndOfChannel: !nextPageToken
       })
+      
       return new Response(
         JSON.stringify({ 
           success: true,
           stats: { processed: 0, new: 0, updated: 0, errors: 0, totalEstimated: totalResults },
           hasMorePages: !!nextPageToken,
-          currentPage: 1,
+          currentPage: Math.floor(totalResults / resultsPerPage) || 1,
           nextPageToken,
           pageStats: {
             videosInPage: 0,
@@ -641,13 +657,13 @@ serve(async (req) => {
     const currentPage = options.pageToken ? 
       Math.floor((stats.processed || 0) / resultsPerPage) + 1 : 1
 
-    // CORREÇÃO: Lógica corrigida para páginas vazias - considerar vídeos processados, não apenas novos
+    // CORREÇÃO: Melhor lógica para páginas vazias - considerar vídeos processados
     const isEmptyPage = stats.processed === 0
 
     const result: SyncResult = {
       stats,
       errors: errors.length > 0 ? errors : undefined,
-      nextPageToken,
+      nextPageToken, // CORREÇÃO: Retornar o nextPageToken recebido da API
       hasMorePages,
       currentPage,
       totalPages: estimatedTotalPages,
@@ -669,14 +685,22 @@ serve(async (req) => {
       stats, 
       errorCount: errors.length,
       hasMorePages,
-      nextPageToken: nextPageToken ? 'present' : 'none',
+      nextPageToken: nextPageToken ? `presente (${nextPageToken.substring(0, 20)}...)` : 'ausente',
       currentPage,
       totalPages: estimatedTotalPages,
       pageStats: result.pageStats,
       processingSpeed: result.processingSpeed,
       newVideos: newVideoTitles.length > 0 ? newVideoTitles.slice(0, 3) : 'none',
       updatedVideos: updatedVideoTitles.length > 0 ? updatedVideoTitles.slice(0, 3) : 'none',
-      quotaUsed: 2
+      quotaUsed: 2,
+      // CORREÇÃO: Log final de paginação
+      paginationSummary: {
+        receivedPageToken: options.pageToken ? 'sim' : 'não',
+        returningPageToken: nextPageToken ? 'sim' : 'não',
+        isLastPage: !nextPageToken,
+        totalVideosInChannel: totalChannelVideos,
+        processedThisPage: stats.processed
+      }
     })
 
     return new Response(

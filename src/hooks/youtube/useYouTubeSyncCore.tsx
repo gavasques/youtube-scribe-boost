@@ -1,3 +1,4 @@
+
 import { useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { logger } from '@/core/Logger'
@@ -186,16 +187,30 @@ export const useYouTubeSyncCore = () => {
           message: 'Sincronizando com YouTube...'
         })
 
+        // CORREÇÃO PRINCIPAL: Garantir que options seja enviado no corpo da requisição
+        const requestBody = { 
+          options: {
+            ...options,
+            // CORREÇÃO: Garantir que pageToken seja propagado corretamente
+            pageToken: options.pageToken || undefined
+          },
+          quotaCheck: quotaStatus
+        }
+
+        logger.info('[YT-SYNC] Enviando requisição com options:', {
+          type: requestBody.options.type,
+          maxVideos: requestBody.options.maxVideos,
+          pageToken: requestBody.options.pageToken ? 'presente' : 'ausente',
+          syncAll: requestBody.options.syncAll
+        })
+
         // Chamar Edge Function com timeout
         const controller = abortControllerRef.current
         const timeoutId = setTimeout(() => controller?.abort(), 180000) // 3 minutos
 
         try {
           const response = await supabase.functions.invoke('youtube-sync', {
-            body: { 
-              options,
-              quotaCheck: quotaStatus
-            },
+            body: requestBody,
             headers: {
               'Authorization': `Bearer ${authData.session.access_token}`,
               'Content-Type': 'application/json'
@@ -208,7 +223,8 @@ export const useYouTubeSyncCore = () => {
             error: response.error?.message,
             dataPreview: response.data ? {
               hasStats: !!response.data.stats,
-              statsProcessed: response.data.stats?.processed
+              statsProcessed: response.data.stats?.processed,
+              hasNextPageToken: !!response.data.nextPageToken
             } : null
           })
 
@@ -256,7 +272,15 @@ export const useYouTubeSyncCore = () => {
             new: newVideos,
             updated,
             errors: errorCount,
-            hasErrors: result.errors?.length || 0
+            hasErrors: result.errors?.length || 0,
+            // CORREÇÃO: Log de paginação detalhado
+            paginationInfo: {
+              hasNextPageToken: !!result.nextPageToken,
+              nextPageToken: result.nextPageToken ? 'presente' : 'ausente',
+              hasMorePages: result.hasMorePages,
+              currentPage: result.currentPage,
+              totalPages: result.totalPages
+            }
           })
 
           if (processed === 0 && newVideos === 0 && updated === 0) {
