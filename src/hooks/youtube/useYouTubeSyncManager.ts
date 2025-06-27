@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
@@ -47,10 +46,10 @@ export const useYouTubeSyncManager = () => {
 
   const syncControlRef = useRef({
     shouldContinue: true,
-    isRunning: false
+    isRunning: false,
+    aborted: false
   })
 
-  // Inicialização do sistema
   useEffect(() => {
     const initializeSystem = async () => {
       console.log('[SYNC-MANAGER] Inicializando sistema...')
@@ -79,7 +78,6 @@ export const useYouTubeSyncManager = () => {
     }
   }, [isConnected, tokens, checkConnection, markReady, markError, state.isReady, state.isInitializing])
 
-  // Monitorar mudanças na conexão
   useEffect(() => {
     updateConnectionStatus(isConnected && !!tokens)
   }, [isConnected, tokens, updateConnectionStatus])
@@ -95,9 +93,15 @@ export const useYouTubeSyncManager = () => {
     }
 
     console.log('[SYNC-MANAGER] Iniciando sincronização incremental')
+    
+    syncControlRef.current = {
+      shouldContinue: true,
+      isRunning: true,
+      aborted: false
+    }
+    
     setSyncing(true)
 
-    // Configurar progresso inicial
     setProgress({
       step: 'init',
       current: 0,
@@ -109,12 +113,14 @@ export const useYouTubeSyncManager = () => {
       let totalProcessed = 0
       let totalNew = 0
       let totalUpdated = 0
-      let pageCount = 0
 
       const result = await performSync(
         { ...options, syncAll: false },
         (progressUpdate) => {
-          // Atualizar com informações detalhadas
+          if (syncControlRef.current.aborted) {
+            throw new Error('Sincronização abortada pelo usuário')
+          }
+
           setProgress({
             ...progressUpdate,
             message: `${progressUpdate.message} | Processados: ${totalProcessed + (progressUpdate.pageStats?.videosInPage || 0)}`,
@@ -123,15 +129,17 @@ export const useYouTubeSyncManager = () => {
             totalVideosEstimated: progressUpdate.totalVideosEstimated
           })
 
-          // Atualizar totais se há dados da página
           if (progressUpdate.pageStats) {
             totalProcessed += progressUpdate.pageStats.videosInPage
             totalNew += progressUpdate.pageStats.newInPage
             totalUpdated += progressUpdate.pageStats.updatedInPage
-            pageCount++
           }
         }
       )
+
+      if (syncControlRef.current.aborted) {
+        throw new Error('Sincronização abortada pelo usuário')
+      }
 
       const finalMessage = `Sincronização incremental concluída! ${result.stats.new} vídeos novos, ${result.stats.updated} atualizados. Total processado: ${result.stats.processed} vídeos.`
 
@@ -153,21 +161,38 @@ export const useYouTubeSyncManager = () => {
     } catch (error: any) {
       console.error('[SYNC-MANAGER] Erro na sincronização incremental:', error)
       
-      setProgress({
-        step: 'error',
-        current: 0,
-        total: 5,
-        message: `Erro: ${error.message}`
-      })
+      if (syncControlRef.current.aborted) {
+        setProgress({
+          step: 'aborted',
+          current: 0,
+          total: 5,
+          message: 'Sincronização abortada pelo usuário'
+        })
 
-      toast({
-        title: "Erro na Sincronização",
-        description: error.message || 'Erro durante a sincronização incremental.',
-        variant: "destructive",
-      })
+        toast({
+          title: "Sincronização Abortada",
+          description: 'A sincronização foi cancelada pelo usuário.',
+          variant: "default",
+        })
+      } else {
+        setProgress({
+          step: 'error',
+          current: 0,
+          total: 5,
+          message: `Erro: ${error.message}`
+        })
+
+        toast({
+          title: "Erro na Sincronização",
+          description: error.message || 'Erro durante a sincronização incremental.',
+          variant: "destructive",
+        })
+      }
+      
       throw error
     } finally {
       setSyncing(false)
+      syncControlRef.current.isRunning = false
     }
   }, [state.hasYouTubeConnection, performSync, setProgress, toast, markSyncComplete])
 
@@ -183,10 +208,10 @@ export const useYouTubeSyncManager = () => {
 
     console.log('[SYNC-MANAGER] Iniciando sincronização completa de TODOS os vídeos')
 
-    // Resetar controle de sincronização
     syncControlRef.current = {
       shouldContinue: true,
-      isRunning: true
+      isRunning: true,
+      aborted: false
     }
 
     setBatchSync({
@@ -203,11 +228,10 @@ export const useYouTubeSyncManager = () => {
 
     setSyncing(true)
 
-    // Configurar progresso inicial
     setProgress({
       step: 'init',
       current: 0,
-      total: 20, // Estimativa inicial para ~73 vídeos / 50 por página
+      total: 20,
       message: 'Iniciando sincronização completa de todos os vídeos...'
     })
 
@@ -223,10 +247,13 @@ export const useYouTubeSyncManager = () => {
 
     try {
       do {
+        if (syncControlRef.current.aborted) {
+          throw new Error('Sincronização abortada pelo usuário')
+        }
+
         console.log(`[SYNC-MANAGER] Processando página ${pageCount + 1}${pageToken ? ` com token: ${pageToken.substring(0, 20)}...` : ' (primeira página)'}`)
 
-        // Verificar se deve pausar
-        while (batchSync.isPaused && syncControlRef.current.isRunning) {
+        while (batchSync.isPaused && syncControlRef.current.isRunning && !syncControlRef.current.aborted) {
           console.log('[SYNC-MANAGER] Sincronização pausada')
           setProgress({
             step: 'paused',
@@ -242,12 +269,11 @@ export const useYouTubeSyncManager = () => {
           }
         }
 
-        if (!syncControlRef.current.shouldContinue || !syncControlRef.current.isRunning) {
-          console.log('[SYNC-MANAGER] Parando sincronização por controle')
+        if (!syncControlRef.current.shouldContinue || !syncControlRef.current.isRunning || syncControlRef.current.aborted) {
+          console.log('[SYNC-MANAGER] Parando sincronização por controle ou abort')
           break
         }
 
-        // Atualizar progresso antes de processar a página
         setProgress({
           step: 'processing',
           current: pageCount + 1,
@@ -256,8 +282,18 @@ export const useYouTubeSyncManager = () => {
         })
 
         const syncResult = await performSync(
-          { ...options, syncAll: true, pageToken, deepScan, maxEmptyPages },
+          { 
+            ...options, 
+            syncAll: true, 
+            pageToken,
+            deepScan, 
+            maxEmptyPages 
+          },
           (progressUpdate) => {
+            if (syncControlRef.current.aborted) {
+              throw new Error('Sincronização abortada pelo usuário')
+            }
+
             const estimatedTotal = Math.ceil((progressUpdate.totalVideosEstimated || 73) / 50)
             
             setProgress({
@@ -272,8 +308,8 @@ export const useYouTubeSyncManager = () => {
           }
         )
 
-        if (!syncResult) {
-          console.error('[SYNC-MANAGER] Resultado nulo da sincronização')
+        if (!syncResult || syncControlRef.current.aborted) {
+          console.log('[SYNC-MANAGER] Resultado nulo da sincronização ou abortado')
           break
         }
 
@@ -303,7 +339,6 @@ export const useYouTubeSyncManager = () => {
           emptyPages: consecutiveEmptyPages
         }))
 
-        // Atualizar progresso após processar a página
         setProgress({
           step: 'processing',
           current: pageCount,
@@ -321,30 +356,35 @@ export const useYouTubeSyncManager = () => {
           erros: syncResult.stats.errors,
           totalAcumulado: totalProcessed,
           hasNewVideos,
-          consecutiveEmptyPages
+          consecutiveEmptyPages,
+          nextPageToken: pageToken ? 'presente' : 'ausente'
         })
 
-        // Verificar se deve continuar
         const shouldContinue = pageToken && 
           (deepScan || consecutiveEmptyPages < maxEmptyPages) &&
           syncResult.stats.processed > 0 &&
-          syncControlRef.current.isRunning
+          syncControlRef.current.isRunning &&
+          !syncControlRef.current.aborted
 
         if (!shouldContinue) {
           const reason = !pageToken ? 'sem mais páginas' : 
                         consecutiveEmptyPages >= maxEmptyPages ? `${consecutiveEmptyPages} páginas vazias consecutivas` :
                         !syncResult.stats.processed ? 'sem vídeos processados' :
+                        syncControlRef.current.aborted ? 'abortado pelo usuário' :
                         'parado pelo usuário'
           console.log(`[SYNC-MANAGER] Parando sincronização: ${reason}`)
           break
         }
 
-        // Aguardar antes da próxima página
-        if (pageToken && syncControlRef.current.shouldContinue) {
+        if (pageToken && syncControlRef.current.shouldContinue && !syncControlRef.current.aborted) {
           await new Promise(resolve => setTimeout(resolve, 2000))
         }
 
-      } while (pageToken && syncControlRef.current.shouldContinue && syncControlRef.current.isRunning)
+      } while (pageToken && syncControlRef.current.shouldContinue && syncControlRef.current.isRunning && !syncControlRef.current.aborted)
+
+      if (syncControlRef.current.aborted) {
+        throw new Error('Sincronização abortada pelo usuário')
+      }
 
       const finalMessage = deepScan 
         ? `Varredura profunda completa! ${totalProcessed} vídeos processados (${totalNew} novos, ${totalUpdated} atualizados) em ${pageCount} páginas.`
@@ -376,24 +416,40 @@ export const useYouTubeSyncManager = () => {
     } catch (error: any) {
       console.error('[SYNC-MANAGER] Erro na sincronização completa:', error)
       
-      setProgress({
-        step: 'error',
-        current: pageCount,
-        total: Math.max(pageCount, 20),
-        message: `Erro na página ${pageCount + 1}: ${error.message}`
-      })
+      if (syncControlRef.current.aborted) {
+        setProgress({
+          step: 'aborted',
+          current: pageCount,
+          total: Math.max(pageCount, 20),
+          message: 'Sincronização abortada pelo usuário'
+        })
 
-      toast({
-        title: "Erro na Sincronização",
-        description: error.message || 'Erro durante a sincronização completa.',
-        variant: "destructive",
-      })
+        toast({
+          title: "Sincronização Abortada",
+          description: 'A sincronização foi cancelada pelo usuário.',
+          variant: "default",
+        })
+      } else {
+        setProgress({
+          step: 'error',
+          current: pageCount,
+          total: Math.max(pageCount, 20),
+          message: `Erro na página ${pageCount + 1}: ${error.message}`
+        })
+
+        toast({
+          title: "Erro na Sincronização",
+          description: error.message || 'Erro durante a sincronização completa.',
+          variant: "destructive",
+        })
+      }
     } finally {
       setSyncing(false)
       setBatchSync(prev => ({ ...prev, isRunning: false }))
       syncControlRef.current = {
         shouldContinue: false,
-        isRunning: false
+        isRunning: false,
+        aborted: false
       }
     }
   }, [state.hasYouTubeConnection, performSync, setProgress, toast, markSyncComplete, batchSync.isPaused, batchSync.isRunning])
@@ -414,6 +470,16 @@ export const useYouTubeSyncManager = () => {
     setBatchSync(prev => ({ ...prev, isRunning: false, isPaused: false }))
   }, [])
 
+  const abortSync = useCallback(() => {
+    console.log('[SYNC-MANAGER] Abortando sincronização...')
+    syncControlRef.current = {
+      shouldContinue: false,
+      isRunning: false,
+      aborted: true
+    }
+    setBatchSync(prev => ({ ...prev, isRunning: false, isPaused: false }))
+  }, [])
+
   return {
     syncing,
     progress,
@@ -423,6 +489,7 @@ export const useYouTubeSyncManager = () => {
     pauseBatchSync,
     resumeBatchSync,
     stopBatchSync,
+    abortSync,
     syncState: state
   }
 }

@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -17,7 +16,7 @@ interface YouTubeSyncModalProps {
 
 export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSyncModalProps) {
   const { isConnected, channel, startOAuth } = useYouTubeAuth()
-  const { syncWithYouTube, syncAllVideos, syncing, progress, syncState } = useYouTubeSyncManager()
+  const { syncWithYouTube, syncAllVideos, syncing, progress, syncState, abortSync } = useYouTubeSyncManager()
   
   const [syncType, setSyncType] = useState<'complete' | 'incremental'>('incremental')
 
@@ -48,7 +47,12 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
       onSyncComplete()
     } catch (error) {
       console.error('[SYNC-MODAL] Erro na sincronização:', error)
+      // Não fechar o modal em caso de erro para mostrar o status
     }
+  }
+
+  const handleAbort = () => {
+    abortSync()
   }
 
   // Se está sincronizando, mostrar o progresso detalhado
@@ -76,6 +80,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             <SyncProgressDisplay 
               progress={progress}
               syncing={syncing}
+              onAbort={handleAbort}
             />
           </div>
         </DialogContent>
