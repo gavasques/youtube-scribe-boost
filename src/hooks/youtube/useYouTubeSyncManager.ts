@@ -321,11 +321,13 @@ export const useYouTubeSyncManager = () => {
         totalErrors += syncResult.stats.errors
         pageCount++
 
+        // LÓGICA CORRIGIDA: Controle de páginas vazias
         const hasNewVideos = syncResult.pageStats?.newInPage > 0
         if (hasNewVideos) {
-          consecutiveEmptyPages = 0
+          consecutiveEmptyPages = 0 // Reset contador quando encontra vídeos novos
         } else {
           consecutiveEmptyPages++
+          console.log(`[SYNC-MANAGER] Página vazia detectada. Consecutivas: ${consecutiveEmptyPages}/${maxEmptyPages}`)
         }
 
         setBatchSync(prev => ({
@@ -344,7 +346,7 @@ export const useYouTubeSyncManager = () => {
           step: 'processing',
           current: pageCount,
           total: Math.max(pageCount + (pageToken ? 1 : 0), Math.ceil((syncResult.pageStats?.totalChannelVideos || 73) / 50)),
-          message: `Página ${pageCount} concluída | Total: ${totalProcessed} vídeos processados | ${totalNew} novos | ${totalUpdated} atualizados`,
+          message: `Página ${pageCount} concluída | Total: ${totalProcessed} vídeos processados | ${totalNew} novos | ${totalUpdated} atualizados | Páginas vazias: ${consecutiveEmptyPages}`,
           pageStats: syncResult.pageStats,
           processingSpeed: syncResult.processingSpeed,
           totalVideosEstimated: syncResult.pageStats?.totalChannelVideos
@@ -358,27 +360,31 @@ export const useYouTubeSyncManager = () => {
           totalAcumulado: totalProcessed,
           hasNewVideos,
           consecutiveEmptyPages,
+          maxEmptyPages,
           nextPageToken: pageToken ? 'presente' : 'ausente'
         })
 
-        const shouldContinue = pageToken && 
-          (deepScan || consecutiveEmptyPages < maxEmptyPages) &&
-          syncResult.stats.processed > 0 &&
-          syncControlRef.current.isRunning &&
-          !syncControlRef.current.aborted
+        // CONDIÇÕES DE PARADA MAIS RIGOROSAS
+        const shouldStop = 
+          !pageToken || // Sem próxima página
+          (!deepScan && consecutiveEmptyPages >= maxEmptyPages) || // Muitas páginas vazias no modo normal
+          !syncControlRef.current.isRunning || // Usuário parou
+          syncControlRef.current.aborted || // Usuário abortou
+          syncResult.stats.processed === 0 // Página sem vídeos processados
 
-        if (!shouldContinue) {
+        if (shouldStop) {
           const reason = !pageToken ? 'sem mais páginas' : 
-                        consecutiveEmptyPages >= maxEmptyPages ? `${consecutiveEmptyPages} páginas vazias consecutivas` :
-                        !syncResult.stats.processed ? 'sem vídeos processados' :
+                        (!deepScan && consecutiveEmptyPages >= maxEmptyPages) ? `${consecutiveEmptyPages} páginas vazias consecutivas (limite: ${maxEmptyPages})` :
+                        syncResult.stats.processed === 0 ? 'sem vídeos processados na página' :
                         syncControlRef.current.aborted ? 'abortado pelo usuário' :
                         'parado pelo usuário'
           console.log(`[SYNC-MANAGER] Parando sincronização: ${reason}`)
           break
         }
 
+        // DELAY MENOR ENTRE PÁGINAS PARA EVITAR TIMEOUT
         if (pageToken && syncControlRef.current.shouldContinue && !syncControlRef.current.aborted) {
-          await new Promise(resolve => setTimeout(resolve, 2000))
+          await new Promise(resolve => setTimeout(resolve, 1500)) // Reduzido de 2000 para 1500
         }
 
       } while (pageToken && syncControlRef.current.shouldContinue && syncControlRef.current.isRunning && !syncControlRef.current.aborted)
@@ -388,7 +394,7 @@ export const useYouTubeSyncManager = () => {
       }
 
       const finalMessage = deepScan 
-        ? `Varredura profunda completa! ${totalProcessed} vídeos processados (${totalNew} novos, ${totalUpdated} atualizados) em ${pageCount} páginas.`
+        ? `Varredura profunda completa! ${totalProcessed} vídeos processados (${totalNew} novos, ${totalUpdated} atualizados) em ${pageCount} páginas. Páginas vazias consecutivas: ${consecutiveEmptyPages}`
         : `Sincronização completa! ${totalNew} vídeos novos, ${totalUpdated} atualizados. Total: ${totalProcessed} vídeos em ${pageCount} páginas.`
 
       setProgress({
@@ -404,6 +410,8 @@ export const useYouTubeSyncManager = () => {
         totalUpdated,
         totalProcessed,
         totalErrors,
+        consecutiveEmptyPages,
+        maxEmptyPages,
         deepScan
       })
 
