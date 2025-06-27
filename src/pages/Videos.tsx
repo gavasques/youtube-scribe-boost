@@ -7,6 +7,7 @@ import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 import { VideoHeader } from "@/components/Videos/VideoHeader"
 import { VideoList } from "@/components/Videos/VideoList/VideoList"
 import { SyncProgressCard } from "@/components/Videos/SyncProgressCard"
+import { YouTubeQuotaStatus } from "@/components/Videos/YouTubeQuotaStatus"
 import { VideoFormData } from "@/types/video"
 import { VideoWithRelations } from "@/features/videos/types/normalized"
 import { useVideos } from "@/hooks/useVideos"
@@ -28,7 +29,16 @@ export default function Videos() {
     handleIgnoreVideo,
     handleUnignoreVideo
   } = useVideoActions()
-  const { syncing, progress, batchSync, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSync()
+  const { 
+    syncing, 
+    progress, 
+    batchSync, 
+    syncWithYouTube, 
+    pauseBatchSync, 
+    resumeBatchSync, 
+    stopBatchSync, 
+    rateLimitInfo 
+  } = useYouTubeSync()
   
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -85,7 +95,6 @@ export default function Videos() {
     fetchVideos()
   }
 
-  // Função para atualizar a lista após mudanças no modal
   const handleVideoUpdate = () => {
     fetchVideos()
   }
@@ -103,6 +112,9 @@ export default function Videos() {
         }
       />
 
+      {/* YouTube Quota Status */}
+      <YouTubeQuotaStatus />
+
       {/* Mostrar progresso da sincronização se estiver ativa */}
       <SyncProgressCard 
         progress={progress} 
@@ -111,6 +123,7 @@ export default function Videos() {
         onPause={pauseBatchSync}
         onResume={resumeBatchSync}
         onStop={stopBatchSync}
+        rateLimitInfo={rateLimitInfo}
       />
 
       <Card>

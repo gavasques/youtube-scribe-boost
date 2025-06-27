@@ -1,115 +1,46 @@
 
 import { useState, useCallback } from 'react'
-import { useToast } from '@/hooks/use-toast'
 
 interface UseRetryOptions {
-  maxAttempts?: number
-  delay?: number
+  maxAttempts: number
+  delay: number
   backoff?: boolean
-  retryCondition?: (error: any) => boolean
 }
 
-export function useRetry(options: UseRetryOptions = {}) {
-  const { maxAttempts = 3, delay = 1000, backoff = true, retryCondition } = options
+export function useRetry({ maxAttempts, delay, backoff = false }: UseRetryOptions) {
   const [isRetrying, setIsRetrying] = useState(false)
-  const [attempts, setAttempts] = useState(0)
-  const { toast } = useToast()
 
-  const retry = useCallback(async <T,>(
-    fn: () => Promise<T>
-  ): Promise<T> => {
-    setIsRetrying(true)
-    let lastError: Error
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        setAttempts(attempt + 1)
-        const result = await fn()
-        setIsRetrying(false)
-        setAttempts(0)
-        return result
-      } catch (error) {
-        lastError = error as Error
-        console.warn(`Attempt ${attempt + 1} failed:`, error)
-        
-        // Check if we should retry this error
-        if (retryCondition && !retryCondition(error)) {
-          console.log('Error does not meet retry condition, stopping attempts')
-          break
-        }
-        
-        if (attempt < maxAttempts - 1) {
-          const waitTime = backoff ? delay * Math.pow(2, attempt) : delay
-          console.log(`Waiting ${waitTime}ms before retry...`)
-          await new Promise(resolve => setTimeout(resolve, waitTime))
-        }
-      }
-    }
-
-    setIsRetrying(false)
-    setAttempts(0)
-    
-    // Show error toast for final failure
-    toast({
-      title: 'Operação falhou',
-      description: `Erro após ${maxAttempts} tentativas: ${lastError.message}`,
-      variant: 'destructive'
-    })
-    
-    throw lastError!
-  }, [maxAttempts, delay, backoff, retryCondition, toast])
-
-  const retryWithCondition = useCallback(async <T,>(
+  const retryWithCondition = useCallback(async <T>(
     fn: () => Promise<T>,
-    customRetryCondition?: (error: any) => boolean
+    shouldRetry: (error: any, attemptNumber: number) => boolean
   ): Promise<T> => {
-    const shouldRetry = customRetryCondition || retryCondition || (() => true)
-    
     setIsRetrying(true)
-    let lastError: Error
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        setAttempts(attempt + 1)
         const result = await fn()
         setIsRetrying(false)
-        setAttempts(0)
         return result
       } catch (error) {
-        lastError = error as Error
-        console.warn(`Attempt ${attempt + 1} failed:`, error)
+        console.log(`Attempt ${attempt}/${maxAttempts} failed:`, error)
         
-        // Check if we should retry this specific error
-        if (!shouldRetry(error)) {
-          console.log('Error does not meet retry condition, stopping attempts')
-          break
+        if (attempt === maxAttempts || !shouldRetry(error, attempt)) {
+          setIsRetrying(false)
+          throw error
         }
         
-        if (attempt < maxAttempts - 1) {
-          const waitTime = backoff ? delay * Math.pow(2, attempt) : delay
-          console.log(`Waiting ${waitTime}ms before retry...`)
-          await new Promise(resolve => setTimeout(resolve, waitTime))
-        }
+        const currentDelay = backoff ? delay * Math.pow(2, attempt - 1) : delay
+        console.log(`Waiting ${currentDelay}ms before retry...`)
+        await new Promise(resolve => setTimeout(resolve, currentDelay))
       }
     }
-
+    
     setIsRetrying(false)
-    setAttempts(0)
-    
-    // Show error toast for final failure
-    toast({
-      title: 'Operação falhou',
-      description: `Erro após ${maxAttempts} tentativas: ${lastError.message}`,
-      variant: 'destructive'
-    })
-    
-    throw lastError!
-  }, [maxAttempts, delay, backoff, retryCondition, toast])
+    throw new Error('Max attempts reached')
+  }, [maxAttempts, delay, backoff])
 
-  return { 
-    retry, 
+  return {
     retryWithCondition,
-    isRetrying, 
-    attempts 
+    isRetrying
   }
 }

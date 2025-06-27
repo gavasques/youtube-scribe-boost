@@ -19,6 +19,8 @@ export function useVideoTranscription() {
       return data
     } catch (error) {
       console.error('Error fetching transcription:', error)
+      // Don't show toast for individual transcription errors to avoid spam
+      return null
     } finally {
       setLoading(prev => ({ ...prev, [videoId]: false }))
     }
@@ -44,10 +46,25 @@ export function useVideoTranscription() {
     }
   }, [toast])
 
+  // Batch fetch transcriptions with error handling
+  const fetchTranscriptions = useCallback(async (videoIds: string[]) => {
+    const promises = videoIds.map(async (videoId) => {
+      try {
+        return await fetchTranscription(videoId)
+      } catch (error) {
+        console.warn(`Failed to fetch transcription for video ${videoId}:`, error)
+        return null
+      }
+    })
+    
+    await Promise.allSettled(promises)
+  }, [fetchTranscription])
+
   return {
     transcriptions,
     loading,
     fetchTranscription,
-    updateTranscription
+    updateTranscription,
+    fetchTranscriptions
   }
 }
