@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { logger } from '@/core/Logger'
@@ -11,9 +10,12 @@ import type { SyncOptions, SyncProgress } from './types'
 
 export const useYouTubeSync = () => {
   const { toast } = useToast()
-  const { performSync, cancelSync } = useYouTubeSyncCore()
-  const { checkQuotaStatus } = useYouTubeQuota()
-  const { batchSync, startBatchSync, pauseBatchSync, resumeBatchSync, stopBatchSync, updateBatchStats } = useBatchSync()
+  
+  // CORREÇÃO: Inicialização mais segura dos hooks
+  const [hooksReady, setHooksReady] = useState(false)
+  const syncCoreHook = useYouTubeSyncCore()
+  const quotaHook = useYouTubeQuota()
+  const batchSyncHook = useBatchSync()
   
   const [syncing, setSyncing] = useState(false)
   const [progress, setProgress] = useState<SyncProgress>({
@@ -30,12 +32,43 @@ export const useYouTubeSync = () => {
     isRunning: false
   })
 
+  // CORREÇÃO: Verificar se todos os hooks estão prontos
+  useEffect(() => {
+    const checkHooksReady = () => {
+      const ready = !!(
+        syncCoreHook && 
+        typeof syncCoreHook.performSync === 'function' &&
+        quotaHook && 
+        typeof quotaHook.checkQuotaStatus === 'function' &&
+        batchSyncHook
+      )
+      
+      if (ready && !hooksReady) {
+        logger.info('[YT-SYNC] Todos os hooks estão prontos')
+        setHooksReady(true)
+      }
+    }
+    
+    checkHooksReady()
+  }, [syncCoreHook, quotaHook, batchSyncHook, hooksReady])
+
   const syncWithYouTube = useCallback(async (options: Omit<SyncOptions, 'syncAll' | 'pageToken'>) => {
+    // CORREÇÃO: Verificar se hooks estão prontos antes de executar
+    if (!hooksReady) {
+      logger.error('[YT-SYNC] Hooks não estão prontos para sincronização')
+      toast({
+        title: "Sistema não pronto",
+        description: "O sistema ainda está carregando. Tente novamente em alguns segundos.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSyncing(true)
     setProgress({ step: 'init', current: 0, total: 0, message: 'Iniciando sincronização...' })
 
     try {
-      const result = await performSync(
+      const result = await syncCoreHook.performSync(
         { ...options, syncAll: false },
         (progressUpdate: SyncProgress) => {
           setProgress(progressUpdate)
@@ -60,10 +93,20 @@ export const useYouTubeSync = () => {
     } finally {
       setSyncing(false)
     }
-  }, [performSync, toast])
+  }, [syncCoreHook, toast, hooksReady])
 
   const syncAllVideos = useCallback(async (options: Omit<SyncOptions, 'syncAll' | 'pageToken'>) => {
-    // Validação inicial robusta
+    // CORREÇÃO: Verificação robusta das opções e estado dos hooks
+    if (!hooksReady) {
+      logger.error('[BATCH-SYNC] Hooks não estão prontos para sincronização em lote')
+      toast({
+        title: "Sistema não pronto",
+        description: "O sistema ainda está carregando. Tente novamente em alguns segundos.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!options || typeof options !== 'object') {
       logger.error('[BATCH-SYNC] Opções inválidas fornecidas:', options)
       toast({
@@ -81,7 +124,7 @@ export const useYouTubeSync = () => {
       isRunning: true
     }
 
-    startBatchSync(options)
+    batchSyncHook.startBatchSync(options)
     setSyncing(true)
 
     let pageToken: string | undefined = undefined
@@ -107,15 +150,15 @@ export const useYouTubeSync = () => {
         logger.info(`[BATCH-SYNC] Iniciando página ${pageCount + 1} com token: ${pageToken || 'primeira página'}`)
 
         // Check for pause with safer control
-        while (batchSync.isPaused && syncControlRef.current.isRunning) {
+        while (batchSyncHook.batchSync.isPaused && syncControlRef.current.isRunning) {
           logger.info('[BATCH-SYNC] Sincronização pausada. Aguardando...')
           setProgress(prev => ({ ...prev, message: 'Sincronização pausada. Retomando em breve...' }))
           await new Promise(resolve => setTimeout(resolve, 2000))
           
           // Update local control from state
-          syncControlRef.current.isPaused = batchSync.isPaused
+          syncControlRef.current.isPaused = batchSyncHook.batchSync.isPaused
           
-          if (!batchSync.isRunning) {
+          if (!batchSyncHook.batchSync.isRunning) {
             syncControlRef.current.isRunning = false
             syncControlRef.current.shouldContinue = false
             break
@@ -129,7 +172,7 @@ export const useYouTubeSync = () => {
 
         logger.info(`[BATCH-SYNC] Executando sincronização da página ${pageCount + 1}`)
 
-        const syncResult = await performSync(
+        const syncResult = await syncCoreHook.performSync(
           { ...options, syncAll: true, pageToken, deepScan, maxEmptyPages },
           (progressUpdate: SyncProgress) => {
             // Enhanced progress message with detailed stats
@@ -177,7 +220,7 @@ export const useYouTubeSync = () => {
           logger.info(`[BATCH-SYNC] Página ${pageCount} sem vídeos novos (${consecutiveEmptyPages}/${maxEmptyPages}). ${syncResult.pageStats?.updatedInPage || 0} atualizados de ${syncResult.pageStats?.videosInPage || 0} total.`)
         }
 
-        updateBatchStats(
+        batchSyncHook.updateBatchStats(
           {
             processed: syncResult.stats.processed,
             new: syncResult.stats.new,
@@ -195,7 +238,7 @@ export const useYouTubeSync = () => {
         syncControlRef.current.shouldContinue = shouldContinueSync(
           deepScan, 
           !!pageToken, 
-          batchSync.isRunning, 
+          batchSyncHook.batchSync.isRunning, 
           consecutiveEmptyPages, 
           maxEmptyPages
         ) && pageHasContent
@@ -207,7 +250,7 @@ export const useYouTubeSync = () => {
             logger.info(`[BATCH-SYNC] Parando após ${consecutiveEmptyPages} páginas consecutivas sem vídeos novos.`)
           } else if (!pageHasContent) {
             logger.info('[BATCH-SYNC] Parando - página sem conteúdo encontrada.')
-          } else if (!batchSync.isRunning) {
+          } else if (!batchSyncHook.batchSync.isRunning) {
             logger.info('[BATCH-SYNC] Sincronização interrompida pelo usuário.')
           }
           break
@@ -260,7 +303,7 @@ export const useYouTubeSync = () => {
       })
     } finally {
       setSyncing(false)
-      stopBatchSync()
+      batchSyncHook.stopBatchSync()
       syncControlRef.current = {
         shouldContinue: false,
         isPaused: false,
@@ -268,10 +311,10 @@ export const useYouTubeSync = () => {
       }
       logger.info('[BATCH-SYNC] Limpando estado e finalizando sincronização.')
     }
-  }, [performSync, toast, startBatchSync, batchSync.isPaused, batchSync.isRunning, stopBatchSync, updateBatchStats])
+  }, [syncCoreHook, toast, batchSyncHook, hooksReady])
 
   useEffect(() => {
-    if (!syncing) return
+    if (!syncing || !hooksReady) return
     
     const rateLimit = getRateLimitStatus()
     
@@ -287,41 +330,44 @@ export const useYouTubeSync = () => {
         title: "Rate Limit Atingido",
         description: `Aguarde ${waitMinutes} minutos para continuar a sincronização. (${rateLimit.remainingRequests} requests restantes)`,
       })
-      cancelSync()
+      syncCoreHook.cancelSync()
       setSyncing(false)
       return
     }
 
-    checkQuotaStatus().then(quotaStatus => {
-      logger.info('[YT-SYNC] Verificação de quota durante sincronização:', quotaStatus)
-      
-      if (quotaStatus.isExceeded) {
-        toast({
-          title: "Quota Excedida",
-          description: `A quota diária do YouTube API foi excedida (${quotaStatus.quotaUsed}/${quotaStatus.quotaLimit}). A sincronização será interrompida.`,
-        })
-        cancelSync()
-        setSyncing(false)
-      } else if (quotaStatus.percentageUsed && quotaStatus.percentageUsed >= 95) {
-        toast({
-          title: "Quota Quase Excedida",
-          description: `Quota em ${quotaStatus.percentageUsed}% (${quotaStatus.remainingQuota} requests restantes). Use com cuidado.`,
-        })
-      }
-    }).catch(error => {
-      logger.error('[YT-SYNC] Erro ao verificar quota:', error)
-    })
-  }, [syncing, toast, cancelSync, checkQuotaStatus])
+    // CORREÇÃO: Verificação de quota mais segura
+    if (quotaHook && typeof quotaHook.checkQuotaStatus === 'function') {
+      quotaHook.checkQuotaStatus().then(quotaStatus => {
+        logger.info('[YT-SYNC] Verificação de quota durante sincronização:', quotaStatus)
+        
+        if (quotaStatus.isExceeded) {
+          toast({
+            title: "Quota Excedida",
+            description: `A quota diária do YouTube API foi excedida (${quotaStatus.quotaUsed}/${quotaStatus.quotaLimit}). A sincronização será interrompida.`,
+          })
+          syncCoreHook.cancelSync()
+          setSyncing(false)
+        } else if (quotaStatus.percentageUsed && quotaStatus.percentageUsed >= 95) {
+          toast({
+            title: "Quota Quase Excedida",
+            description: `Quota em ${quotaStatus.percentageUsed}% (${quotaStatus.remainingQuota} requests restantes). Use com cuidado.`,
+          })
+        }
+      }).catch(error => {
+        logger.error('[YT-SYNC] Erro ao verificar quota:', error)
+      })
+    }
+  }, [syncing, toast, syncCoreHook, quotaHook, hooksReady])
 
   return {
     syncing,
     progress,
     syncWithYouTube,
     syncAllVideos,
-    cancelSync,
-    batchSync,
-    pauseBatchSync,
-    resumeBatchSync,
-    stopBatchSync
+    cancelSync: syncCoreHook?.cancelSync || (() => {}),
+    batchSync: batchSyncHook.batchSync,
+    pauseBatchSync: batchSyncHook.pauseBatchSync,
+    resumeBatchSync: batchSyncHook.resumeBatchSync,
+    stopBatchSync: batchSyncHook.stopBatchSync
   }
 }

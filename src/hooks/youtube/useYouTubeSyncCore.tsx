@@ -1,4 +1,3 @@
-
 import { useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { logger } from '@/core/Logger'
@@ -14,7 +13,8 @@ const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export const useYouTubeSyncCore = () => {
-  const { checkQuotaStatus } = useYouTubeQuota()
+  // CORREÇÃO: Lazy loading do quota hook para evitar race condition
+  const quotaHook = useYouTubeQuota()
   const abortControllerRef = useRef<AbortController | null>(null)
   const lastRequestTimeRef = useRef<number>(0)
 
@@ -24,7 +24,7 @@ export const useYouTubeSyncCore = () => {
   ): Promise<SyncResult> => {
     logger.info('[YT-SYNC] Iniciando sincronização', { options })
     
-    // 1. Verificação detalhada da quota
+    // CORREÇÃO: Verificação de quota com guard para evitar TDZ
     setProgress({
       step: 'quota_check',
       current: 0,
@@ -32,7 +32,32 @@ export const useYouTubeSyncCore = () => {
       message: 'Verificando quota do YouTube API...'
     })
     
-    const quotaStatus = await checkQuotaStatus()
+    let quotaStatus
+    try {
+      // CORREÇÃO: Acesso seguro ao checkQuotaStatus
+      if (quotaHook && typeof quotaHook.checkQuotaStatus === 'function') {
+        quotaStatus = await quotaHook.checkQuotaStatus()
+      } else {
+        logger.warn('[YT-SYNC] Quota hook não disponível, continuando sem verificação')
+        quotaStatus = {
+          isExceeded: false,
+          percentageUsed: 0,
+          quotaUsed: 0,
+          quotaLimit: 10000,
+          remainingQuota: 10000
+        }
+      }
+    } catch (error) {
+      logger.error('[YT-SYNC] Erro ao verificar quota, continuando:', error)
+      quotaStatus = {
+        isExceeded: false,
+        percentageUsed: 0,
+        quotaUsed: 0,
+        quotaLimit: 10000,
+        remainingQuota: 10000
+      }
+    }
+    
     logger.info('[YT-SYNC] Status da quota:', quotaStatus)
     
     // CORREÇÃO: Detecção mais precisa de quota excedida
@@ -69,7 +94,7 @@ export const useYouTubeSyncCore = () => {
         message: `⚠️ Quota em ${quotaStatus.percentageUsed}% - Use com moderação (${quotaStatus.remainingQuota} requests restantes)`
       })
       
-      await sleep(2000) // Reduzido de 3s para 2s
+      await sleep(2000)
     } else {
       logger.info(`[YT-SYNC] ✅ Quota OK: ${quotaStatus.percentageUsed}% usada (${quotaStatus.remainingQuota} requests restantes)`)
       
