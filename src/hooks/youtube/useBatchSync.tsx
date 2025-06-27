@@ -92,43 +92,6 @@ export const useBatchSync = () => {
     })
   }
 
-  // CORREÇÃO: Função de continuação corrigida para deep scan
-  const shouldContinueSync = (deepScan: boolean = false, hasNextPageToken: boolean = true) => {
-    logger.info('[BATCH-SYNC] Checking should continue sync:', {
-      deepScan,
-      hasNextPageToken,
-      isRunning: batchSync.isRunning,
-      emptyPages: batchSync.emptyPages,
-      maxEmptyPages: batchSync.maxEmptyPages
-    })
-
-    // Se não está rodando, parar
-    if (!batchSync.isRunning) {
-      logger.info('[BATCH-SYNC] Stopping - sync not running')
-      return false
-    }
-
-    // Se não há próxima página, parar
-    if (!hasNextPageToken) {
-      logger.info('[BATCH-SYNC] Stopping - no more pages available')
-      return false
-    }
-
-    // No deep scan, continuar sempre que há páginas disponíveis
-    if (deepScan) {
-      logger.info('[BATCH-SYNC] Deep scan mode - continuing while pages available')
-      return true
-    }
-
-    // No modo normal, parar após maxEmptyPages páginas vazias consecutivas
-    const shouldStop = batchSync.emptyPages >= batchSync.maxEmptyPages
-    if (shouldStop) {
-      logger.info(`[BATCH-SYNC] Stopping - reached max empty pages (${batchSync.emptyPages}/${batchSync.maxEmptyPages})`)
-    }
-    
-    return !shouldStop
-  }
-
   const startBatchSync = (options: Omit<SyncOptions, 'syncAll' | 'pageToken'>) => {
     logger.info('[BATCH-SYNC] Starting batch sync with options:', options)
     setBatchSync({
@@ -152,7 +115,49 @@ export const useBatchSync = () => {
     resumeBatchSync,
     stopBatchSync,
     updateBatchStats,
-    startBatchSync,
-    shouldContinueSync
+    startBatchSync
   }
+}
+
+// CORREÇÃO: Função standalone para evitar dependência circular
+export const shouldContinueSync = (
+  deepScan: boolean = false, 
+  hasNextPageToken: boolean = true,
+  isRunning: boolean = true,
+  emptyPages: number = 0,
+  maxEmptyPages: number = 5
+) => {
+  logger.info('[BATCH-SYNC] Checking should continue sync:', {
+    deepScan,
+    hasNextPageToken,
+    isRunning,
+    emptyPages,
+    maxEmptyPages
+  })
+
+  // Se não está rodando, parar
+  if (!isRunning) {
+    logger.info('[BATCH-SYNC] Stopping - sync not running')
+    return false
+  }
+
+  // Se não há próxima página, parar
+  if (!hasNextPageToken) {
+    logger.info('[BATCH-SYNC] Stopping - no more pages available')
+    return false
+  }
+
+  // No deep scan, continuar sempre que há páginas disponíveis
+  if (deepScan) {
+    logger.info('[BATCH-SYNC] Deep scan mode - continuing while pages available')
+    return true
+  }
+
+  // No modo normal, parar após maxEmptyPages páginas vazias consecutivas
+  const shouldStop = emptyPages >= maxEmptyPages
+  if (shouldStop) {
+    logger.info(`[BATCH-SYNC] Stopping - reached max empty pages (${emptyPages}/${maxEmptyPages})`)
+  }
+  
+  return !shouldStop
 }
