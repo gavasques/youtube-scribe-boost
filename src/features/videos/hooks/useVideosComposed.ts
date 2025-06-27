@@ -40,6 +40,9 @@ export function useVideosComposed() {
 
     return {
       ...video,
+      // Ensure category_id is included (required by VideoWithRelations)
+      category_id: video.category_id || null,
+      
       // Add metadata fields directly to video for backward compatibility
       views_count: videoMetadata?.views_count || 0,
       likes_count: videoMetadata?.likes_count || 0,
@@ -62,9 +65,9 @@ export function useVideosComposed() {
       // Normalized relations
       metadata: videoMetadata || null,
       configuration: videoConfig || null,
-      transcription: videoTranscription || null,
+      transcription_data: videoTranscription || null,
       
-      // Legacy fields for backward compatibility - fix transcription type
+      // Legacy fields for backward compatibility
       original_description: null,
       current_description: null,
       compiled_description: null,
@@ -74,7 +77,7 @@ export function useVideosComposed() {
       ai_summary: null,
       ai_description: null,
       ai_chapters: null,
-      transcription: videoTranscription?.transcription || null // This should be string | null, not VideoTranscription
+      transcription: videoTranscription?.transcription || null // Single transcription property as string
     }
   })
 
