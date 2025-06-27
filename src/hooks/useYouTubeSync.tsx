@@ -158,9 +158,10 @@ export function useYouTubeSync() {
             
             const errorMessage = response.error.message || 'Erro desconhecido'
             
-            // Handle quota exceeded specifically
+            // Enhanced quota error detection
             if (errorMessage.includes('quota') || errorMessage.includes('exceeded') || 
-                errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+                errorMessage.includes('429') || errorMessage.includes('Too Many Requests') ||
+                errorMessage.includes('quotaExceeded')) {
               throw new Error('YouTube API quota excedida. A quota é resetada à meia-noite (horário do Pacífico). Tente novamente em algumas horas.')
             }
             
@@ -183,7 +184,7 @@ export function useYouTubeSync() {
           console.log('YouTube Sync - Success response:', response.data)
           return response.data as SyncResult
         },
-        // Enhanced retry condition - don't retry quota errors
+        // Enhanced retry condition - don't retry quota errors or 429s
         (error) => {
           const errorMessage = error.message?.toLowerCase() || ''
           const shouldRetry = !errorMessage.includes('authentication') && 
@@ -193,6 +194,7 @@ export function useYouTubeSync() {
                              !errorMessage.includes('exceeded') &&
                              !errorMessage.includes('429') &&
                              !errorMessage.includes('too many requests') &&
+                             !errorMessage.includes('quotaexceeded') &&
                              !errorMessage.includes('bad request') &&
                              !errorMessage.includes('missing options')
           
@@ -245,7 +247,8 @@ export function useYouTubeSync() {
       // Check if it's a quota error
       const isQuotaError = errorMessage.toLowerCase().includes('quota') || 
                           errorMessage.toLowerCase().includes('exceeded') ||
-                          errorMessage.toLowerCase().includes('429')
+                          errorMessage.toLowerCase().includes('429') ||
+                          errorMessage.toLowerCase().includes('quotaexceeded')
       
       setProgress({ 
         step: 'error', 

@@ -34,9 +34,10 @@ export function YouTubeQuotaStatus({ className = "" }: QuotaStatusProps) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // Use raw query since the table might not be in types yet
       const { data, error } = await supabase
-        .from('youtube_quota_usage')
-        .select('*')
+        .from('youtube_quota_usage' as any)
+        .select('requests_used, date, updated_at')
         .eq('user_id', user.id)
         .eq('date', today)
         .maybeSingle()
@@ -46,7 +47,13 @@ export function YouTubeQuotaStatus({ className = "" }: QuotaStatusProps) {
         return
       }
 
-      setQuotaUsage(data)
+      if (data) {
+        setQuotaUsage({
+          requests_used: data.requests_used,
+          date: data.date,
+          updated_at: data.updated_at
+        })
+      }
     } catch (error) {
       console.error('Error fetching quota usage:', error)
     } finally {
