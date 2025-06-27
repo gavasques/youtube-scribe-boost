@@ -1,19 +1,20 @@
+
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { VideoModal } from "@/components/Videos/VideoModal"
 import { VideoFilters } from "@/components/Videos/VideoFilters"
-import { YouTubeSyncModalFixed } from "@/components/Videos/YouTubeSyncModalFixed"
+import { YouTubeSyncModalNew } from "@/components/Videos/YouTubeSyncModalNew"
 import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 import { VideoHeader } from "@/components/Videos/VideoHeader"
 import { VideoList } from "@/components/Videos/VideoList/VideoList"
-import { SyncProgressCard } from "@/components/Videos/SyncProgressCard"
+import { SyncProgressCardNew } from "@/components/Videos/SyncProgressCardNew"
 import { VideoFormData } from "@/types/video"
 import { VideoWithRelations } from "@/features/videos/types/normalized"
 import { useVideos } from "@/hooks/useVideos"
 import { useOptimizedCategories } from "@/hooks/useOptimizedCategories"
 import { useVideoFilters } from "@/hooks/useVideoFilters"
 import { useVideoActions } from "@/hooks/useVideoActions"
-import { useYouTubeSyncFixed } from "@/hooks/youtube/useYouTubeSyncFixed"
+import { useYouTubeSyncManager } from "@/hooks/youtube/useYouTubeSyncManager"
 import { MassUpdateButton } from "@/components/Videos/MassUpdateButton"
 
 export default function Videos() {
@@ -29,7 +30,7 @@ export default function Videos() {
     handleUnignoreVideo
   } = useVideoActions()
   
-  const { syncing, progress, batchSync, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSyncFixed()
+  const { syncing, progress, batchSync, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSyncManager()
   
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -86,7 +87,6 @@ export default function Videos() {
     fetchVideos()
   }
 
-  // Função para atualizar a lista após mudanças no modal
   const handleVideoUpdate = () => {
     fetchVideos()
   }
@@ -104,8 +104,7 @@ export default function Videos() {
         }
       />
 
-      {/* Mostrar progresso da sincronização se estiver ativa */}
-      <SyncProgressCard 
+      <SyncProgressCardNew 
         progress={progress} 
         syncing={syncing}
         batchSync={batchSync}
@@ -151,8 +150,7 @@ export default function Videos() {
         onVideoUpdate={handleVideoUpdate}
       />
 
-      {/* CORREÇÃO: Usar o modal corrigido */}
-      <YouTubeSyncModalFixed
+      <YouTubeSyncModalNew
         open={showSyncModal}
         onClose={() => setShowSyncModal(false)}
         onSyncComplete={onSyncComplete}

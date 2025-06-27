@@ -150,17 +150,6 @@ async function validateYouTubeConnection(supabaseService: any, userId: string): 
       expiresAt: tokenData.expires_at
     })
 
-    // Verificar se o token está válido ou precisa ser renovado
-    const expiresAt = new Date(tokenData.expires_at)
-    const now = new Date()
-    const needsRefresh = expiresAt <= now
-
-    log('Token validation', {
-      expiresAt: expiresAt.toISOString(),
-      now: now.toISOString(),
-      needsRefresh
-    })
-
     return { valid: true, tokens: tokenData }
 
   } catch (error) {
@@ -272,7 +261,7 @@ serve(async (req) => {
       const bodyText = await req.text()
       log('Request body received', { 
         length: bodyText.length, 
-        content: bodyText.substring(0, 1000) 
+        content: bodyText.substring(0, 500) 
       })
       
       if (bodyText.trim()) {
@@ -302,7 +291,7 @@ serve(async (req) => {
       )
     }
 
-    // Extract options with enhanced defaults
+    // Extract options with proper defaults
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
@@ -312,10 +301,10 @@ serve(async (req) => {
       pageToken: requestBody.options?.pageToken || undefined,
       syncAll: requestBody.options?.syncAll || false,
       deepScan: requestBody.options?.deepScan || false,
-      maxEmptyPages: requestBody.options?.maxEmptyPages || 5
+      maxEmptyPages: requestBody.options?.maxEmptyPages || 15
     }
     
-    log('Enhanced sync options', options)
+    log('Sync options processed', options)
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -339,7 +328,7 @@ serve(async (req) => {
 
     log('User authenticated', { userId: user.id })
 
-    // VALIDAÇÃO ROBUSTA DE CONEXÃO YOUTUBE
+    // Validate YouTube connection
     const connectionValidation = await validateYouTubeConnection(supabaseService, user.id)
     if (!connectionValidation.valid) {
       log('YouTube connection validation failed', connectionValidation.error)
@@ -368,7 +357,7 @@ serve(async (req) => {
       )
     }
 
-    log('YouTube tokens found', { channelId: tokenData.channel_id })
+    log('YouTube tokens validated', { channelId: tokenData.channel_id })
 
     let accessToken = tokenData.access_token
     const expiresAt = new Date(tokenData.expires_at)
@@ -410,7 +399,7 @@ serve(async (req) => {
       log('Channel video count retrieved', { totalChannelVideos })
     }
 
-    // Build search URL with pagination support
+    // Build search URL with proper parameters for complete sync
     let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`
     
     if (options.pageToken) {
@@ -423,7 +412,8 @@ serve(async (req) => {
       pageToken: options.pageToken,
       syncAll: options.syncAll,
       deepScan: options.deepScan,
-      totalChannelVideos
+      totalChannelVideos,
+      searchUrl: searchUrl.substring(0, 150) + '...'
     })
     
     const searchResponse = await fetch(searchUrl, {
@@ -459,16 +449,18 @@ serve(async (req) => {
     const totalResults = searchData.pageInfo?.totalResults || totalChannelVideos || 0
     const resultsPerPage = searchData.pageInfo?.resultsPerPage || 50
     
-    log('Video IDs fetched', { 
+    log('Video IDs fetched from search', { 
       count: videoIds.length,
-      nextPageToken,
+      nextPageToken: nextPageToken ? 'present' : 'none',
       totalResults,
       resultsPerPage,
-      totalChannelVideos
+      totalChannelVideos,
+      firstFewIds: videoIds.slice(0, 3)
     })
 
     if (videoIds.length === 0) {
       const elapsedTime = Date.now() - startTime
+      log('No video IDs found - returning empty result')
       return new Response(
         JSON.stringify({ 
           success: true,
@@ -492,7 +484,13 @@ serve(async (req) => {
       )
     }
 
+    // Get video details
     const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${videoIds.join(',')}`
+    
+    log('Fetching video details', { 
+      videoCount: videoIds.length,
+      detailsUrl: detailsUrl.substring(0, 150) + '...'
+    })
     
     const detailsResponse = await fetch(detailsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -657,7 +655,7 @@ serve(async (req) => {
       }
     }
 
-    log('Enhanced sync completed successfully', { 
+    log('Sync completed successfully', { 
       stats, 
       errorCount: errors.length,
       hasMorePages,
