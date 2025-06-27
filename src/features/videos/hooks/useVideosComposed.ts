@@ -21,7 +21,7 @@ export function useVideosComposed() {
   const { 
     metadata, 
     loading: metadataLoading, 
-    fetchMetadata 
+    fetchAllMetadata 
   } = useVideoMetadata()
   
   const { 
@@ -64,7 +64,7 @@ export function useVideosComposed() {
       configuration: videoConfig || null,
       transcription: videoTranscription || null,
       
-      // Legacy fields for backward compatibility
+      // Legacy fields for backward compatibility - fix transcription type
       original_description: null,
       current_description: null,
       compiled_description: null,
@@ -73,7 +73,8 @@ export function useVideosComposed() {
       ai_generated_tags: [],
       ai_summary: null,
       ai_description: null,
-      ai_chapters: null
+      ai_chapters: null,
+      transcription: videoTranscription?.transcription || null // This should be string | null, not VideoTranscription
     }
   })
 
@@ -85,13 +86,16 @@ export function useVideosComposed() {
       // Fetch core videos first
       await fetchCoreVideos()
       
+      // Get video IDs for batch fetching
+      const videoIds = coreVideos.map(v => v.id)
+      
       // Then fetch related data in parallel - but handle errors gracefully
       const promises = [
-        fetchMetadata().catch(err => {
+        fetchAllMetadata(videoIds).catch(err => {
           console.warn('Failed to fetch metadata:', err)
           return null
         }),
-        fetchConfigurations().catch(err => {
+        fetchConfigurations(videoIds).catch(err => {
           console.warn('Failed to fetch configurations:', err)
           return null
         })
@@ -112,13 +116,16 @@ export function useVideosComposed() {
     } finally {
       setLoading(false)
     }
-  }, [fetchCoreVideos, fetchMetadata, fetchConfigurations, toast])
+  }, [fetchCoreVideos, fetchAllMetadata, fetchConfigurations, toast, coreVideos])
 
   useEffect(() => {
     fetchVideos()
   }, [])
 
-  const overallLoading = coreLoading || metadataLoading || configLoading || loading
+  // Fix loading type - should be simple boolean
+  const overallLoading = coreLoading || loading || 
+    Object.values(metadataLoading).some(Boolean) || 
+    Object.values(configLoading).some(Boolean)
 
   return {
     videos,

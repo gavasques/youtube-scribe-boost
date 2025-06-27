@@ -24,6 +24,19 @@ export function useVideoMetadata() {
     }
   }, [])
 
+  const fetchAllMetadata = useCallback(async (videoIds: string[]) => {
+    const promises = videoIds.map(async (videoId) => {
+      try {
+        return await fetchMetadata(videoId)
+      } catch (error) {
+        console.warn(`Failed to fetch metadata for video ${videoId}:`, error)
+        return null
+      }
+    })
+    
+    await Promise.allSettled(promises)
+  }, [fetchMetadata])
+
   const updateMetadata = useCallback(async (videoId: string, updates: Partial<VideoMetadata>) => {
     try {
       const updated = await VideoMetadataService.updateVideoMetadata(videoId, updates)
@@ -60,6 +73,7 @@ export function useVideoMetadata() {
     metadata,
     loading,
     fetchMetadata,
+    fetchAllMetadata,
     updateMetadata,
     syncFromYouTube
   }
