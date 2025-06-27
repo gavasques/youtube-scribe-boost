@@ -1,3 +1,4 @@
+
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -6,9 +7,10 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
 import { useYouTubeSyncManager } from '@/hooks/youtube/useYouTubeSyncManager'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
-import { Youtube, RefreshCw, Download, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
+import { Youtube, RefreshCw, Download, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 interface YouTubeSyncModalProps {
   open: boolean
@@ -18,7 +20,7 @@ interface YouTubeSyncModalProps {
 
 export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSyncModalProps) {
   const { isConnected, channel, startOAuth } = useYouTubeAuth()
-  const { syncWithYouTube, syncAllVideos, syncing, syncState } = useYouTubeSyncManager()
+  const { syncWithYouTube, syncAllVideos, syncing, progress, syncState } = useYouTubeSyncManager()
   
   const [syncType, setSyncType] = useState<'complete' | 'incremental'>('incremental')
   const [includeRegular, setIncludeRegular] = useState(true)
@@ -38,7 +40,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           syncMetadata,
           deepScan: true,
           maxEmptyPages: 15,
-          maxVideos: 100 // Adding required maxVideos property
+          maxVideos: 100
         })
       } else {
         // Sincronização Incremental - apenas vídeos novos
@@ -47,7 +49,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           includeRegular,
           includeShorts,
           syncMetadata,
-          maxVideos: 50 // Adding required maxVideos property
+          maxVideos: 50
         })
       }
       
@@ -87,6 +89,106 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           <strong>YouTube conectado!</strong> Canal: {channel?.name}
         </AlertDescription>
       </Alert>
+    )
+  }
+
+  // Se está sincronizando, mostrar o progresso
+  if (syncing) {
+    const progressPercentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0
+    
+    return (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Youtube className="w-5 h-5 text-red-500" />
+              Sincronizando com YouTube
+            </DialogTitle>
+            <DialogDescription>
+              {syncType === 'complete' ? 'Sincronização Completa em andamento...' : 'Sincronização Incremental em andamento...'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Status da Conexão */}
+            {getConnectionStatus()}
+
+            {/* Progresso da Sincronização */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">Progresso da Sincronização</Label>
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                  <span className="text-sm text-blue-600">Sincronizando...</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>{progress.message}</span>
+                  <span>{Math.round(progressPercentage)}%</span>
+                </div>
+                <Progress value={progressPercentage} className="h-3" />
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Página {progress.current} de {progress.total || '?'}</span>
+                  <span>Etapa: {progress.step}</span>
+                </div>
+              </div>
+
+              {/* Estatísticas em tempo real */}
+              {progress.pageStats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-green-600">
+                      {progress.pageStats.newInPage || 0}
+                    </div>
+                    <div className="text-xs text-green-700">Novos nesta página</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-blue-600">
+                      {progress.pageStats.updatedInPage || 0}
+                    </div>
+                    <div className="text-xs text-blue-700">Atualizados</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-purple-600">
+                      {progress.pageStats.videosInPage || 0}
+                    </div>
+                    <div className="text-xs text-purple-700">Total na página</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-600">
+                      {progress.totalVideosEstimated || 0}
+                    </div>
+                    <div className="text-xs text-gray-700">Total estimado</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Velocidade de processamento */}
+              {progress.processingSpeed && (
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-sm text-gray-700">
+                    Velocidade: {progress.processingSpeed.videosPerMinute.toFixed(1)} vídeos/min
+                    {progress.processingSpeed.eta && (
+                      <span className="ml-2">
+                        | ETA: {new Date(progress.processingSpeed.eta).toLocaleTimeString('pt-BR')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Botão para fechar (desabilitado durante sync) */}
+            <div className="flex justify-end">
+              <Button variant="outline" disabled>
+                Sincronizando...
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     )
   }
 

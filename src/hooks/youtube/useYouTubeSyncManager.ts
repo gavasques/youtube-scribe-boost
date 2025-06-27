@@ -94,29 +94,75 @@ export const useYouTubeSyncManager = () => {
       return
     }
 
-    console.log('[SYNC-MANAGER] Iniciando sincronização rápida')
+    console.log('[SYNC-MANAGER] Iniciando sincronização incremental')
     setSyncing(true)
 
+    // Configurar progresso inicial
+    setProgress({
+      step: 'init',
+      current: 0,
+      total: 5,
+      message: 'Iniciando sincronização incremental...'
+    })
+
     try {
+      let totalProcessed = 0
+      let totalNew = 0
+      let totalUpdated = 0
+      let pageCount = 0
+
       const result = await performSync(
         { ...options, syncAll: false },
-        setProgress
+        (progressUpdate) => {
+          // Atualizar com informações detalhadas
+          setProgress({
+            ...progressUpdate,
+            message: `${progressUpdate.message} | Processados: ${totalProcessed + (progressUpdate.pageStats?.videosInPage || 0)}`,
+            pageStats: progressUpdate.pageStats,
+            processingSpeed: progressUpdate.processingSpeed,
+            totalVideosEstimated: progressUpdate.totalVideosEstimated
+          })
+
+          // Atualizar totais se há dados da página
+          if (progressUpdate.pageStats) {
+            totalProcessed += progressUpdate.pageStats.videosInPage
+            totalNew += progressUpdate.pageStats.newInPage
+            totalUpdated += progressUpdate.pageStats.updatedInPage
+            pageCount++
+          }
+        }
       )
 
+      const finalMessage = `Sincronização incremental concluída! ${result.stats.new} vídeos novos, ${result.stats.updated} atualizados. Total processado: ${result.stats.processed} vídeos.`
+
+      setProgress({
+        step: 'complete',
+        current: 5,
+        total: 5,
+        message: finalMessage
+      })
+
       toast({
-        title: "Sincronização Concluída",
-        description: `Novos: ${result.stats.new}, Atualizados: ${result.stats.updated}, Processados: ${result.stats.processed}`,
+        title: "Sincronização Incremental Concluída",
+        description: finalMessage,
       })
 
       markSyncComplete()
       return result
 
     } catch (error: any) {
-      console.error('[SYNC-MANAGER] Erro na sincronização:', error)
+      console.error('[SYNC-MANAGER] Erro na sincronização incremental:', error)
       
+      setProgress({
+        step: 'error',
+        current: 0,
+        total: 5,
+        message: `Erro: ${error.message}`
+      })
+
       toast({
         title: "Erro na Sincronização",
-        description: error.message || 'Erro durante a sincronização.',
+        description: error.message || 'Erro durante a sincronização incremental.',
         variant: "destructive",
       })
       throw error
@@ -157,6 +203,14 @@ export const useYouTubeSyncManager = () => {
 
     setSyncing(true)
 
+    // Configurar progresso inicial
+    setProgress({
+      step: 'init',
+      current: 0,
+      total: 20, // Estimativa inicial para ~73 vídeos / 50 por página
+      message: 'Iniciando sincronização completa de todos os vídeos...'
+    })
+
     let pageToken: string | undefined = undefined
     let totalProcessed = 0
     let totalNew = 0
@@ -177,7 +231,7 @@ export const useYouTubeSyncManager = () => {
           setProgress({
             step: 'paused',
             current: pageCount,
-            total: Math.max(pageCount + 2, 15),
+            total: Math.max(pageCount + 2, 20),
             message: 'Sincronização pausada...'
           })
           await new Promise(resolve => setTimeout(resolve, 1000))
@@ -193,16 +247,27 @@ export const useYouTubeSyncManager = () => {
           break
         }
 
+        // Atualizar progresso antes de processar a página
+        setProgress({
+          step: 'processing',
+          current: pageCount + 1,
+          total: Math.max(pageCount + 2, Math.ceil((totalProcessed || 73) / 50)),
+          message: `Processando página ${pageCount + 1}... | Total: ${totalProcessed} vídeos | Novos: ${totalNew} | Atualizados: ${totalUpdated}`
+        })
+
         const syncResult = await performSync(
           { ...options, syncAll: true, pageToken, deepScan, maxEmptyPages },
           (progressUpdate) => {
-            const enhancedMessage = `${progressUpdate.message} (Página ${pageCount + 1}${consecutiveEmptyPages > 0 ? `, ${consecutiveEmptyPages} páginas vazias` : ''})`
+            const estimatedTotal = Math.ceil((progressUpdate.totalVideosEstimated || 73) / 50)
             
             setProgress({
               ...progressUpdate,
-              message: enhancedMessage,
               current: pageCount + 1,
-              total: Math.max(pageCount + 2, Math.ceil((progressUpdate.totalVideosEstimated || 73) / 50))
+              total: Math.max(estimatedTotal, pageCount + 2),
+              message: `Página ${pageCount + 1} | ${progressUpdate.message} | Processados: ${totalProcessed + (progressUpdate.pageStats?.videosInPage || 0)} vídeos`,
+              pageStats: progressUpdate.pageStats,
+              processingSpeed: progressUpdate.processingSpeed,
+              totalVideosEstimated: progressUpdate.totalVideosEstimated
             })
           }
         )
@@ -238,6 +303,17 @@ export const useYouTubeSyncManager = () => {
           emptyPages: consecutiveEmptyPages
         }))
 
+        // Atualizar progresso após processar a página
+        setProgress({
+          step: 'processing',
+          current: pageCount,
+          total: Math.max(pageCount + (pageToken ? 1 : 0), Math.ceil((syncResult.pageStats?.totalChannelVideos || 73) / 50)),
+          message: `Página ${pageCount} concluída | Total: ${totalProcessed} vídeos processados | ${totalNew} novos | ${totalUpdated} atualizados`,
+          pageStats: syncResult.pageStats,
+          processingSpeed: syncResult.processingSpeed,
+          totalVideosEstimated: syncResult.pageStats?.totalChannelVideos
+        })
+
         console.log(`[SYNC-MANAGER] Página ${pageCount} concluída:`, {
           processados: syncResult.stats.processed,
           novos: syncResult.stats.new,
@@ -270,9 +346,16 @@ export const useYouTubeSyncManager = () => {
 
       } while (pageToken && syncControlRef.current.shouldContinue && syncControlRef.current.isRunning)
 
-      const message = deepScan 
+      const finalMessage = deepScan 
         ? `Varredura profunda completa! ${totalProcessed} vídeos processados (${totalNew} novos, ${totalUpdated} atualizados) em ${pageCount} páginas.`
         : `Sincronização completa! ${totalNew} vídeos novos, ${totalUpdated} atualizados. Total: ${totalProcessed} vídeos em ${pageCount} páginas.`
+
+      setProgress({
+        step: 'complete',
+        current: pageCount,
+        total: pageCount,
+        message: finalMessage
+      })
 
       console.log('[SYNC-MANAGER] Sincronização completa finalizada:', {
         totalPages: pageCount,
@@ -285,7 +368,7 @@ export const useYouTubeSyncManager = () => {
 
       toast({
         title: deepScan ? "Varredura Profunda Completa" : "Sincronização Completa",
-        description: message,
+        description: finalMessage,
       })
 
       markSyncComplete()
@@ -293,6 +376,13 @@ export const useYouTubeSyncManager = () => {
     } catch (error: any) {
       console.error('[SYNC-MANAGER] Erro na sincronização completa:', error)
       
+      setProgress({
+        step: 'error',
+        current: pageCount,
+        total: Math.max(pageCount, 20),
+        message: `Erro na página ${pageCount + 1}: ${error.message}`
+      })
+
       toast({
         title: "Erro na Sincronização",
         description: error.message || 'Erro durante a sincronização completa.',
