@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useYouTubeSyncManager } from '@/hooks/youtube/useYouTubeSyncManager'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
-import { Youtube, Zap, Infinity, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
+import { Youtube, RefreshCw, Download, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
 
 interface YouTubeSyncModalProps {
   open: boolean
@@ -21,7 +21,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
   const { isConnected, channel, startOAuth } = useYouTubeAuth()
   const { syncWithYouTube, syncAllVideos, syncing, syncState } = useYouTubeSyncManager()
   
-  const [syncType, setSyncType] = useState<'quick' | 'complete'>('complete')
+  const [syncType, setSyncType] = useState<'complete' | 'incremental'>('incremental')
   const [includeRegular, setIncludeRegular] = useState(true)
   const [includeShorts, setIncludeShorts] = useState(true)
   const [syncMetadata, setSyncMetadata] = useState(true)
@@ -31,22 +31,22 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
       console.log('[SYNC-MODAL] Iniciando sincronização:', { syncType, includeRegular, includeShorts })
       
       if (syncType === 'complete') {
+        // Sincronização Completa - TODOS os vídeos
         await syncAllVideos({
           type: 'full',
           includeRegular,
           includeShorts,
           syncMetadata,
-          maxVideos: 50,
           deepScan: true,
-          maxEmptyPages: 15 // Aumentar para garantir todos os vídeos
+          maxEmptyPages: 15
         })
       } else {
+        // Sincronização Incremental - apenas vídeos novos
         await syncWithYouTube({
           type: 'incremental',
           includeRegular,
           includeShorts,
-          syncMetadata,
-          maxVideos: 50
+          syncMetadata
         })
       }
       
@@ -170,7 +170,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             Sincronizar com YouTube
           </DialogTitle>
           <DialogDescription>
-            Configure como sincronizar seus vídeos do YouTube
+            Escolha o tipo de sincronização que você deseja executar
           </DialogDescription>
         </DialogHeader>
 
@@ -182,18 +182,19 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             <div className="grid gap-3">
               <Card 
                 className={`cursor-pointer border-2 transition-colors ${
-                  syncType === 'quick' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  syncType === 'incremental' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => setSyncType('quick')}
+                onClick={() => setSyncType('incremental')}
               >
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
-                    <Zap className="w-4 h-4 text-blue-500" />
-                    Sincronização Rápida
-                    <Badge variant="secondary">50 vídeos</Badge>
+                    <RefreshCw className="w-4 h-4 text-blue-500" />
+                    Sincronização Incremental
+                    <Badge variant="secondary">Apenas Novos</Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Sincroniza até 50 vídeos mais recentes.
+                    Sincroniza apenas os vídeos novos desde a última sincronização. 
+                    Rápido e ideal para uso regular.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -206,12 +207,13 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
               >
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
-                    <Infinity className="w-4 h-4 text-purple-500" />
-                    Sincronização Completa - TODOS OS VÍDEOS
-                    <Badge variant="outline" className="text-purple-600 border-purple-600">Recomendado</Badge>
+                    <Download className="w-4 h-4 text-purple-500" />
+                    Sincronização Completa
+                    <Badge variant="outline" className="text-purple-600 border-purple-600">Primeira Vez</Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Sincroniza TODOS os vídeos do canal (~73 vídeos) usando varredura profunda.
+                    Sincroniza TODOS os vídeos do canal (~73 vídeos). 
+                    Ideal para primeira sincronização ou carga completa.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -219,7 +221,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           </div>
 
           <div className="space-y-4">
-            <Label className="text-base font-medium">Configurações</Label>
+            <Label className="text-base font-medium">Configurações de Conteúdo</Label>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -265,8 +267,8 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             >
               <Youtube className="w-4 h-4" />
               {syncing ? 'Sincronizando...' : 
-               syncType === 'complete' ? 'Sincronizar TODOS os Vídeos' :
-               'Sincronização Rápida'}
+               syncType === 'complete' ? 'Sincronização Completa' :
+               'Sincronização Incremental'}
             </Button>
           </div>
         </div>
