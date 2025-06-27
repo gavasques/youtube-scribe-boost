@@ -1,5 +1,5 @@
 
-// Rate Limiter for YouTube API requests
+// Rate Limiter for YouTube API requests - VERSÃO CORRIGIDA
 class SimpleRateLimiter {
   private requests: number[] = []
   private maxRequests: number
@@ -34,15 +34,35 @@ class SimpleRateLimiter {
     this.requests = this.requests.filter(time => now - time < this.windowMs)
     return Math.max(0, this.maxRequests - this.requests.length)
   }
+
+  // Método para debug
+  getStatus() {
+    const now = Date.now()
+    this.requests = this.requests.filter(time => now - time < this.windowMs)
+    return {
+      currentRequests: this.requests.length,
+      maxRequests: this.maxRequests,
+      windowMs: this.windowMs,
+      canMakeRequest: this.requests.length < this.maxRequests,
+      remainingRequests: this.maxRequests - this.requests.length,
+      oldestRequest: this.requests.length > 0 ? new Date(Math.min(...this.requests)).toISOString() : null
+    }
+  }
 }
 
-// Rate limiter: 1 request every 10 minutes (very conservative)
-export const rateLimiter = new SimpleRateLimiter(1, 600000) // 10 minutes
+// CORREÇÃO: Rate limiter menos restritivo - 5 requests por hora (12 minutos entre cada)
+export const rateLimiter = new SimpleRateLimiter(5, 3600000) // 5 requests per hour
 
 export const getRateLimitStatus = () => {
+  const status = rateLimiter.getStatus()
+  
+  // Log para debugging
+  console.log('[RATE-LIMIT] Status atual:', status)
+  
   return {
     canMakeRequest: rateLimiter.canMakeRequest(),
     remainingTime: rateLimiter.getRemainingTime(),
-    remainingRequests: rateLimiter.getRemainingRequests()
+    remainingRequests: rateLimiter.getRemainingRequests(),
+    debug: status
   }
 }

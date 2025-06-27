@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { logger } from '@/core/Logger'
@@ -139,27 +138,47 @@ export const useYouTubeSync = () => {
 
   useEffect(() => {
     if (!syncing) return
+    
+    // CORREÇÃO: Usar getRateLimitStatus corretamente
     const rateLimit = getRateLimitStatus()
+    
+    logger.info('[YT-SYNC] Verificando limites durante sincronização:', {
+      canMakeRequest: rateLimit.canMakeRequest,
+      remainingRequests: rateLimit.remainingRequests,
+      remainingTime: rateLimit.remainingTime
+    })
 
     if (!rateLimit.canMakeRequest) {
+      const waitMinutes = Math.ceil(rateLimit.remainingTime / 60000)
       toast({
         title: "Rate Limit Atingido",
-        description: `Aguarde ${rateLimit.remainingTime / 60000} minutos para continuar a sincronização.`,
+        description: `Aguarde ${waitMinutes} minutos para continuar a sincronização. (${rateLimit.remainingRequests} requests restantes)`,
       })
       cancelSync()
       setSyncing(false)
+      return
     }
 
     checkQuotaStatus().then(quotaStatus => {
-      if (!quotaStatus.hasQuota) {
+      logger.info('[YT-SYNC] Verificação de quota durante sincronização:', quotaStatus)
+      
+      // CORREÇÃO: Usar isExceeded em vez de hasQuota negativo
+      if (quotaStatus.isExceeded) {
         toast({
           title: "Quota Excedida",
-          description: `A quota diária do YouTube API foi excedida. A sincronização será interrompida.`,
-          variant: "destructive",
+          description: `A quota diária do YouTube API foi excedida (${quotaStatus.quotaUsed}/${quotaStatus.quotaLimit}). A sincronização será interrompida.`,
         })
         cancelSync()
         setSyncing(false)
+      } else if (quotaStatus.percentageUsed && quotaStatus.percentageUsed >= 95) {
+        // Aviso quando quota está muito alta (>=95%)
+        toast({
+          title: "Quota Quase Excedida",
+          description: `Quota em ${quotaStatus.percentageUsed}% (${quotaStatus.remainingQuota} requests restantes). Use com cuidado.`,
+        })
       }
+    }).catch(error => {
+      logger.error('[YT-SYNC] Erro ao verificar quota:', error)
     })
   }, [syncing, toast, cancelSync, checkQuotaStatus])
 

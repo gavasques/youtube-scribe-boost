@@ -1,4 +1,3 @@
-
 import { useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { logger } from '@/core/Logger'
@@ -35,7 +34,7 @@ export const useYouTubeSyncCore = () => {
     const quotaStatus = await checkQuotaStatus()
     logger.info('[YT-SYNC] Status da quota:', quotaStatus)
     
-    // Detecção específica de quota excedida
+    // CORREÇÃO: Detecção mais precisa de quota excedida
     if (quotaStatus.isExceeded) {
       const resetTime = quotaStatus.resetTime ? 
         new Date(quotaStatus.resetTime).toLocaleString('pt-BR') : 
@@ -49,16 +48,17 @@ export const useYouTubeSyncCore = () => {
       throw new Error(message)
     }
     
-    if (!quotaStatus.hasQuota) {
+    // CORREÇÃO: Validação mais precisa da quota disponível
+    if (quotaStatus.quotaUsed >= quotaStatus.quotaLimit) {
       const resetTime = quotaStatus.resetTime ? 
         new Date(quotaStatus.resetTime).toLocaleString('pt-BR') : 
         'desconhecido'
       
-      throw new Error(`Quota do YouTube API insuficiente (${quotaStatus.quotaUsed}/${quotaStatus.quotaLimit}). Reset em: ${resetTime}`)
+      throw new Error(`Quota do YouTube API excedida (${quotaStatus.quotaUsed}/${quotaStatus.quotaLimit}). Reset em: ${resetTime}`)
     }
     
-    // Aviso preventivo quando quota está alta
-    if (quotaStatus.percentageUsed && quotaStatus.percentageUsed >= 90) {
+    // CORREÇÃO: Aviso preventivo apenas quando quota realmente está alta (>=80%)
+    if (quotaStatus.percentageUsed && quotaStatus.percentageUsed >= 80) {
       logger.warn(`[YT-SYNC] ⚠️ Quota alta: ${quotaStatus.percentageUsed}% usada`)
       
       setProgress({
@@ -68,7 +68,16 @@ export const useYouTubeSyncCore = () => {
         message: `⚠️ Quota em ${quotaStatus.percentageUsed}% - Use com moderação (${quotaStatus.remainingQuota} requests restantes)`
       })
       
-      await sleep(3000)
+      await sleep(2000) // Reduzido de 3s para 2s
+    } else {
+      logger.info(`[YT-SYNC] ✅ Quota OK: ${quotaStatus.percentageUsed}% usada (${quotaStatus.remainingQuota} requests restantes)`)
+      
+      setProgress({
+        step: 'quota_ok',
+        current: 0,
+        total: 6,
+        message: `✅ Quota disponível: ${quotaStatus.remainingQuota} requests restantes`
+      })
     }
     
     // 2. Verificar rate limiting
@@ -79,10 +88,14 @@ export const useYouTubeSyncCore = () => {
       message: 'Verificando rate limiting...'
     })
     
-    if (!rateLimiter.canMakeRequest()) {
-      const remainingTime = rateLimiter.getRemainingTime()
+    // CORREÇÃO: Usar getRateLimitStatus em vez de rateLimiter diretamente
+    const rateLimitStatus = getRateLimitStatus()
+    logger.info('[YT-SYNC] Status do rate limit:', rateLimitStatus)
+    
+    if (!rateLimitStatus.canMakeRequest) {
+      const remainingTime = rateLimitStatus.remainingTime
       const waitMinutes = Math.ceil(remainingTime / 60000)
-      throw new Error(`Rate limit atingido. Aguarde ${waitMinutes} minutos.`)
+      throw new Error(`Rate limit atingido. Aguarde ${waitMinutes} minutos. (${rateLimitStatus.remainingRequests} requests restantes)`)
     }
 
     // 3. Verificar cache
@@ -93,10 +106,10 @@ export const useYouTubeSyncCore = () => {
       return cached.result
     }
 
-    // 4. Garantir intervalo mínimo entre requests
+    // 4. CORREÇÃO: Intervalo mínimo reduzido de 2 minutos para 30 segundos
     const now = Date.now()
     const timeSinceLastRequest = now - lastRequestTimeRef.current
-    const minInterval = 120000 // 2 minutos mínimo
+    const minInterval = 30000 // 30 segundos mínimo (era 120000)
 
     if (timeSinceLastRequest < minInterval) {
       const waitTime = minInterval - timeSinceLastRequest
@@ -295,10 +308,10 @@ export const useYouTubeSyncCore = () => {
             error.message?.includes('rate limit')) {
           
           if (attempt < 3) {
-            const delays = [600000, 1200000, 2400000] // 10min, 20min, 40min
+            const delays = [180000, 360000, 720000] // 3min, 6min, 12min (era 10min, 20min, 40min)
             const delay = delays[attempt - 1]
             
-            logger.info(`[YT-SYNC] Rate limit detectado. Aguardando ${delay / 1000}s`)
+            logger.info(`[YT-SYNC] Rate limit detectado. Aguardando ${delay / 60000}s`)
             
             setProgress({
               step: 'waiting_rate_limit',
@@ -312,9 +325,9 @@ export const useYouTubeSyncCore = () => {
           }
         }
 
-        // Para outros erros, aguardar tempo moderado
+        // Para outros erros, aguardar tempo reduzido
         if (attempt < 3) {
-          const delay = 60000 * attempt // 1min, 2min
+          const delay = 30000 * attempt // 30s, 60s (era 60s, 120s)
           logger.info(`[YT-SYNC] Aguardando ${delay / 1000}s antes da próxima tentativa`)
           
           setProgress({

@@ -39,20 +39,34 @@ export const useYouTubeQuota = () => {
       
       const quotaUsed = data?.requests_used || 0
       const quotaLimit = 10000 // YouTube API daily limit
+      
+      // CORREÇÃO: Calcular porcentagem corretamente
       const percentageUsed = Math.round((quotaUsed / quotaLimit) * 100)
       const remainingQuota = quotaLimit - quotaUsed
+      
+      // CORREÇÃO: Quota só é excedida quando realmente passa do limite
       const isExceeded = quotaUsed >= quotaLimit
       
       const resetTime = data?.updated_at ? new Date(data.updated_at).toISOString() : undefined
       
-      logger.info('[QUOTA-CHECK] Status detalhado da quota:', {
+      logger.info('[QUOTA-CHECK] ✅ Status detalhado da quota (CORRIGIDO):', {
         quotaUsed: quotaUsed.toLocaleString(),
         quotaLimit: quotaLimit.toLocaleString(),
         percentageUsed: `${percentageUsed}%`,
         remainingQuota: remainingQuota.toLocaleString(),
         isExceeded,
-        hasQuota: !isExceeded
+        hasQuota: !isExceeded,
+        calculationCheck: `${quotaUsed}/${quotaLimit} = ${percentageUsed}%`
       })
+      
+      // Log específico quando quota está baixa (para debugging)
+      if (percentageUsed < 50) {
+        logger.info('[QUOTA-CHECK] 🟢 Quota em nível seguro, sincronização deve funcionar normalmente')
+      } else if (percentageUsed < 90) {
+        logger.info('[QUOTA-CHECK] 🟡 Quota em nível moderado')
+      } else if (percentageUsed < 100) {
+        logger.warn('[QUOTA-CHECK] 🟠 Quota próxima do limite')
+      }
       
       return {
         hasQuota: !isExceeded,
