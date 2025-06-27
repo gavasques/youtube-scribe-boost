@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { logger } from '@/core/Logger'
@@ -69,7 +70,7 @@ export const useYouTubeSync = () => {
 
     try {
       const result = await syncCoreHook.performSync(
-        { ...options, syncAll: false },
+        { ...options, syncAll: false, maxVideos: options.maxVideos || 50 },
         (progressUpdate: SyncProgress) => {
           setProgress(progressUpdate)
         }
@@ -173,7 +174,14 @@ export const useYouTubeSync = () => {
         logger.info(`[BATCH-SYNC] Executando sincronização da página ${pageCount + 1}`)
 
         const syncResult = await syncCoreHook.performSync(
-          { ...options, syncAll: true, pageToken, deepScan, maxEmptyPages },
+          { 
+            ...options, 
+            syncAll: true, 
+            pageToken, 
+            deepScan, 
+            maxEmptyPages,
+            maxVideos: options.maxVideos || 50
+          },
           (progressUpdate: SyncProgress) => {
             // Enhanced progress message with detailed stats
             const pageInfo = progressUpdate.pageStats ? 

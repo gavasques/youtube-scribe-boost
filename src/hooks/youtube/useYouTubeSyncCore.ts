@@ -1,5 +1,5 @@
 
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import type { SyncProgress } from './useSyncState'
@@ -9,7 +9,7 @@ interface SyncOptions {
   includeRegular: boolean
   includeShorts: boolean
   syncMetadata: boolean
-  maxVideos: number
+  maxVideos?: number
   pageToken?: string
   syncAll?: boolean
   deepScan?: boolean
@@ -45,12 +45,16 @@ interface SyncResult {
 
 export const useYouTubeSyncCore = () => {
   const { toast } = useToast()
+  const cancelRef = useRef(false)
 
   const performSync = useCallback(async (
     options: SyncOptions,
     onProgress: (progress: SyncProgress) => void
   ): Promise<SyncResult> => {
     console.log('[SYNC-CORE] Iniciando sincronização:', options)
+    
+    // Reset cancel flag
+    cancelRef.current = false
     
     onProgress({
       step: 'auth_check',
@@ -63,6 +67,10 @@ export const useYouTubeSyncCore = () => {
     const { data: authData, error: authError } = await supabase.auth.getSession()
     if (authError || !authData.session) {
       throw new Error('Usuário não autenticado')
+    }
+
+    if (cancelRef.current) {
+      throw new Error('Sincronização cancelada')
     }
 
     console.log('[SYNC-CORE] Usuário autenticado:', authData.session.user.id)
@@ -85,6 +93,10 @@ export const useYouTubeSyncCore = () => {
       throw new Error('YouTube não conectado. Conecte sua conta primeiro.')
     }
 
+    if (cancelRef.current) {
+      throw new Error('Sincronização cancelada')
+    }
+
     console.log('[SYNC-CORE] YouTube conectado:', tokenData.channel_name)
 
     onProgress({
@@ -104,6 +116,10 @@ export const useYouTubeSyncCore = () => {
         'Content-Type': 'application/json'
       }
     })
+
+    if (cancelRef.current) {
+      throw new Error('Sincronização cancelada')
+    }
 
     console.log('[SYNC-CORE] Resposta da Edge Function:', {
       error: response.error?.message,
@@ -141,7 +157,13 @@ export const useYouTubeSyncCore = () => {
 
   }, [toast])
 
+  const cancelSync = useCallback(() => {
+    console.log('[SYNC-CORE] Cancelando sincronização...')
+    cancelRef.current = true
+  }, [])
+
   return {
-    performSync
+    performSync,
+    cancelSync
   }
 }
