@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -291,20 +290,29 @@ serve(async (req) => {
       )
     }
 
+    // CORREÇÃO 1: Usar o maxVideos correto vindo do frontend, sem limitação artificial
+    const requestedMaxVideos = requestBody.options?.maxVideos || 50
+    const actualMaxVideos = options.syncAll ? Math.min(requestedMaxVideos, 50) : Math.min(requestedMaxVideos, 50)
+
     // Extract options with proper defaults
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
       includeShorts: requestBody.options?.includeShorts !== false,
       syncMetadata: requestBody.options?.syncMetadata !== false,
-      maxVideos: Math.min(requestBody.options?.maxVideos || 50, 50),
+      maxVideos: actualMaxVideos, // CORREÇÃO: Usar valor calculado dinamicamente
       pageToken: requestBody.options?.pageToken || undefined,
       syncAll: requestBody.options?.syncAll || false,
       deepScan: requestBody.options?.deepScan || false,
       maxEmptyPages: requestBody.options?.maxEmptyPages || 15
     }
     
-    log('Sync options processed', options)
+    log('Sync options processed', {
+      ...options,
+      requestedMaxVideos,
+      actualMaxVideos,
+      pageToken: options.pageToken ? 'present' : 'none'
+    })
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -399,7 +407,7 @@ serve(async (req) => {
       log('Channel video count retrieved', { totalChannelVideos })
     }
 
-    // Build search URL with proper parameters for complete sync
+    // CORREÇÃO 2: Build search URL sem limitação artificial para syncAll
     let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`
     
     if (options.pageToken) {
@@ -449,18 +457,26 @@ serve(async (req) => {
     const totalResults = searchData.pageInfo?.totalResults || totalChannelVideos || 0
     const resultsPerPage = searchData.pageInfo?.resultsPerPage || 50
     
+    // CORREÇÃO 3: Logs mais detalhados para debugging da paginação
     log('Video IDs fetched from search', { 
       count: videoIds.length,
       nextPageToken: nextPageToken ? 'present' : 'none',
       totalResults,
       resultsPerPage,
       totalChannelVideos,
-      firstFewIds: videoIds.slice(0, 3)
+      hasMoreVideos: !!nextPageToken,
+      firstFewIds: videoIds.slice(0, 3),
+      pageInfo: searchData.pageInfo
     })
 
     if (videoIds.length === 0) {
       const elapsedTime = Date.now() - startTime
-      log('No video IDs found - returning empty result')
+      log('No video IDs found - returning empty result', {
+        searchUrl,
+        pageToken: options.pageToken,
+        totalResults,
+        nextPageToken
+      })
       return new Response(
         JSON.stringify({ 
           success: true,
@@ -632,7 +648,8 @@ serve(async (req) => {
     const currentPage = options.pageToken ? 
       Math.floor((stats.processed || 0) / resultsPerPage) + 1 : 1
 
-    const isEmptyPage = pageNewCount === 0
+    // CORREÇÃO 4: Lógica corrigida para páginas vazias - considerar vídeos processados, não apenas novos
+    const isEmptyPage = stats.processed === 0 // Página vazia = sem vídeos processados
 
     const result: SyncResult = {
       stats,
@@ -645,7 +662,7 @@ serve(async (req) => {
         videosInPage: videos.length,
         newInPage: pageNewCount,
         updatedInPage: pageUpdatedCount,
-        isEmptyPage,
+        isEmptyPage, // CORREÇÃO: Baseado em vídeos processados
         totalChannelVideos
       },
       processingSpeed: {
@@ -666,7 +683,20 @@ serve(async (req) => {
       processingSpeed: result.processingSpeed,
       newVideos: newVideoTitles.length > 0 ? newVideoTitles.slice(0, 3) : 'none',
       updatedVideos: updatedVideoTitles.length > 0 ? updatedVideoTitles.slice(0, 3) : 'none',
-      quotaUsed: 2
+      quotaUsed: 2,
+      // CORREÇÃO 5: Logs detalhados da paginação
+      paginationDebug: {
+        requestedMaxVideos,
+        actualMaxVideos,
+        videosFoundInPage: videoIds.length,
+        videosProcessedInPage: stats.processed,
+        newInPage: pageNewCount,
+        updatedInPage: pageUpdatedCount,
+        isEmptyPage,
+        hasNextPageToken: !!nextPageToken,
+        totalChannelVideos,
+        searchPageInfo: searchData.pageInfo
+      }
     })
 
     return new Response(
