@@ -12,7 +12,8 @@ import {
   Video,
   Pause,
   Play,
-  Square
+  Square,
+  Shield
 } from 'lucide-react'
 
 interface SyncProgress {
@@ -40,6 +41,13 @@ interface BatchSyncState {
   allErrors: string[]
 }
 
+interface RateLimitInfo {
+  isLimited: boolean
+  remainingRequests: number
+  remainingTime: number
+  currentCount: number
+}
+
 interface SyncProgressCardProps {
   progress: SyncProgress | null
   syncing: boolean
@@ -47,6 +55,7 @@ interface SyncProgressCardProps {
   onPause?: () => void
   onResume?: () => void
   onStop?: () => void
+  rateLimitInfo?: RateLimitInfo
 }
 
 export function SyncProgressCard({ 
@@ -55,7 +64,8 @@ export function SyncProgressCard({
   batchSync,
   onPause,
   onResume,
-  onStop
+  onStop,
+  rateLimitInfo
 }: SyncProgressCardProps) {
   if (!progress && !syncing && !batchSync.isRunning) return null
 
@@ -105,6 +115,7 @@ export function SyncProgressCard({
   }
 
   const isBatchSync = batchSync.isRunning || (progress?.totalVideosEstimated && progress.totalVideosEstimated > 50)
+  const isRateLimited = rateLimitInfo?.isLimited
 
   return (
     <Card className="w-full">
@@ -125,6 +136,7 @@ export function SyncProgressCard({
                   variant="outline"
                   size="sm"
                   onClick={onResume}
+                  disabled={isRateLimited}
                   className="flex items-center gap-1"
                 >
                   <Play className="w-3 h-3" />
@@ -155,6 +167,44 @@ export function SyncProgressCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Rate Limit Status */}
+        {rateLimitInfo && (
+          <div className={`p-3 rounded-lg border ${
+            isRateLimited ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className={`w-4 h-4 ${isRateLimited ? 'text-yellow-500' : 'text-green-500'}`} />
+              <span className="font-medium text-sm">
+                {isRateLimited ? 'Rate Limit Ativo' : 'Rate Limit OK'}
+              </span>
+            </div>
+            
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span>Requisições restantes:</span>
+                <span className="font-medium">{rateLimitInfo.remainingRequests}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Requisições usadas:</span>
+                <span className="font-medium">{rateLimitInfo.currentCount}</span>
+              </div>
+              {isRateLimited && (
+                <div className="flex justify-between">
+                  <span>Reset em:</span>
+                  <span className="font-medium">{Math.ceil(rateLimitInfo.remainingTime / 1000)}s</span>
+                </div>
+              )}
+            </div>
+            
+            {!isRateLimited && (
+              <Progress 
+                value={(rateLimitInfo.currentCount / (rateLimitInfo.currentCount + rateLimitInfo.remainingRequests)) * 100}
+                className="h-1 mt-2"
+              />
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">
