@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -23,20 +22,17 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
   const { syncWithYouTube, syncAllVideos, syncing, progress, syncState } = useYouTubeSyncManager()
   
   const [syncType, setSyncType] = useState<'complete' | 'incremental'>('incremental')
-  const [includeRegular, setIncludeRegular] = useState(true)
-  const [includeShorts, setIncludeShorts] = useState(true)
-  const [syncMetadata, setSyncMetadata] = useState(true)
 
   const handleSync = async () => {
     try {
-      console.log('[SYNC-MODAL] Iniciando sincronização:', { syncType, includeRegular, includeShorts })
+      console.log('[SYNC-MODAL] Iniciando sincronização:', { syncType })
       
       if (syncType === 'complete') {
         await syncAllVideos({
           type: 'full',
-          includeRegular,
-          includeShorts,
-          syncMetadata,
+          includeRegular: true,
+          includeShorts: true,
+          syncMetadata: true,
           deepScan: true,
           maxEmptyPages: 15,
           maxVideos: 100
@@ -44,9 +40,9 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
       } else {
         await syncWithYouTube({
           type: 'incremental',
-          includeRegular,
-          includeShorts,
-          syncMetadata,
+          includeRegular: true,
+          includeShorts: true,
+          syncMetadata: true,
           maxVideos: 50
         })
       }
@@ -269,10 +265,10 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
     )
   }
 
-  // Modal principal de seleção (apenas 2 opções)
+  // Modal principal - APENAS 2 OPÇÕES SIMPLES
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Youtube className="w-5 h-5 text-red-500" />
@@ -324,49 +320,11 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
                     <Badge variant="outline" className="text-purple-600 border-purple-600">Completo</Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Sincroniza TODOS os vídeos do canal, independente de serem novos. 
-                    Ideal para primeira configuração.
+                    Sincroniza TODOS os vídeos do canal. Ideal para primeira configuração.
                   </CardDescription>
                 </CardHeader>
               </Card>
 
-            </div>
-          </div>
-
-          {/* Configurações de Conteúdo */}
-          <div className="space-y-4">
-            <Label className="text-base font-medium">Tipos de Conteúdo</Label>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Vídeos Regulares</Label>
-                  <p className="text-sm text-muted-foreground">Vídeos com mais de 60 segundos</p>
-                </div>
-                <Switch
-                  checked={includeRegular}
-                  onCheckedChange={setIncludeRegular}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>YouTube Shorts</Label>
-                  <p className="text-sm text-muted-foreground">Vídeos com 60 segundos ou menos</p>
-                </div>
-                <Switch
-                  checked={includeShorts}
-                  onCheckedChange={setIncludeShorts}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Sincronizar Metadados</Label>
-                  <p className="text-sm text-muted-foreground">Views, likes, comentários, thumbnails</p>
-                </div>
-                <Switch
-                  checked={syncMetadata}
-                  onCheckedChange={setSyncMetadata}
-                />
-              </div>
             </div>
           </div>
 
@@ -377,7 +335,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             </Button>
             <Button 
               onClick={handleSync} 
-              disabled={syncing || (!includeRegular && !includeShorts) || !syncState.hasYouTubeConnection}
+              disabled={syncing || !syncState.hasYouTubeConnection}
               className="flex items-center gap-2"
             >
               <Youtube className="w-4 h-4" />
