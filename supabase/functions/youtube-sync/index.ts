@@ -114,6 +114,7 @@ serve(async (req) => {
     headers: Object.fromEntries(req.headers.entries())
   })
 
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -132,20 +133,23 @@ serve(async (req) => {
       const contentType = req.headers.get('content-type') || ''
       log('Content-Type header', contentType)
       
-      if (contentType.includes('application/json')) {
-        const bodyText = await req.text()
-        log('Request body text', { length: bodyText.length, content: bodyText.substring(0, 500) })
-        
-        if (bodyText.trim()) {
-          requestBody = JSON.parse(bodyText)
-        }
+      const bodyText = await req.text()
+      log('Request body text', { length: bodyText.length, content: bodyText.substring(0, 500) })
+      
+      if (bodyText.trim()) {
+        requestBody = JSON.parse(bodyText)
+        log('Successfully parsed request body', requestBody)
+      } else {
+        log('Request body is empty')
       }
       
-      log('Parsed request body', requestBody)
     } catch (parseError) {
       logError('Failed to parse request body', parseError)
       return new Response(
-        JSON.stringify({ error: 'Invalid request body' }),
+        JSON.stringify({ 
+          error: 'Invalid request body',
+          details: 'Failed to parse JSON from request body'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -165,13 +169,22 @@ serve(async (req) => {
 
     // Verificar se temos options no body
     if (!requestBody.options) {
-      logError('Missing options in request body', requestBody)
+      logError('Missing options in request body', { 
+        requestBody, 
+        hasOptions: !!requestBody.options,
+        bodyKeys: Object.keys(requestBody || {})
+      })
       return new Response(
-        JSON.stringify({ error: 'Missing options in request body' }),
+        JSON.stringify({ 
+          error: 'Missing options in request body',
+          details: 'The request must include an "options" object with sync configuration',
+          receivedKeys: Object.keys(requestBody || {})
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    // Aplicar valores padrão para options
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
@@ -182,7 +195,7 @@ serve(async (req) => {
       syncAll: requestBody.options?.syncAll || false
     }
     
-    log('Sync options (with defaults)', options)
+    log('Processed sync options', options)
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -506,7 +519,7 @@ serve(async (req) => {
       totalPages: estimatedTotalPages
     }
 
-    log('Sync completed', { 
+    log('Sync completed successfully', { 
       stats, 
       errorCount: errors.length,
       hasMorePages,
@@ -529,7 +542,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
-        details: error.message
+        details: error.message,
+        stack: error.stack
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

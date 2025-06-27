@@ -105,37 +105,50 @@ export function useYouTubeSync() {
         totalVideosEstimated: options.syncAll ? undefined : options.maxVideos
       })
 
-      logger.info('Calling Edge Function', { 
-        options,
-        hasAuth: !!authData.session?.access_token 
-      })
+      // Log do que está sendo enviado
+      const requestPayload = { options }
+      logger.info('Sending request payload', requestPayload)
+      console.log('YouTube Sync - Sending payload:', JSON.stringify(requestPayload, null, 2))
 
       // Use retry logic for the API call
       const result = await retryWithCondition(
         async () => {
           const response = await supabase.functions.invoke('youtube-sync', {
-            body: { options }, // Enviar options dentro de um objeto
+            body: requestPayload,
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authData.session!.access_token}`
             }
           })
 
+          console.log('YouTube Sync - Raw response:', response)
+
           if (response.error) {
+            console.error('YouTube Sync - Response error:', response.error)
             logger.error('Sync failed', response.error)
             
-            // Tratamento específico para quota exceeded
-            if (response.error.message?.includes('quota') || response.error.message?.includes('exceeded')) {
+            // Tratamento específico para diferentes tipos de erro
+            const errorMessage = response.error.message || 'Erro desconhecido'
+            
+            if (errorMessage.includes('quota') || errorMessage.includes('exceeded')) {
               throw new Error('Quota do YouTube API excedida. Tente novamente em algumas horas.')
             }
             
-            throw new Error(`Erro na sincronização: ${response.error.message || 'Erro desconhecido'}`)
+            if (errorMessage.includes('Bad Request') || errorMessage.includes('Missing options')) {
+              throw new Error('Erro na estrutura da requisição. Verifique os parâmetros de sincronização.')
+            }
+            
+            if (errorMessage.includes('YouTube not connected')) {
+              throw new Error('YouTube não conectado. Conecte sua conta do YouTube primeiro.')
+            }
+            
+            throw new Error(`Erro na sincronização: ${errorMessage}`)
           }
 
           if (!response.data) {
             throw new Error('Nenhum dado retornado pelo servidor')
           }
 
+          console.log('YouTube Sync - Success response:', response.data)
           return response.data as SyncResult
         },
         // Retry condition: retry on network errors but not on auth/quota errors
@@ -145,7 +158,9 @@ export function useYouTubeSync() {
                              !errorMessage.includes('authorization') &&
                              !errorMessage.includes('não conectado') &&
                              !errorMessage.includes('quota') &&
-                             !errorMessage.includes('exceeded')
+                             !errorMessage.includes('exceeded') &&
+                             !errorMessage.includes('bad request') &&
+                             !errorMessage.includes('missing options')
           
           console.log('Retry condition check:', { error: errorMessage, shouldRetry })
           return shouldRetry
@@ -183,7 +198,7 @@ export function useYouTubeSync() {
     } catch (error) {
       logger.error('Sync error', error)
       
-      const errorMessage = error.message || 'Erro desconhecido'
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       
       setProgress({ 
         step: 'error', 
@@ -193,7 +208,13 @@ export function useYouTubeSync() {
         errors: [errorMessage]
       })
       
-      // Don't show toast here - the retry hook will handle it
+      // Show specific toast for the error
+      toast({
+        title: 'Erro na sincronização',
+        description: errorMessage,
+        variant: 'destructive'
+      })
+      
       throw error
     } finally {
       setSyncing(false)
@@ -335,7 +356,7 @@ export function useYouTubeSync() {
     } catch (error) {
       logger.error('Batch sync error', error)
       
-      const errorMessage = error.message || 'Erro desconhecido'
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       
       setProgress({
         step: 'error',
