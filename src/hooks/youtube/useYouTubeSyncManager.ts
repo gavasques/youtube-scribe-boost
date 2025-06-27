@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
@@ -465,7 +466,8 @@ export const useYouTubeSyncManager = () => {
   const stopBatchSync = useCallback(() => {
     syncControlRef.current = {
       shouldContinue: false,
-      isRunning: false
+      isRunning: false,
+      aborted: false
     }
     setBatchSync(prev => ({ ...prev, isRunning: false, isPaused: false }))
   }, [])
