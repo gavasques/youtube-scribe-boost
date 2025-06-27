@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -134,13 +133,14 @@ serve(async (req) => {
       log('Content-Type header', contentType)
       
       const bodyText = await req.text()
-      log('Request body text', { length: bodyText.length, content: bodyText.substring(0, 500) })
+      log('Request body text', { length: bodyText.length, content: bodyText.substring(0, 1000) })
       
       if (bodyText.trim()) {
         requestBody = JSON.parse(bodyText)
         log('Successfully parsed request body', requestBody)
       } else {
         log('Request body is empty')
+        requestBody = {}
       }
       
     } catch (parseError) {
@@ -156,12 +156,13 @@ serve(async (req) => {
 
     // Handle test request
     if (requestBody.test === true) {
-      log('Test request detected')
+      log('Test request detected - communication working')
       return new Response(
         JSON.stringify({ 
           success: true,
           message: 'Edge function working correctly',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          receivedBody: requestBody
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -172,16 +173,27 @@ serve(async (req) => {
       logError('Missing options in request body', { 
         requestBody, 
         hasOptions: !!requestBody.options,
-        bodyKeys: Object.keys(requestBody || {})
+        bodyKeys: Object.keys(requestBody || {}),
+        bodyType: typeof requestBody,
+        bodyString: JSON.stringify(requestBody)
       })
-      return new Response(
-        JSON.stringify({ 
-          error: 'Missing options in request body',
-          details: 'The request must include an "options" object with sync configuration',
-          receivedKeys: Object.keys(requestBody || {})
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      
+      // Tentar usar valores padrão se options estiver ausente
+      log('Attempting to use default options for basic sync')
+      
+      requestBody = {
+        options: {
+          type: 'incremental',
+          includeRegular: true,
+          includeShorts: true,
+          syncMetadata: true,
+          maxVideos: 50,
+          pageToken: null,
+          syncAll: false
+        }
+      }
+      
+      log('Using default options', requestBody.options)
     }
 
     // Aplicar valores padrão para options

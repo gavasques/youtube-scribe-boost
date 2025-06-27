@@ -105,19 +105,45 @@ export function useYouTubeSync() {
         totalVideosEstimated: options.syncAll ? undefined : options.maxVideos
       })
 
-      // Log do que está sendo enviado
-      const requestPayload = { options }
-      logger.info('Sending request payload', requestPayload)
-      console.log('YouTube Sync - Sending payload:', JSON.stringify(requestPayload, null, 2))
+      // Payload estruturado corretamente
+      const payload = {
+        options: {
+          type: options.type,
+          includeRegular: options.includeRegular,
+          includeShorts: options.includeShorts,
+          syncMetadata: options.syncMetadata,
+          maxVideos: options.maxVideos,
+          pageToken: options.pageToken || null,
+          syncAll: options.syncAll || false
+        }
+      }
+
+      // Log detalhado do payload
+      console.log('YouTube Sync - Enviando payload:', JSON.stringify(payload, null, 2))
+      logger.info('Sending request payload', payload)
 
       // Use retry logic for the API call
       const result = await retryWithCondition(
         async () => {
+          // Teste de comunicação primeiro
+          console.log('YouTube Sync - Testando comunicação...')
+          
+          const testResponse = await supabase.functions.invoke('youtube-sync', {
+            body: JSON.stringify({ test: true })
+          })
+
+          console.log('YouTube Sync - Test response:', testResponse)
+
+          if (testResponse.error) {
+            console.error('YouTube Sync - Test failed:', testResponse.error)
+            throw new Error(`Teste de comunicação falhou: ${testResponse.error.message}`)
+          }
+
+          // Agora enviar a requisição real
+          console.log('YouTube Sync - Enviando requisição real...')
+          
           const response = await supabase.functions.invoke('youtube-sync', {
-            body: requestPayload,
-            headers: {
-              'Content-Type': 'application/json',
-            }
+            body: JSON.stringify(payload)
           })
 
           console.log('YouTube Sync - Raw response:', response)
@@ -134,6 +160,7 @@ export function useYouTubeSync() {
             }
             
             if (errorMessage.includes('Bad Request') || errorMessage.includes('Missing options')) {
+              console.error('Payload enviado:', JSON.stringify(payload, null, 2))
               throw new Error('Erro na estrutura da requisição. Verifique os parâmetros de sincronização.')
             }
             
