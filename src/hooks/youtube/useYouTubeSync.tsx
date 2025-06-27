@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { logger } from '@/core/Logger'
@@ -144,7 +145,6 @@ export const useYouTubeSync = () => {
       toast({
         title: "Rate Limit Atingido",
         description: `Aguarde ${rateLimit.remainingTime / 60000} minutos para continuar a sincronização.`,
-        variant: "warning",
       })
       cancelSync()
       setSyncing(false)
