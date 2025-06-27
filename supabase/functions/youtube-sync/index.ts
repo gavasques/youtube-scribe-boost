@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -15,6 +14,8 @@ interface SyncOptions {
   maxVideos: number
   pageToken?: string
   syncAll?: boolean
+  deepScan?: boolean
+  maxEmptyPages?: number
 }
 
 interface SyncStats {
@@ -32,6 +33,18 @@ interface SyncResult {
   hasMorePages: boolean
   currentPage: number
   totalPages?: number
+  pageStats: {
+    videosInPage: number
+    newInPage: number
+    updatedInPage: number
+    isEmptyPage: boolean
+    totalChannelVideos?: number
+  }
+  processingSpeed?: {
+    videosPerMinute: number
+    elapsedTimeMs: number
+    eta?: string
+  }
 }
 
 function log(message: string, data?: any) {
@@ -178,11 +191,30 @@ function getBestThumbnail(thumbnails: any): string | null {
   return null
 }
 
+async function getChannelVideoCount(accessToken: string, channelId: string): Promise<number> {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    
+    if (response.ok) {
+      const data = await response.json()
+      return parseInt(data.items?.[0]?.statistics?.videoCount || '0')
+    }
+  } catch (error) {
+    log('Error fetching channel video count', error)
+  }
+  return 0
+}
+
 serve(async (req) => {
+  const startTime = Date.now()
+  
   log('=== YouTube Sync Function Started ===', {
     method: req.method,
     url: req.url,
-    headers: Object.fromEntries(req.headers.entries())
+    startTime: new Date(startTime).toISOString()
   })
 
   if (req.method === 'OPTIONS') {
@@ -233,18 +265,20 @@ serve(async (req) => {
       )
     }
 
-    // Extract options with proper defaults
+    // Extract options with enhanced defaults
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
       includeShorts: requestBody.options?.includeShorts !== false,
       syncMetadata: requestBody.options?.syncMetadata !== false,
-      maxVideos: Math.min(requestBody.options?.maxVideos || 50, 50), // Limit to 50 per request
+      maxVideos: Math.min(requestBody.options?.maxVideos || 50, 50),
       pageToken: requestBody.options?.pageToken || undefined,
-      syncAll: requestBody.options?.syncAll || false
+      syncAll: requestBody.options?.syncAll || false,
+      deepScan: requestBody.options?.deepScan || false,
+      maxEmptyPages: requestBody.options?.maxEmptyPages || 5
     }
     
-    log('Final sync options', options)
+    log('Enhanced sync options', options)
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -272,7 +306,7 @@ serve(async (req) => {
     const canProceed = await checkQuotaUsage(supabaseService, user.id, 100)
     if (!canProceed) {
       log('YouTube API quota exceeded')
-      await updateQuotaUsage(supabaseService, user.id, 1) // Still count the attempt
+      await updateQuotaUsage(supabaseService, user.id, 1)
       return new Response(
         JSON.stringify({ 
           error: 'Quota da API do YouTube excedida para hoje. Tente novamente amanhã.',
@@ -328,6 +362,13 @@ serve(async (req) => {
       log('Token refreshed successfully')
     }
 
+    // Get total channel video count for better progress tracking
+    let totalChannelVideos = 0
+    if (options.syncAll || options.deepScan) {
+      totalChannelVideos = await getChannelVideoCount(accessToken, tokenData.channel_id)
+      log('Channel video count retrieved', { totalChannelVideos })
+    }
+
     // Build search URL with pagination support
     let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`
     
@@ -339,23 +380,23 @@ serve(async (req) => {
     log('Fetching videos from YouTube', { 
       maxVideos: options.maxVideos, 
       pageToken: options.pageToken,
-      syncAll: options.syncAll
+      syncAll: options.syncAll,
+      deepScan: options.deepScan,
+      totalChannelVideos
     })
     
     const searchResponse = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
 
-    // Update quota usage for the search request
     await updateQuotaUsage(supabaseService, user.id, 1)
 
     if (!searchResponse.ok) {
       const error = await searchResponse.json()
       logError('YouTube search failed', error)
       
-      // Check if it's a quota error
       if (error.error?.code === 403 && error.error?.message?.includes('quota')) {
-        await updateQuotaUsage(supabaseService, user.id, 5) // Penalty for quota error
+        await updateQuotaUsage(supabaseService, user.id, 5)
         return new Response(
           JSON.stringify({ 
             error: 'Quota da API do YouTube excedida. Tente novamente mais tarde.',
@@ -374,24 +415,37 @@ serve(async (req) => {
     const searchData = await searchResponse.json()
     const videoIds = searchData.items?.map((item: any) => item.id.videoId) || []
     const nextPageToken = searchData.nextPageToken
-    const totalResults = searchData.pageInfo?.totalResults || 0
+    const totalResults = searchData.pageInfo?.totalResults || totalChannelVideos || 0
     const resultsPerPage = searchData.pageInfo?.resultsPerPage || 50
     
     log('Video IDs fetched', { 
       count: videoIds.length,
       nextPageToken,
       totalResults,
-      resultsPerPage
+      resultsPerPage,
+      totalChannelVideos
     })
 
     if (videoIds.length === 0) {
+      const elapsedTime = Date.now() - startTime
       return new Response(
         JSON.stringify({ 
           success: true,
-          stats: { processed: 0, new: 0, updated: 0, errors: 0 },
-          hasMorePages: false,
+          stats: { processed: 0, new: 0, updated: 0, errors: 0, totalEstimated: totalResults },
+          hasMorePages: !!nextPageToken,
           currentPage: 1,
-          nextPageToken: null
+          nextPageToken,
+          pageStats: {
+            videosInPage: 0,
+            newInPage: 0,
+            updatedInPage: 0,
+            isEmptyPage: true,
+            totalChannelVideos
+          },
+          processingSpeed: {
+            videosPerMinute: 0,
+            elapsedTimeMs: elapsedTime
+          }
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -403,7 +457,6 @@ serve(async (req) => {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
 
-    // Update quota usage for the details request
     await updateQuotaUsage(supabaseService, user.id, 1)
 
     if (!detailsResponse.ok) {
@@ -424,6 +477,9 @@ serve(async (req) => {
     const errors: string[] = []
     const newVideoTitles: string[] = []
     const updatedVideoTitles: string[] = []
+
+    let pageNewCount = 0
+    let pageUpdatedCount = 0
 
     for (const video of videos) {
       try {
@@ -462,7 +518,6 @@ serve(async (req) => {
             
             if (updateError) throw updateError
 
-            // Update metadata table
             await supabaseService
               .from('video_metadata')
               .upsert({
@@ -478,6 +533,7 @@ serve(async (req) => {
               })
 
             stats.updated++
+            pageUpdatedCount++
             updatedVideoTitles.push(videoTitle)
             log(`Updated existing video: ${videoTitle}`)
           }
@@ -490,7 +546,6 @@ serve(async (req) => {
           
           if (insertError) throw insertError
 
-          // Insert metadata
           await supabaseService
             .from('video_metadata')
             .insert({
@@ -507,6 +562,7 @@ serve(async (req) => {
             })
 
           stats.new++
+          pageNewCount++
           newVideoTitles.push(videoTitle)
           log(`Added new video: ${videoTitle}`)
         }
@@ -520,11 +576,24 @@ serve(async (req) => {
       }
     }
 
+    // Calculate processing speed and ETA
+    const elapsedTime = Date.now() - startTime
+    const videosPerMinute = stats.processed > 0 ? (stats.processed / (elapsedTime / 60000)) : 0
+    let eta = undefined
+    
+    if (totalResults > 0 && videosPerMinute > 0) {
+      const remainingVideos = totalResults - stats.processed
+      const remainingMinutes = remainingVideos / videosPerMinute
+      eta = new Date(Date.now() + (remainingMinutes * 60000)).toISOString()
+    }
+
     // Calculate pagination info
     const hasMorePages = !!nextPageToken
     const estimatedTotalPages = Math.ceil(totalResults / resultsPerPage)
     const currentPage = options.pageToken ? 
       Math.floor((stats.processed || 0) / resultsPerPage) + 1 : 1
+
+    const isEmptyPage = pageNewCount === 0
 
     const result: SyncResult = {
       stats,
@@ -532,19 +601,33 @@ serve(async (req) => {
       nextPageToken,
       hasMorePages,
       currentPage,
-      totalPages: estimatedTotalPages
+      totalPages: estimatedTotalPages,
+      pageStats: {
+        videosInPage: videos.length,
+        newInPage: pageNewCount,
+        updatedInPage: pageUpdatedCount,
+        isEmptyPage,
+        totalChannelVideos
+      },
+      processingSpeed: {
+        videosPerMinute: Math.round(videosPerMinute * 100) / 100,
+        elapsedTimeMs: elapsedTime,
+        eta
+      }
     }
 
-    log('Sync completed successfully', { 
+    log('Enhanced sync completed successfully', { 
       stats, 
       errorCount: errors.length,
       hasMorePages,
       nextPageToken: nextPageToken ? 'present' : 'none',
       currentPage,
       totalPages: estimatedTotalPages,
+      pageStats: result.pageStats,
+      processingSpeed: result.processingSpeed,
       newVideos: newVideoTitles.length > 0 ? newVideoTitles.slice(0, 3) : 'none',
       updatedVideos: updatedVideoTitles.length > 0 ? updatedVideoTitles.slice(0, 3) : 'none',
-      quotaUsed: 2 // Search + Details requests
+      quotaUsed: 2
     })
 
     return new Response(

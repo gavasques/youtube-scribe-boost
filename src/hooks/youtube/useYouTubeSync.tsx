@@ -11,7 +11,7 @@ export const useYouTubeSync = () => {
   const { toast } = useToast()
   const { performSync, cancelSync } = useYouTubeSyncCore()
   const { checkQuotaStatus } = useYouTubeQuota()
-  const { batchSync, startBatchSync, pauseBatchSync, resumeBatchSync, stopBatchSync, updateBatchStats } = useBatchSync()
+  const { batchSync, startBatchSync, pauseBatchSync, resumeBatchSync, stopBatchSync, updateBatchStats, shouldContinueSync } = useBatchSync()
   const [syncing, setSyncing] = useState(false)
   const [progress, setProgress] = useState<SyncProgress>({
     step: '',
@@ -64,8 +64,9 @@ export const useYouTubeSync = () => {
     let allErrors: string[] = []
     let totalEstimated = 0
     let consecutiveEmptyPages = 0
-    const maxEmptyPages = 5
+    const maxEmptyPages = options.maxEmptyPages || 5
     let pageCount = 0
+    const deepScan = options.deepScan || false
 
     try {
       do {
@@ -75,14 +76,13 @@ export const useYouTubeSync = () => {
           logger.info('[BATCH-SYNC] Sincronização pausada. Aguardando...')
           setProgress(prev => ({ ...prev, message: 'Sincronização pausada. Retomando em breve...' }))
 
-          // Aguardar até que isPaused seja false
           await new Promise<void>(resolve => {
             const checkPaused = () => {
               if (!batchSync.isPaused) {
                 logger.info('[BATCH-SYNC] Sincronização retomada.')
                 resolve()
               } else {
-                setTimeout(checkPaused, 5000) // Verificar a cada 5 segundos
+                setTimeout(checkPaused, 5000)
               }
             }
             checkPaused()
@@ -90,13 +90,23 @@ export const useYouTubeSync = () => {
         }
 
         const syncResult = await performSync(
-          { ...options, syncAll: true, pageToken },
+          { ...options, syncAll: true, pageToken, deepScan, maxEmptyPages },
           (progressUpdate: SyncProgress) => {
+            // Enhanced progress message with detailed stats
+            const pageInfo = progressUpdate.pageStats ? 
+              ` | Página: ${progressUpdate.pageStats.videosInPage} vídeos, ${progressUpdate.pageStats.newInPage} novos, ${progressUpdate.pageStats.updatedInPage} atualizados` : ''
+            
+            const speedInfo = progressUpdate.processingSpeed ? 
+              ` | Velocidade: ${progressUpdate.processingSpeed.videosPerMinute.toFixed(1)} vídeos/min` : ''
+            
+            const etaInfo = progressUpdate.processingSpeed?.eta ? 
+              ` | ETA: ${new Date(progressUpdate.processingSpeed.eta).toLocaleTimeString('pt-BR')}` : ''
+
             setProgress({
               ...progressUpdate,
-              message: `${progressUpdate.message} (Página ${pageCount + 1}${consecutiveEmptyPages > 0 ? `, ${consecutiveEmptyPages} páginas sem vídeos novos` : ''})`
+              message: `${progressUpdate.message} (Página ${pageCount + 1}${consecutiveEmptyPages > 0 ? `, ${consecutiveEmptyPages} páginas sem novos` : ''})${pageInfo}${speedInfo}${etaInfo}`
             })
-            totalEstimated = progressUpdate.totalVideosEstimated || 0
+            totalEstimated = progressUpdate.totalVideosEstimated || syncResult.pageStats?.totalChannelVideos || 0
           }
         )
 
@@ -108,14 +118,16 @@ export const useYouTubeSync = () => {
         allErrors = [...allErrors, ...(syncResult.errors || [])]
         pageCount++
 
-        // Verificar se a página atual trouxe vídeos novos
-        const hasNewVideos = syncResult.stats.new > 0
+        // Enhanced page analysis
+        const hasNewVideos = syncResult.pageStats.newInPage > 0
+        const pageHasContent = syncResult.pageStats.videosInPage > 0
+        
         if (hasNewVideos) {
           consecutiveEmptyPages = 0
-          logger.info(`[BATCH-SYNC] Página ${pageCount} trouxe ${syncResult.stats.new} vídeos novos. Continuando...`)
+          logger.info(`[BATCH-SYNC] Página ${pageCount} trouxe ${syncResult.pageStats.newInPage} vídeos novos de ${syncResult.pageStats.videosInPage} total. Continuando...`)
         } else {
           consecutiveEmptyPages++
-          logger.info(`[BATCH-SYNC] Página ${pageCount} sem vídeos novos (${consecutiveEmptyPages}/${maxEmptyPages}). ${syncResult.stats.updated} atualizados.`)
+          logger.info(`[BATCH-SYNC] Página ${pageCount} sem vídeos novos (${consecutiveEmptyPages}/${maxEmptyPages}). ${syncResult.pageStats.updatedInPage} atualizados de ${syncResult.pageStats.videosInPage} total.`)
         }
 
         updateBatchStats(
@@ -124,39 +136,41 @@ export const useYouTubeSync = () => {
             new: syncResult.stats.new,
             updated: syncResult.stats.updated,
             errors: syncResult.stats.errors,
-            totalEstimated
+            totalEstimated: syncResult.pageStats.totalChannelVideos || totalEstimated
           },
-          syncResult.errors
+          syncResult.errors,
+          syncResult.pageStats
         )
 
         logger.info(`[BATCH-SYNC] Página ${pageCount} concluída. Processados: ${syncResult.stats.processed}, Novos: ${syncResult.stats.new}, Atualizados: ${syncResult.stats.updated}, Erros: ${syncResult.stats.errors}`)
 
-        // Condições para continuar:
-        // 1. Tem próxima página (pageToken existe)
-        // 2. Não excedeu o limite de páginas consecutivas sem vídeos novos
-        // 3. Sincronização ainda está rodando
-        const shouldContinue = pageToken && 
-                              consecutiveEmptyPages < maxEmptyPages && 
-                              batchSync.isRunning
+        // Enhanced continuation logic
+        const shouldContinue = shouldContinueSync(deepScan) &&
+                              pageToken && 
+                              (deepScan || consecutiveEmptyPages < maxEmptyPages) &&
+                              pageHasContent // Stop if page has no content at all
 
         if (!shouldContinue) {
           if (!pageToken) {
             logger.info('[BATCH-SYNC] Não há mais páginas para processar.')
-          } else if (consecutiveEmptyPages >= maxEmptyPages) {
+          } else if (!deepScan && consecutiveEmptyPages >= maxEmptyPages) {
             logger.info(`[BATCH-SYNC] Parando após ${consecutiveEmptyPages} páginas consecutivas sem vídeos novos.`)
+          } else if (!pageHasContent) {
+            logger.info('[BATCH-SYNC] Parando - página sem conteúdo encontrada.')
           } else if (!batchSync.isRunning) {
             logger.info('[BATCH-SYNC] Sincronização interrompida pelo usuário.')
           }
           break
         }
 
-        // Pequeno delay entre páginas para evitar rate limiting
+        // Adaptive delay based on processing speed
         if (pageToken) {
-          logger.info('[BATCH-SYNC] Aguardando 2s antes da próxima página...')
-          await new Promise(resolve => setTimeout(resolve, 2000))
+          const delay = syncResult.processingSpeed.videosPerMinute > 30 ? 1000 : 2000
+          logger.info(`[BATCH-SYNC] Aguardando ${delay}ms antes da próxima página...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
         }
 
-      } while (pageToken && consecutiveEmptyPages < maxEmptyPages && batchSync.isRunning)
+      } while (pageToken && shouldContinueSync(deepScan) && batchSync.isRunning)
 
       logger.info('[BATCH-SYNC] Sincronização completa!', {
         totalPages: pageCount,
@@ -164,12 +178,14 @@ export const useYouTubeSync = () => {
         totalUpdated,
         totalProcessed,
         totalErrors,
-        consecutiveEmptyPages
+        consecutiveEmptyPages,
+        deepScan,
+        totalEstimated
       })
 
       const message = totalNew > 0 
-        ? `Sincronização completa! ${totalNew} vídeos novos, ${totalUpdated} atualizados em ${pageCount} páginas.`
-        : `Sincronização completa! ${totalUpdated} vídeos atualizados, nenhum vídeo novo encontrado em ${pageCount} páginas.`
+        ? `Sincronização completa! ${totalNew} vídeos novos, ${totalUpdated} atualizados em ${pageCount} páginas de ~${totalEstimated} vídeos do canal.`
+        : `Sincronização completa! ${totalUpdated} vídeos atualizados, nenhum vídeo novo encontrado em ${pageCount} páginas processadas.`
 
       toast({
         title: "Sincronização Completa",
@@ -188,12 +204,11 @@ export const useYouTubeSync = () => {
       stopBatchSync()
       logger.info('[BATCH-SYNC] Limpando estado e finalizando sincronização.')
     }
-  }, [performSync, toast, startBatchSync, batchSync.isPaused, batchSync.isRunning, stopBatchSync, updateBatchStats])
+  }, [performSync, toast, startBatchSync, batchSync.isPaused, batchSync.isRunning, stopBatchSync, updateBatchStats, shouldContinueSync])
 
   useEffect(() => {
     if (!syncing) return
     
-    // CORREÇÃO: Usar getRateLimitStatus corretamente
     const rateLimit = getRateLimitStatus()
     
     logger.info('[YT-SYNC] Verificando limites durante sincronização:', {
@@ -216,7 +231,6 @@ export const useYouTubeSync = () => {
     checkQuotaStatus().then(quotaStatus => {
       logger.info('[YT-SYNC] Verificação de quota durante sincronização:', quotaStatus)
       
-      // CORREÇÃO: Usar isExceeded em vez de hasQuota negativo
       if (quotaStatus.isExceeded) {
         toast({
           title: "Quota Excedida",
@@ -225,7 +239,6 @@ export const useYouTubeSync = () => {
         cancelSync()
         setSyncing(false)
       } else if (quotaStatus.percentageUsed && quotaStatus.percentageUsed >= 95) {
-        // Aviso quando quota está muito alta (>=95%)
         toast({
           title: "Quota Quase Excedida",
           description: `Quota em ${quotaStatus.percentageUsed}% (${quotaStatus.remainingQuota} requests restantes). Use com cuidado.`,

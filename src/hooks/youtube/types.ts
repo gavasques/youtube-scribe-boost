@@ -7,6 +7,8 @@ export interface SyncOptions {
   maxVideos?: number
   pageToken?: string
   syncAll?: boolean
+  deepScan?: boolean
+  maxEmptyPages?: number
 }
 
 export interface SyncStats {
@@ -23,6 +25,20 @@ export interface QuotaInfo {
   dailyLimit?: number
 }
 
+export interface ProcessingSpeed {
+  videosPerMinute: number
+  elapsedTimeMs: number
+  eta?: string
+}
+
+export interface PageStats {
+  videosInPage: number
+  newInPage: number
+  updatedInPage: number
+  isEmptyPage: boolean
+  totalChannelVideos?: number
+}
+
 export interface SyncProgress {
   step: string
   current: number
@@ -34,6 +50,8 @@ export interface SyncProgress {
   videosProcessed?: number
   totalVideosEstimated?: number
   quotaInfo?: QuotaInfo
+  processingSpeed?: ProcessingSpeed
+  pageStats?: PageStats
 }
 
 export interface SyncResult {
@@ -44,6 +62,8 @@ export interface SyncResult {
   currentPage: number
   totalPages?: number
   quotaInfo?: QuotaInfo
+  pageStats: PageStats
+  processingSpeed: ProcessingSpeed
 }
 
 export interface BatchSyncState {
@@ -55,4 +75,7 @@ export interface BatchSyncState {
   pagesProcessed: number
   emptyPages: number
   maxEmptyPages: number
+  startTime?: number
+  lastPageStats?: PageStats
+  overallSpeed?: ProcessingSpeed
 }

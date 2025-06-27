@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { useYouTubeSync } from '@/hooks/youtube/useYouTubeSync'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
-import { Youtube, Zap, Database, AlertCircle, Infinity } from 'lucide-react'
+import { Youtube, Zap, Database, AlertCircle, Infinity, Search, Settings } from 'lucide-react'
 
 interface YouTubeSyncModalProps {
   open: boolean
@@ -22,21 +22,25 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
   const { isConnected } = useYouTubeAuth()
   const { syncWithYouTube, syncAllVideos, syncing } = useYouTubeSync()
   
-  const [syncType, setSyncType] = useState<'quick' | 'full' | 'complete'>('quick')
+  const [syncType, setSyncType] = useState<'quick' | 'full' | 'complete' | 'deep'>('quick')
   const [includeRegular, setIncludeRegular] = useState(true)
   const [includeShorts, setIncludeShorts] = useState(true)
   const [syncMetadata, setSyncMetadata] = useState(true)
   const [maxVideos, setMaxVideos] = useState(50)
+  const [maxEmptyPages, setMaxEmptyPages] = useState(5)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const handleSync = async () => {
     try {
-      if (syncType === 'complete') {
+      if (syncType === 'complete' || syncType === 'deep') {
         await syncAllVideos({
           type: 'full',
           includeRegular,
           includeShorts,
           syncMetadata,
-          maxVideos: 50 // Use 50 per page for complete sync
+          maxVideos: 50,
+          deepScan: syncType === 'deep',
+          maxEmptyPages
         })
       } else {
         await syncWithYouTube({
@@ -141,10 +145,29 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <Infinity className="w-4 h-4 text-purple-500" />
                     Sincronização Completa
-                    <Badge variant="outline" className="text-purple-600 border-purple-600">Todos os vídeos</Badge>
+                    <Badge variant="outline" className="text-purple-600 border-purple-600">Inteligente</Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Sincroniza TODOS os vídeos do seu canal. Pode levar vários minutos. Ideal para configuração inicial.
+                    Sincroniza todos os vídeos novos, parando automaticamente quando não há mais conteúdo novo.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              {/* Deep Scan */}
+              <Card 
+                className={`cursor-pointer border-2 transition-colors ${
+                  syncType === 'deep' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setSyncType('deep')}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Search className="w-4 h-4 text-red-500" />
+                    Varredura Profunda
+                    <Badge variant="outline" className="text-red-600 border-red-600">Completo</Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Sincroniza TODOS os vídeos do canal, independente de serem novos. Ideal para primeira configuração.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -152,33 +175,71 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
           </div>
 
           {/* Opções Avançadas */}
-          {syncType === 'full' && (
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Configurações</Label>
-              <div className="space-y-2">
-                <Label htmlFor="maxVideos">Máximo de vídeos (1-500)</Label>
-                <Input
-                  id="maxVideos"
-                  type="number"
-                  min="1"
-                  max="500"
-                  value={maxVideos}
-                  onChange={(e) => setMaxVideos(parseInt(e.target.value) || 50)}
-                  className="w-full"
-                />
-              </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="p-0 h-auto font-medium"
+              >
+                <Settings className="w-4 h-4 mr-1" />
+                Configurações Avançadas
+              </Button>
             </div>
-          )}
+
+            {showAdvanced && (
+              <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+                {syncType === 'full' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="maxVideos">Máximo de vídeos (1-500)</Label>
+                    <Input
+                      id="maxVideos"
+                      type="number"
+                      min="1"
+                      max="500"
+                      value={maxVideos}
+                      onChange={(e) => setMaxVideos(parseInt(e.target.value) || 50)}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+
+                {(syncType === 'complete' || syncType === 'deep') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="maxEmptyPages">Páginas consecutivas sem novos vídeos (1-10)</Label>
+                    <Input
+                      id="maxEmptyPages"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={maxEmptyPages}
+                      onChange={(e) => setMaxEmptyPages(parseInt(e.target.value) || 5)}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {syncType === 'deep' ? 'Não aplicável na varredura profunda (processa tudo)' : 'Parar após X páginas sem vídeos novos'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Alertas */}
-          {syncType === 'complete' && (
+          {(syncType === 'complete' || syncType === 'deep') && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
                 <div className="text-sm">
-                  <div className="font-medium text-yellow-800">Sincronização Completa</div>
+                  <div className="font-medium text-yellow-800">
+                    {syncType === 'deep' ? 'Varredura Profunda' : 'Sincronização Completa'}
+                  </div>
                   <div className="text-yellow-700 mt-1">
-                    Esta opção pode levar muito tempo se você tiver muitos vídeos. O processo será feito em lotes e você poderá pausar/retomar a qualquer momento.
+                    {syncType === 'deep' 
+                      ? 'Esta opção processará TODOS os vídeos do seu canal, podendo levar muito tempo. Use apenas para configuração inicial.'
+                      : 'Esta opção pode levar tempo se você tiver muitos vídeos. O processo será feito em lotes com feedback detalhado.'
+                    }
                   </div>
                 </div>
               </div>
@@ -234,6 +295,7 @@ export function YouTubeSyncModal({ open, onClose, onSyncComplete }: YouTubeSyncM
             >
               <Youtube className="w-4 h-4" />
               {syncing ? 'Sincronizando...' : 
+               syncType === 'deep' ? 'Varredura Profunda' :
                syncType === 'complete' ? 'Sincronizar Todos' :
                syncType === 'full' ? `Sincronizar ${maxVideos} Vídeos` :
                'Sincronização Rápida'}
