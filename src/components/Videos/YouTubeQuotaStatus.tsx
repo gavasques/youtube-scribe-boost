@@ -34,24 +34,23 @@ export function YouTubeQuotaStatus({ className = "" }: QuotaStatusProps) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Use raw query since the table might not be in types yet
-      const { data, error } = await supabase
-        .from('youtube_quota_usage' as any)
-        .select('requests_used, date, updated_at')
-        .eq('user_id', user.id)
-        .eq('date', today)
-        .maybeSingle()
+      // Use RPC call to safely query the table
+      const { data, error } = await supabase.rpc('get_quota_usage', {
+        p_user_id: user.id,
+        p_date: today
+      })
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching quota usage:', error)
         return
       }
 
-      if (data) {
+      if (data && data.length > 0) {
+        const quotaData = data[0]
         setQuotaUsage({
-          requests_used: data.requests_used,
-          date: data.date,
-          updated_at: data.updated_at
+          requests_used: quotaData.requests_used || 0,
+          date: quotaData.date,
+          updated_at: quotaData.updated_at
         })
       }
     } catch (error) {
@@ -72,7 +71,7 @@ export function YouTubeQuotaStatus({ className = "" }: QuotaStatusProps) {
         color: 'text-red-500',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
-        status: 'critical',
+        status: 'critical' as const,
         message: 'Quota quase esgotada'
       }
     } else if (usagePercentage >= 70) {
@@ -81,7 +80,7 @@ export function YouTubeQuotaStatus({ className = "" }: QuotaStatusProps) {
         color: 'text-yellow-500',
         bgColor: 'bg-yellow-50',
         borderColor: 'border-yellow-200',
-        status: 'warning',
+        status: 'warning' as const,
         message: 'Quota alta'
       }
     } else {
@@ -90,7 +89,7 @@ export function YouTubeQuotaStatus({ className = "" }: QuotaStatusProps) {
         color: 'text-green-500',
         bgColor: 'bg-green-50',
         borderColor: 'border-green-200',
-        status: 'good',
+        status: 'good' as const,
         message: 'Quota disponível'
       }
     }
