@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import { useRetry } from '@/hooks/useRetry'
+import { useRateLimiter } from '@/hooks/useRateLimiter'
+import { useDebounce } from '@/hooks/useDebounce'
+import { showErrorToast, showSuccessToast, showWarningToast } from '@/components/ui/enhanced-toast'
 import { logger } from '@/core/Logger'
 
 interface SyncOptions {
@@ -73,13 +76,25 @@ export function useYouTubeSync() {
     allErrors: []
   })
 
-  // Retry configuration - don't retry quota exceeded errors
+  // Rate limiting configuration
+  const youtubeRateLimiter = useRateLimiter({
+    maxRequests: 3,
+    windowMs: 120000, // 2 minutes
+    key: 'youtube_sync'
+  })
+
+  // Enhanced retry configuration with exponential backoff
   const { retryWithCondition } = useRetry({
     maxAttempts: 3,
-    delay: 2000,
+    delay: 5000, // Start with 5s
     backoff: true
   })
 
+  // Debounced sync function to prevent rapid successive calls
+  const [syncRequest, setSyncRequest] = useState<SyncOptions | null>(null)
+  const debouncedSyncRequest = useDebounce(syncRequest, 2000)
+
+  // Enhanced sync function with intelligent rate limiting
   const syncWithYouTube = async (options: SyncOptions): Promise<SyncResult> => {
     setSyncing(true)
     setProgress({ 
@@ -90,7 +105,21 @@ export function useYouTubeSync() {
     })
 
     try {
-      logger.info('Starting YouTube sync', { options })
+      // Check rate limiting first
+      if (youtubeRateLimiter.checkRateLimit()) {
+        const remainingTime = youtubeRateLimiter.getRemainingTime()
+        const remainingRequests = youtubeRateLimiter.getRemainingRequests()
+        
+        throw new Error(`Rate limit atingido. ${remainingRequests} requisições restantes. Aguarde ${Math.ceil(remainingTime / 1000)} segundos.`)
+      }
+
+      logger.info('Starting YouTube sync with rate limiting', { 
+        options,
+        rateLimitStatus: {
+          remaining: youtubeRateLimiter.getRemainingRequests(),
+          resetIn: youtubeRateLimiter.getRemainingTime()
+        }
+      })
 
       setProgress({ 
         step: 'auth', 
@@ -128,11 +157,15 @@ export function useYouTubeSync() {
       console.log('YouTube Sync - Enviando payload:', JSON.stringify(payload, null, 2))
       logger.info('Sending request payload', payload)
 
-      // Use retry logic with quota-aware conditions
+      // Increment rate limit counter
+      youtubeRateLimiter.incrementCount()
+
+      // Enhanced retry logic with intelligent error handling
       const result = await retryWithCondition(
         async () => {
           console.log('YouTube Sync - Testando comunicação...')
           
+          // Test connection first
           const testResponse = await supabase.functions.invoke('youtube-sync', {
             body: JSON.stringify({ test: true })
           })
@@ -146,6 +179,9 @@ export function useYouTubeSync() {
 
           console.log('YouTube Sync - Enviando requisição real...')
           
+          // Wait a bit before the real request to avoid overwhelming
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
           const response = await supabase.functions.invoke('youtube-sync', {
             body: JSON.stringify(payload)
           })
@@ -158,9 +194,12 @@ export function useYouTubeSync() {
             
             const errorMessage = response.error.message || 'Erro desconhecido'
             
-            // Enhanced quota error detection
+            // Enhanced error handling with specific messages
+            if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+              throw new Error('Muitas requisições. O sistema está limitando a velocidade para proteger a API. Aguarde alguns minutos antes de tentar novamente.')
+            }
+            
             if (errorMessage.includes('quota') || errorMessage.includes('exceeded') || 
-                errorMessage.includes('429') || errorMessage.includes('Too Many Requests') ||
                 errorMessage.includes('quotaExceeded')) {
               throw new Error('YouTube API quota excedida. A quota é resetada à meia-noite (horário do Pacífico). Tente novamente em algumas horas.')
             }
@@ -184,22 +223,49 @@ export function useYouTubeSync() {
           console.log('YouTube Sync - Success response:', response.data)
           return response.data as SyncResult
         },
-        // Enhanced retry condition - don't retry quota errors or 429s
-        (error) => {
+        // Enhanced retry condition with intelligent backoff
+        (error, attemptNumber) => {
           const errorMessage = error.message?.toLowerCase() || ''
-          const shouldRetry = !errorMessage.includes('authentication') && 
-                             !errorMessage.includes('authorization') &&
-                             !errorMessage.includes('não conectado') &&
-                             !errorMessage.includes('quota') &&
-                             !errorMessage.includes('exceeded') &&
-                             !errorMessage.includes('429') &&
-                             !errorMessage.includes('too many requests') &&
-                             !errorMessage.includes('quotaexceeded') &&
-                             !errorMessage.includes('bad request') &&
-                             !errorMessage.includes('missing options')
           
-          console.log('Retry condition check:', { error: errorMessage, shouldRetry })
-          return shouldRetry
+          // Never retry these errors
+          if (errorMessage.includes('authentication') || 
+              errorMessage.includes('authorization') ||
+              errorMessage.includes('não conectado') ||
+              errorMessage.includes('bad request') ||
+              errorMessage.includes('missing options')) {
+            return false
+          }
+          
+          // For rate limiting errors, implement longer delays
+          if (errorMessage.includes('429') || 
+              errorMessage.includes('too many requests') ||
+              errorMessage.includes('muitas requisições')) {
+            
+            // Exponential backoff for rate limiting: 30s, 60s, 120s
+            const rateLimitDelay = 30000 * Math.pow(2, attemptNumber - 1)
+            console.log(`Rate limit detected, waiting ${rateLimitDelay / 1000}s before retry ${attemptNumber}`)
+            
+            // Show user-friendly message
+            showWarningToast({
+              title: 'Rate Limit Detectado',
+              description: `Aguardando ${rateLimitDelay / 1000}s antes da próxima tentativa...`,
+              duration: 5000
+            })
+            
+            // Set a longer delay for rate limit errors
+            setTimeout(() => {}, rateLimitDelay)
+            return true
+          }
+          
+          // For quota errors, don't retry
+          if (errorMessage.includes('quota') || 
+              errorMessage.includes('exceeded') ||
+              errorMessage.includes('quotaexceeded')) {
+            return false
+          }
+          
+          console.log('Retry condition check:', { error: errorMessage, attemptNumber, shouldRetry: true })
+          return true
         }
       )
 
@@ -223,15 +289,14 @@ export function useYouTubeSync() {
       }
       
       if (result.errors && result.errors.length > 0) {
-        toast({
+        showWarningToast({
           title: 'Sincronização concluída com avisos',
-          description: `${statsMessage}${quotaMessage} ${result.errors.length} erros encontrados.`,
-          variant: 'default'
+          description: `${statsMessage}${quotaMessage} ${result.errors.length} erros encontrados.`
         })
       } else {
-        toast({
+        showSuccessToast({
           title: 'Sincronização concluída!',
-          description: `${statsMessage}${quotaMessage}`,
+          description: `${statsMessage}${quotaMessage}`
         })
       }
 
@@ -244,29 +309,47 @@ export function useYouTubeSync() {
       
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       
+      // Check if it's a rate limit error
+      const isRateLimitError = errorMessage.toLowerCase().includes('rate limit') || 
+                               errorMessage.toLowerCase().includes('muitas requisições') ||
+                               errorMessage.toLowerCase().includes('429') ||
+                               errorMessage.toLowerCase().includes('too many requests')
+      
       // Check if it's a quota error
       const isQuotaError = errorMessage.toLowerCase().includes('quota') || 
                           errorMessage.toLowerCase().includes('exceeded') ||
-                          errorMessage.toLowerCase().includes('429') ||
                           errorMessage.toLowerCase().includes('quotaexceeded')
       
       setProgress({ 
         step: 'error', 
         current: 0, 
         total: 3, 
-        message: isQuotaError ? 'Quota do YouTube API excedida' : 'Erro na sincronização',
+        message: isRateLimitError ? 'Rate limit atingido' : 
+                 isQuotaError ? 'Quota do YouTube API excedida' : 'Erro na sincronização',
         errors: [errorMessage],
         quotaInfo: isQuotaError ? { exceeded: true, resetTime: 'Meia-noite (Horário do Pacífico)' } : undefined
       })
       
-      // Show specific toast for quota vs other errors
-      toast({
-        title: isQuotaError ? 'Quota do YouTube API excedida' : 'Erro na sincronização',
-        description: isQuotaError ? 
-          'A quota diária foi excedida. Tente novamente após a meia-noite (horário do Pacífico).' :
-          errorMessage,
-        variant: 'destructive'
-      })
+      // Show appropriate toast based on error type
+      if (isRateLimitError) {
+        showWarningToast({
+          title: 'Rate Limit Atingido',
+          description: 'Muitas requisições foram feitas muito rapidamente. Aguarde alguns minutos antes de tentar novamente.',
+          duration: 8000
+        })
+      } else if (isQuotaError) {
+        showErrorToast({
+          title: 'Quota do YouTube API excedida',
+          description: 'Tente novamente após a meia-noite (horário do Pacífico).',
+          duration: 8000
+        })
+      } else {
+        showErrorToast({
+          title: 'Erro na sincronização',
+          description: errorMessage,
+          duration: 6000
+        })
+      }
       
       throw error
     } finally {
@@ -475,6 +558,12 @@ export function useYouTubeSync() {
     pauseBatchSync,
     resumeBatchSync,
     stopBatchSync,
-    resetProgress
+    resetProgress,
+    rateLimitInfo: {
+      isLimited: youtubeRateLimiter.isLimited,
+      remainingRequests: youtubeRateLimiter.getRemainingRequests(),
+      remainingTime: youtubeRateLimiter.getRemainingTime(),
+      currentCount: youtubeRateLimiter.currentCount
+    }
   }
 }

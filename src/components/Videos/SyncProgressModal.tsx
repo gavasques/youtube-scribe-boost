@@ -1,9 +1,8 @@
-
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
-import { AlertCircle, CheckCircle, Pause, Play, Square, Youtube, Zap, Clock } from 'lucide-react'
+import { AlertCircle, CheckCircle, Pause, Play, Square, Youtube, Zap, Clock, Shield } from 'lucide-react'
 
 interface SyncProgress {
   step: string
@@ -43,6 +42,12 @@ interface SyncProgressModalProps {
   onPause: () => void
   onResume: () => void
   onStop: () => void
+  rateLimitInfo?: {
+    isLimited: boolean
+    remainingRequests: number
+    remainingTime: number
+    currentCount: number
+  }
 }
 
 export function SyncProgressModal({
@@ -52,7 +57,8 @@ export function SyncProgressModal({
   batchSync,
   onPause,
   onResume,
-  onStop
+  onStop,
+  rateLimitInfo
 }: SyncProgressModalProps) {
   if (!progress) return null
 
@@ -60,6 +66,7 @@ export function SyncProgressModal({
   const isError = progress.step === 'error'
   const isPaused = progress.step === 'paused'
   const isQuotaError = progress.quotaInfo?.exceeded
+  const isRateLimited = rateLimitInfo?.isLimited
 
   const getProgressPercentage = () => {
     if (progress.total === 0) return 0
@@ -119,6 +126,44 @@ export function SyncProgressModal({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Rate Limit Status */}
+          {rateLimitInfo && (
+            <div className={`p-3 rounded-lg border ${
+              isRateLimited ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className={`w-4 h-4 ${isRateLimited ? 'text-yellow-500' : 'text-green-500'}`} />
+                <span className="font-medium text-sm">
+                  {isRateLimited ? 'Rate Limit Ativo' : 'Rate Limit OK'}
+                </span>
+              </div>
+              
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span>Requisições restantes:</span>
+                  <span className="font-medium">{rateLimitInfo.remainingRequests}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Requisições usadas:</span>
+                  <span className="font-medium">{rateLimitInfo.currentCount}</span>
+                </div>
+                {isRateLimited && (
+                  <div className="flex justify-between">
+                    <span>Reset em:</span>
+                    <span className="font-medium">{Math.ceil(rateLimitInfo.remainingTime / 1000)}s</span>
+                  </div>
+                )}
+              </div>
+              
+              {!isRateLimited && (
+                <Progress 
+                  value={(rateLimitInfo.currentCount / (rateLimitInfo.currentCount + rateLimitInfo.remainingRequests)) * 100}
+                  className="h-1 mt-2"
+                />
+              )}
+            </div>
+          )}
+
           {/* Progress Bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
@@ -219,7 +264,7 @@ export function SyncProgressModal({
             {batchSync.canPause && !isComplete && !isError && (
               <div className="flex gap-2">
                 {isPaused ? (
-                  <Button onClick={onResume} size="sm" variant="outline">
+                  <Button onClick={onResume} size="sm" variant="outline" disabled={isRateLimited}>
                     <Play className="w-4 h-4 mr-1" />
                     Retomar
                   </Button>
@@ -239,7 +284,7 @@ export function SyncProgressModal({
             <div className="ml-auto">
               {(isComplete || isError) && (
                 <Button onClick={onClose} size="sm">
-                  {isQuotaError ? 'Entendi' : 'Fechar'}
+                  {isQuotaError || isRateLimited ? 'Entendi' : 'Fechar'}
                 </Button>
               )}
             </div>

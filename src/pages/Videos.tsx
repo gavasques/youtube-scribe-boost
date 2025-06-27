@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { VideoModal } from "@/components/Videos/VideoModal"
@@ -30,7 +29,16 @@ export default function Videos() {
     handleIgnoreVideo,
     handleUnignoreVideo
   } = useVideoActions()
-  const { syncing, progress, batchSync, syncWithYouTube, pauseBatchSync, resumeBatchSync, stopBatchSync } = useYouTubeSync()
+  const { 
+    syncing, 
+    progress, 
+    batchSync, 
+    syncWithYouTube, 
+    pauseBatchSync, 
+    resumeBatchSync, 
+    stopBatchSync, 
+    rateLimitInfo 
+  } = useYouTubeSync()
   
   const [showModal, setShowModal] = useState(false)
   const [showSyncModal, setShowSyncModal] = useState(false)
@@ -115,6 +123,7 @@ export default function Videos() {
         onPause={pauseBatchSync}
         onResume={resumeBatchSync}
         onStop={stopBatchSync}
+        rateLimitInfo={rateLimitInfo}
       />
 
       <Card>
