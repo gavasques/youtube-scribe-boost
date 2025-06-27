@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { useYouTubeSyncManager } from '@/hooks/youtube/useYouTubeSyncManager'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
-import { Youtube, RefreshCw, Download, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Youtube, RefreshCw, Download, AlertCircle, CheckCircle, XCircle, Loader2, Zap, Clock } from 'lucide-react'
 
 interface YouTubeSyncModalProps {
   open: boolean
@@ -32,7 +32,6 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
       console.log('[SYNC-MODAL] Iniciando sincronização:', { syncType, includeRegular, includeShorts })
       
       if (syncType === 'complete') {
-        // Sincronização Completa - TODOS os vídeos
         await syncAllVideos({
           type: 'full',
           includeRegular,
@@ -43,7 +42,6 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           maxVideos: 100
         })
       } else {
-        // Sincronização Incremental - apenas vídeos novos
         await syncWithYouTube({
           type: 'incremental',
           includeRegular,
@@ -92,13 +90,13 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
     )
   }
 
-  // Se está sincronizando, mostrar o progresso
+  // Se está sincronizando, mostrar o progresso detalhado
   if (syncing) {
     const progressPercentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0
     
     return (
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Youtube className="w-5 h-5 text-red-500" />
@@ -110,10 +108,9 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Status da Conexão */}
             {getConnectionStatus()}
 
-            {/* Progresso da Sincronização */}
+            {/* Progresso Principal */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Progresso da Sincronização</Label>
@@ -134,55 +131,61 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
                   <span>Etapa: {progress.step}</span>
                 </div>
               </div>
-
-              {/* Estatísticas em tempo real */}
-              {progress.pageStats && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg">
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-green-600">
-                      {progress.pageStats.newInPage || 0}
-                    </div>
-                    <div className="text-xs text-green-700">Novos nesta página</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-blue-600">
-                      {progress.pageStats.updatedInPage || 0}
-                    </div>
-                    <div className="text-xs text-blue-700">Atualizados</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-purple-600">
-                      {progress.pageStats.videosInPage || 0}
-                    </div>
-                    <div className="text-xs text-purple-700">Total na página</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-600">
-                      {progress.totalVideosEstimated || 0}
-                    </div>
-                    <div className="text-xs text-gray-700">Total estimado</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Velocidade de processamento */}
-              {progress.processingSpeed && (
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-700">
-                    Velocidade: {progress.processingSpeed.videosPerMinute.toFixed(1)} vídeos/min
-                    {progress.processingSpeed.eta && (
-                      <span className="ml-2">
-                        | ETA: {new Date(progress.processingSpeed.eta).toLocaleTimeString('pt-BR')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Botão para fechar (desabilitado durante sync) */}
+            {/* Estatísticas em Tempo Real */}
+            {progress.pageStats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {progress.pageStats.newInPage || 0}
+                  </div>
+                  <div className="text-xs text-green-700">Novos nesta página</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {progress.pageStats.updatedInPage || 0}
+                  </div>
+                  <div className="text-xs text-blue-700">Atualizados</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {progress.pageStats.videosInPage || 0}
+                  </div>
+                  <div className="text-xs text-purple-700">Vídeos na página</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-600">
+                    {progress.totalVideosEstimated || 0}
+                  </div>
+                  <div className="text-xs text-gray-700">Total estimado</div>
+                </div>
+              </div>
+            )}
+
+            {/* Velocidade de Processamento */}
+            {progress.processingSpeed && (
+              <div className="flex items-center justify-center gap-4 p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium">
+                    {progress.processingSpeed.videosPerMinute.toFixed(1)} vídeos/min
+                  </span>
+                </div>
+                {progress.processingSpeed.eta && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm text-gray-700">
+                      ETA: {new Date(progress.processingSpeed.eta).toLocaleTimeString('pt-BR')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end">
               <Button variant="outline" disabled>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Sincronizando...
               </Button>
             </div>
@@ -192,6 +195,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
     )
   }
 
+  // Modal de conexão necessária
   if (!isConnected) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
@@ -222,6 +226,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
     )
   }
 
+  // Estados de carregamento/erro
   if (syncState.isInitializing) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
@@ -264,44 +269,29 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
     )
   }
 
+  // Modal principal de seleção (apenas 2 opções)
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Youtube className="w-5 h-5 text-red-500" />
             Sincronizar com YouTube
           </DialogTitle>
           <DialogDescription>
-            Escolha o tipo de sincronização que você deseja executar
+            Escolha como você deseja sincronizar seus vídeos
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           {getConnectionStatus()}
 
+          {/* APENAS 2 OPÇÕES SIMPLES */}
           <div className="space-y-4">
             <Label className="text-base font-medium">Tipo de Sincronização</Label>
             <div className="grid gap-3">
-              <Card 
-                className={`cursor-pointer border-2 transition-colors ${
-                  syncType === 'complete' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => setSyncType('complete')}
-              >
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Download className="w-4 h-4 text-purple-500" />
-                    Sincronização Completa
-                    <Badge variant="outline" className="text-purple-600 border-purple-600">Primeira Vez</Badge>
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Sincroniza TODOS os vídeos do canal (~73 vídeos). 
-                    Ideal para primeira sincronização ou carga completa.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-
+              
+              {/* Opção 1: Sincronização Incremental (Padrão/Recomendada) */}
               <Card 
                 className={`cursor-pointer border-2 transition-colors ${
                   syncType === 'incremental' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
@@ -311,20 +301,41 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <RefreshCw className="w-4 h-4 text-blue-500" />
-                    Sincronização Incremental
-                    <Badge variant="secondary">Apenas Novos</Badge>
+                    Sincronização Rápida
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-700">Recomendado</Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Sincroniza apenas os vídeos novos desde a última sincronização. 
-                    Rápido e ideal para uso regular.
+                    Sincroniza até 50 vídeos mais recentes. Ideal para atualizações regulares.
                   </CardDescription>
                 </CardHeader>
               </Card>
+
+              {/* Opção 2: Sincronização Completa */}
+              <Card 
+                className={`cursor-pointer border-2 transition-colors ${
+                  syncType === 'complete' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setSyncType('complete')}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Download className="w-4 h-4 text-purple-500" />
+                    Varredura Profunda
+                    <Badge variant="outline" className="text-purple-600 border-purple-600">Completo</Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Sincroniza TODOS os vídeos do canal, independente de serem novos. 
+                    Ideal para primeira configuração.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
             </div>
           </div>
 
+          {/* Configurações de Conteúdo */}
           <div className="space-y-4">
-            <Label className="text-base font-medium">Configurações de Conteúdo</Label>
+            <Label className="text-base font-medium">Tipos de Conteúdo</Label>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -359,6 +370,7 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             </div>
           </div>
 
+          {/* Botões de Ação */}
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button variant="outline" onClick={onClose} disabled={syncing}>
               Cancelar
@@ -370,8 +382,8 @@ export function YouTubeSyncModalNew({ open, onClose, onSyncComplete }: YouTubeSy
             >
               <Youtube className="w-4 h-4" />
               {syncing ? 'Sincronizando...' : 
-               syncType === 'complete' ? 'Sincronização Completa' :
-               'Sincronização Incremental'}
+               syncType === 'complete' ? 'Iniciar Varredura Profunda' :
+               'Iniciar Sincronização Rápida'}
             </Button>
           </div>
         </div>
