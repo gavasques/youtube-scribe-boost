@@ -24,19 +24,6 @@ export function useVideoConfiguration() {
     }
   }, [])
 
-  const fetchConfigurations = useCallback(async (videoIds: string[]) => {
-    const promises = videoIds.map(async (videoId) => {
-      try {
-        return await fetchConfiguration(videoId)
-      } catch (error) {
-        console.warn(`Failed to fetch configuration for video ${videoId}:`, error)
-        return null
-      }
-    })
-    
-    await Promise.allSettled(promises)
-  }, [fetchConfiguration])
-
   const updateStatus = useCallback(async (videoId: string, configStatus?: string, updateStatus?: string) => {
     try {
       const updated = await VideoConfigurationService.updateStatus(videoId, configStatus, updateStatus)
@@ -61,7 +48,6 @@ export function useVideoConfiguration() {
     configurations,
     loading,
     fetchConfiguration,
-    fetchConfigurations,
     updateStatus
   }
 }
