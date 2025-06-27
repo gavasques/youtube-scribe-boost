@@ -1,7 +1,8 @@
+
 import { useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { logger } from '@/core/Logger'
-import { rateLimiter } from './useRateLimiter'
+import { rateLimiter, getRateLimitStatus } from './useRateLimiter'
 import { useYouTubeQuota } from './useYouTubeQuota'
 import type { SyncOptions, SyncResult, SyncProgress } from './types'
 
