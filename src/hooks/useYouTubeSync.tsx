@@ -95,13 +95,25 @@ export function useYouTubeSync() {
         message: 'Sincronizando vídeos...' 
       })
 
-      logger.info('Calling Edge Function', { 
-        options,
-        hasAuth: !!authData.session?.access_token 
-      })
+      logger.info('Calling Edge Function with options', { options })
+
+      // Preparar o body da requisição com as opções corretas
+      const requestBody = {
+        options: {
+          type: options.type,
+          includeRegular: options.includeRegular,
+          includeShorts: options.includeShorts,
+          syncMetadata: options.syncMetadata,
+          maxVideos: options.maxVideos,
+          pageToken: options.pageToken || null,
+          syncAll: options.syncAll || false
+        }
+      }
+
+      logger.info('Request body prepared', requestBody)
 
       const response = await supabase.functions.invoke('youtube-sync', {
-        body: { options },
+        body: requestBody,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authData.session.access_token}`
@@ -115,6 +127,12 @@ export function useYouTubeSync() {
 
       if (response.error) {
         logger.error('Sync failed', response.error)
+        
+        // Verificar se é erro de quota
+        if (response.error.message?.includes('quota') || response.error.message?.includes('403')) {
+          throw new Error('Quota da API do YouTube excedida. Tente novamente mais tarde.')
+        }
+        
         throw new Error(`Erro na sincronização: ${response.error.message || 'Erro desconhecido'}`)
       }
 
@@ -274,7 +292,7 @@ export function useYouTubeSync() {
         currentPage++
 
         // Add delay between requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
 
       // Final success

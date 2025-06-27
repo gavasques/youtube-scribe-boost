@@ -48,6 +48,77 @@ function logError(message: string, error?: any) {
   }
 }
 
+async function checkQuotaUsage(supabaseService: any, userId: string, requestsNeeded: number = 100): Promise<boolean> {
+  const today = new Date().toISOString().split('T')[0]
+  const dailyLimit = 10000 // YouTube API daily quota limit
+  
+  try {
+    const { data: currentUsage } = await supabaseService
+      .from('youtube_quota_usage')
+      .select('requests_used')
+      .eq('user_id', userId)
+      .eq('date', today)
+      .maybeSingle()
+
+    const used = currentUsage?.requests_used || 0
+    const wouldExceed = (used + requestsNeeded) > dailyLimit
+
+    log('Quota check', {
+      currentUsage: used,
+      dailyLimit,
+      requestsNeeded,
+      wouldExceed
+    })
+
+    return !wouldExceed
+  } catch (error) {
+    logError('Quota check error', error)
+    return false
+  }
+}
+
+async function updateQuotaUsage(supabaseService: any, userId: string, requestsUsed: number) {
+  const today = new Date().toISOString().split('T')[0]
+  
+  try {
+    const { data: existing } = await supabaseService
+      .from('youtube_quota_usage')
+      .select('requests_used')
+      .eq('user_id', userId)
+      .eq('date', today)
+      .maybeSingle()
+
+    if (existing) {
+      await supabaseService
+        .from('youtube_quota_usage')
+        .update({
+          requests_used: existing.requests_used + requestsUsed,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('date', today)
+    } else {
+      await supabaseService
+        .from('youtube_quota_usage')
+        .insert({
+          user_id: userId,
+          date: today,
+          requests_used: requestsUsed,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+    }
+
+    log('Quota usage updated', {
+      userId,
+      requestsUsed,
+      date: today
+    })
+  } catch (error) {
+    logError('Quota update error', error)
+  }
+}
+
 async function refreshYouTubeToken(refreshToken: string): Promise<string | null> {
   try {
     log('Refreshing YouTube token')
@@ -129,22 +200,24 @@ serve(async (req) => {
     let requestBody: any = {}
     
     try {
-      const contentType = req.headers.get('content-type') || ''
-      log('Content-Type header', contentType)
+      const bodyText = await req.text()
+      log('Request body received', { 
+        length: bodyText.length, 
+        content: bodyText.substring(0, 1000) 
+      })
       
-      if (contentType.includes('application/json')) {
-        const bodyText = await req.text()
-        log('Request body text', { length: bodyText.length, content: bodyText.substring(0, 500) })
-        
-        if (bodyText.trim()) {
-          requestBody = JSON.parse(bodyText)
-        }
+      if (bodyText.trim()) {
+        requestBody = JSON.parse(bodyText)
+        log('Request body parsed successfully', requestBody)
+      } else {
+        log('Request body is empty, using defaults')
       }
-      
-      log('Parsed request body', requestBody)
     } catch (parseError) {
       logError('Failed to parse request body', parseError)
-      requestBody = {}
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Handle test request
@@ -160,17 +233,18 @@ serve(async (req) => {
       )
     }
 
+    // Extract options with proper defaults
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
       includeShorts: requestBody.options?.includeShorts !== false,
       syncMetadata: requestBody.options?.syncMetadata !== false,
-      maxVideos: requestBody.options?.maxVideos || 50,
-      pageToken: requestBody.options?.pageToken,
+      maxVideos: Math.min(requestBody.options?.maxVideos || 50, 50), // Limit to 50 per request
+      pageToken: requestBody.options?.pageToken || undefined,
       syncAll: requestBody.options?.syncAll || false
     }
     
-    log('Sync options (with defaults)', options)
+    log('Final sync options', options)
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -193,6 +267,20 @@ serve(async (req) => {
     }
 
     log('User authenticated', { userId: user.id })
+
+    // Check quota before proceeding
+    const canProceed = await checkQuotaUsage(supabaseService, user.id, 100)
+    if (!canProceed) {
+      log('YouTube API quota exceeded')
+      await updateQuotaUsage(supabaseService, user.id, 1) // Still count the attempt
+      return new Response(
+        JSON.stringify({ 
+          error: 'Quota da API do YouTube excedida para hoje. Tente novamente amanhã.',
+          quotaExceeded: true
+        }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const { data: tokenData, error: tokenError } = await supabaseService
       .from('youtube_tokens')
@@ -241,22 +329,42 @@ serve(async (req) => {
     }
 
     // Build search URL with pagination support
-    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${Math.min(options.maxVideos, 50)}`
+    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${options.maxVideos}`
     
     if (options.pageToken) {
       searchUrl += `&pageToken=${options.pageToken}`
       log('Using page token for pagination', { pageToken: options.pageToken })
     }
     
-    log('Fetching videos from YouTube', { maxVideos: options.maxVideos, pageToken: options.pageToken })
+    log('Fetching videos from YouTube', { 
+      maxVideos: options.maxVideos, 
+      pageToken: options.pageToken,
+      syncAll: options.syncAll
+    })
     
     const searchResponse = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
 
+    // Update quota usage for the search request
+    await updateQuotaUsage(supabaseService, user.id, 1)
+
     if (!searchResponse.ok) {
       const error = await searchResponse.json()
       logError('YouTube search failed', error)
+      
+      // Check if it's a quota error
+      if (error.error?.code === 403 && error.error?.message?.includes('quota')) {
+        await updateQuotaUsage(supabaseService, user.id, 5) // Penalty for quota error
+        return new Response(
+          JSON.stringify({ 
+            error: 'Quota da API do YouTube excedida. Tente novamente mais tarde.',
+            quotaExceeded: true
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ error: 'YouTube API error', details: error }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -294,6 +402,9 @@ serve(async (req) => {
     const detailsResponse = await fetch(detailsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
+
+    // Update quota usage for the details request
+    await updateQuotaUsage(supabaseService, user.id, 1)
 
     if (!detailsResponse.ok) {
       const error = await detailsResponse.json()
@@ -337,18 +448,6 @@ serve(async (req) => {
           title: video.snippet.title,
           video_type: videoType,
           published_at: video.snippet.publishedAt,
-          original_description: video.snippet.description || '',
-          current_description: video.snippet.description || '',
-          original_tags: video.snippet.tags || [],
-          current_tags: video.snippet.tags || [],
-          views_count: parseInt(video.statistics.viewCount || '0'),
-          likes_count: parseInt(video.statistics.likeCount || '0'),
-          comments_count: parseInt(video.statistics.commentCount || '0'),
-          thumbnail_url: getBestThumbnail(video.snippet.thumbnails),
-          duration_seconds: durationData.seconds,
-          duration_formatted: durationData.formatted,
-          privacy_status: video.status.privacyStatus,
-          category_id: video.snippet.categoryId,
           updated_at: new Date().toISOString()
         }
 
@@ -360,14 +459,49 @@ serve(async (req) => {
               .eq('id', existingVideo.id)
             
             if (updateError) throw updateError
+
+            // Update metadata table
+            await supabaseService
+              .from('video_metadata')
+              .upsert({
+                video_id: existingVideo.id,
+                views_count: parseInt(video.statistics.viewCount || '0'),
+                likes_count: parseInt(video.statistics.likeCount || '0'),
+                comments_count: parseInt(video.statistics.commentCount || '0'),
+                thumbnail_url: getBestThumbnail(video.snippet.thumbnails),
+                duration_seconds: durationData.seconds,
+                duration_formatted: durationData.formatted,
+                privacy_status: video.status.privacyStatus,
+                updated_at: new Date().toISOString()
+              })
+
             stats.updated++
           }
         } else {
-          const { error: insertError } = await supabaseService
+          const { data: newVideo, error: insertError } = await supabaseService
             .from('videos')
             .insert(videoData)
+            .select('id')
+            .single()
           
           if (insertError) throw insertError
+
+          // Insert metadata
+          await supabaseService
+            .from('video_metadata')
+            .insert({
+              video_id: newVideo.id,
+              views_count: parseInt(video.statistics.viewCount || '0'),
+              likes_count: parseInt(video.statistics.likeCount || '0'),
+              comments_count: parseInt(video.statistics.commentCount || '0'),
+              thumbnail_url: getBestThumbnail(video.snippet.thumbnails),
+              duration_seconds: durationData.seconds,
+              duration_formatted: durationData.formatted,
+              privacy_status: video.status.privacyStatus,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+
           stats.new++
         }
 
