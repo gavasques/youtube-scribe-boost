@@ -2,45 +2,44 @@
 import { useState, useCallback } from 'react'
 
 interface UseRetryOptions {
-  maxAttempts: number
-  delay: number
+  maxAttempts?: number
+  delay?: number
   backoff?: boolean
 }
 
-export function useRetry({ maxAttempts, delay, backoff = false }: UseRetryOptions) {
+export function useRetry(options: UseRetryOptions = {}) {
+  const { maxAttempts = 3, delay = 1000, backoff = true } = options
   const [isRetrying, setIsRetrying] = useState(false)
+  const [attempts, setAttempts] = useState(0)
 
-  const retryWithCondition = useCallback(async <T>(
-    fn: () => Promise<T>,
-    shouldRetry: (error: any, attemptNumber: number) => boolean
+  const retry = useCallback(async <T,>(
+    fn: () => Promise<T>
   ): Promise<T> => {
     setIsRetrying(true)
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let lastError: Error
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
+        setAttempts(attempt + 1)
         const result = await fn()
         setIsRetrying(false)
+        setAttempts(0)
         return result
       } catch (error) {
-        console.log(`Attempt ${attempt}/${maxAttempts} failed:`, error)
+        lastError = error as Error
+        console.warn(`Attempt ${attempt + 1} failed:`, error)
         
-        if (attempt === maxAttempts || !shouldRetry(error, attempt)) {
-          setIsRetrying(false)
-          throw error
+        if (attempt < maxAttempts - 1) {
+          const waitTime = backoff ? delay * Math.pow(2, attempt) : delay
+          await new Promise(resolve => setTimeout(resolve, waitTime))
         }
-        
-        const currentDelay = backoff ? delay * Math.pow(2, attempt - 1) : delay
-        console.log(`Waiting ${currentDelay}ms before retry...`)
-        await new Promise(resolve => setTimeout(resolve, currentDelay))
       }
     }
-    
+
     setIsRetrying(false)
-    throw new Error('Max attempts reached')
+    setAttempts(0)
+    throw lastError!
   }, [maxAttempts, delay, backoff])
 
-  return {
-    retryWithCondition,
-    isRetrying
-  }
+  return { retry, isRetrying, attempts }
 }

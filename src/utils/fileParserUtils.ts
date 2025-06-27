@@ -1,7 +1,5 @@
 // Utility functions for parsing different file types
 
-import mammoth from 'mammoth'
-
 export interface ParsedFileContent {
   content: string
   wordCount: number
@@ -145,95 +143,85 @@ export async function parseCsvFile(file: File): Promise<ParsedFileContent> {
   }
 }
 
-// Enhanced DOCX parser using mammoth library
+// Improved DOCX parser with better error handling
 export async function parseDocxFile(file: File): Promise<ParsedFileContent> {
-  const warnings: string[] = []
+  const warnings: string[] = [
+    'Arquivos DOCX podem não ser extraídos perfeitamente',
+    'Para melhor resultado, salve como .txt no Word'
+  ]
   
   try {
-    console.log('Processing DOCX file with mammoth:', file.name, 'Size:', file.size, 'bytes')
+    const buffer = await file.arrayBuffer()
+    const uint8Array = new Uint8Array(buffer)
     
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
-      throw new Error('Arquivo muito grande. Tamanho máximo: 10MB')
+    // Convert to string with better encoding handling
+    let binaryString: string
+    try {
+      // Try UTF-8 decoding first
+      const decoder = new TextDecoder('utf-8', { fatal: true })
+      binaryString = decoder.decode(uint8Array)
+    } catch {
+      // Fallback to Latin-1 for binary compatibility
+      binaryString = String.fromCharCode.apply(null, Array.from(uint8Array))
     }
     
-    // Validate file is not empty
-    if (file.size === 0) {
-      throw new Error('Arquivo DOCX está vazio')
+    // Improved text extraction with better filtering
+    const xmlContent = binaryString.match(/<w:t[^>]*>([^<]+)<\/w:t>/g)
+    let extractedText = ''
+    
+    if (xmlContent) {
+      extractedText = xmlContent
+        .map(match => {
+          // Extract content between tags
+          const textMatch = match.match(/<w:t[^>]*>([^<]+)<\/w:t>/)
+          return textMatch ? textMatch[1] : ''
+        })
+        .filter(text => text.length > 0)
+        .join(' ')
     }
     
-    // Validate file extension
-    if (!file.name.toLowerCase().endsWith('.docx')) {
-      throw new Error('Arquivo deve ter extensão .docx')
+    // If no XML content found, try alternative extraction
+    if (!extractedText) {
+      const textMatches = binaryString.match(/>([^<\x00-\x1F\x7F-\x9F]{3,})</g)
+      if (textMatches) {
+        extractedText = textMatches
+          .map(match => match.slice(1, -1))
+          .filter(text => {
+            // Better filtering for readable text
+            return text.length > 2 && 
+                   !/^[A-Z0-9_]{2,}$/.test(text) && // Skip constants/IDs
+                   !/^\d+$/.test(text) && // Skip pure numbers
+                   /[a-zA-ZÀ-ÿ]/.test(text) && // Must contain letters
+                   !text.includes('xml') &&
+                   !text.includes('<?')
+          })
+          .join(' ')
+      }
     }
     
-    // Convert file to ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer()
-    
-    // Extract text using mammoth
-    console.log('Extracting text with mammoth...')
-    const result = await mammoth.extractRawText({ arrayBuffer })
-    
-    // Check for mammoth warnings/messages
-    if (result.messages && result.messages.length > 0) {
-      result.messages.forEach(message => {
-        console.log('Mammoth message:', message.type, message.message)
-        if (message.type === 'warning') {
-          warnings.push(`Aviso: ${message.message}`)
-        }
-      })
+    if (!extractedText || extractedText.length < 20) {
+      throw new Error('Não foi possível extrair texto legível do arquivo DOCX')
     }
     
-    // Validate extracted text
-    if (!result.value || result.value.trim().length === 0) {
-      throw new Error('Não foi possível extrair texto do documento DOCX.\n\nSugestões:\n1. Verifique se o documento contém texto\n2. Tente salvar como .txt no Word\n3. Verifique se o arquivo não está protegido')
+    const cleanContent = cleanTextContent(extractedText)
+    const validation = validateTextContent(cleanContent)
+    
+    // Add format-specific warnings
+    if (!validation.isValid) {
+      warnings.push('Texto extraído pode estar corrompido')
     }
-    
-    console.log('Text extraction successful, length:', result.value.length)
-    
-    // Clean and validate extracted text
-    const cleanContent = cleanTextContent(result.value)
-    
-    // Validate text content
-    const readableWords = cleanContent.match(/[a-zA-ZÀ-ÿ]{2,}/g)
-    const wordCount = readableWords ? readableWords.length : 0
-    const isValid = wordCount >= 5 // Minimum threshold for valid content
-    
-    if (!isValid) {
-      warnings.push('Texto extraído pode estar incompleto')
-    } else {
-      warnings.push(`Texto extraído com sucesso usando mammoth: ${wordCount} palavras`)
-    }
-    
+
     return {
       content: cleanContent,
       wordCount: cleanContent.split(/\s+/).filter(Boolean).length,
       characterCount: cleanContent.length,
       fileType: 'docx',
-      encoding: 'mammoth-extraction',
-      isValid: isValid || cleanContent.length > 10,
-      warnings
+      encoding: 'binary/xml',
+      isValid: validation.isValid,
+      warnings: [...warnings, ...validation.warnings]
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao processar DOCX'
-    console.error('DOCX parsing error with mammoth:', error)
-    
-    // Provide comprehensive error message with solutions
-    throw new Error(`${errorMessage}
-
-SOLUÇÕES RECOMENDADAS:
-1. 📝 Abra o arquivo no Microsoft Word
-2. 💾 Vá em "Arquivo" → "Salvar Como"
-3. 📄 Escolha "Texto Simples (*.txt)" como formato
-4. ⬆️ Faça upload do arquivo .txt gerado
-5. ✂️ Ou copie o texto diretamente e cole no campo manual
-
-VERIFICAÇÕES:
-• Arquivo tem menos de 10MB?
-• Arquivo não está corrompido?
-• Arquivo não está protegido por senha?
-• Documento contém texto (não apenas imagens)?`)
+    throw new Error('Erro ao processar arquivo DOCX. Recomendação: abra o arquivo no Word e salve como .txt')
   }
 }
 
@@ -336,15 +324,10 @@ export async function parseFile(file: File): Promise<ParsedFileContent> {
   const fileName = file.name.toLowerCase()
   const fileExtension = fileName.split('.').pop()
 
-  // Validate file size (max 10MB)
+  // Validate file size (max 10MB, increased from 5MB)
   const maxSize = 10 * 1024 * 1024 // 10MB
   if (file.size > maxSize) {
     throw new Error('Arquivo muito grande. Tamanho máximo: 10MB')
-  }
-
-  // Validate file is not empty
-  if (file.size === 0) {
-    throw new Error('Arquivo está vazio')
   }
 
   let result: ParsedFileContent
@@ -374,40 +357,19 @@ export async function parseFile(file: File): Promise<ParsedFileContent> {
       throw new Error(`Formato de arquivo não suportado: .${fileExtension}. Use: .txt, .srt, .vtt, .csv, .docx`)
   }
 
-  // Final validation - more lenient for DOCX since mammoth is reliable
-  if (!result.isValid && fileExtension !== 'docx') {
+  // Final validation
+  if (!result.isValid) {
     throw new Error(`Arquivo processado mas com problemas: ${result.warnings?.join(', ')}`)
-  }
-
-  // Validate extracted text is not empty
-  if (result.content.trim().length === 0) {
-    throw new Error('Nenhum texto foi extraído do arquivo')
   }
 
   return result
 }
 
-// Validate file type with enhanced checks
+// Validate file type
 export function isValidFileType(file: File): boolean {
   const allowedExtensions = ['txt', 'csv', 'docx', 'srt', 'vtt']
   const fileExtension = file.name.toLowerCase().split('.').pop()
-  
-  // Check extension
-  if (!allowedExtensions.includes(fileExtension || '')) {
-    return false
-  }
-  
-  // Additional validation for DOCX
-  if (fileExtension === 'docx') {
-    // Check MIME type
-    const validMimeTypes = [
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/octet-stream' // Some browsers may report this
-    ]
-    return validMimeTypes.includes(file.type) || file.type === ''
-  }
-  
-  return true
+  return allowedExtensions.includes(fileExtension || '')
 }
 
 // Get file type display name
@@ -415,7 +377,7 @@ export function getFileTypeDisplayName(extension: string): string {
   const displayNames: Record<string, string> = {
     txt: 'Texto (.txt) - Recomendado',
     csv: 'Planilha CSV (.csv)',
-    docx: 'Documento Word (.docx) - Mammoth',
+    docx: 'Documento Word (.docx)',
     srt: 'Legenda SRT (.srt)',
     vtt: 'Legenda WebVTT (.vtt)'
   }
@@ -427,7 +389,7 @@ export function getFileTypeRecommendation(extension: string): string {
   const recommendations: Record<string, string> = {
     txt: 'Formato ideal para transcrições',
     csv: 'Dados tabulares serão convertidos em texto corrido',
-    docx: 'Processamento confiável com mammoth. Suporta formatação básica',
+    docx: 'Para melhor resultado, salve como .txt no Word antes do upload',
     srt: 'Legendas serão convertidas removendo timestamps',
     vtt: 'Legendas WebVTT serão convertidas removendo marcações'
   }
