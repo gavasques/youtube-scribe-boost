@@ -129,7 +129,22 @@ export const useYouTubeSyncCore = () => {
 
     if (response.error) {
       console.error('[SYNC-CORE] Erro na Edge Function:', response.error)
-      throw new Error(`Erro na sincronização: ${response.error.message}`)
+      // CORREÇÃO: Melhor tratamento de erros da Edge Function
+      const errorMessage = response.error.message || 'Erro desconhecido na sincronização'
+      
+      if (errorMessage.includes('quota')) {
+        throw new Error('🚨 Quota do YouTube API excedida. Aguarde o reset diário ou solicite aumento da quota.')
+      }
+      
+      if (errorMessage.includes('Authentication required')) {
+        throw new Error('Autenticação necessária. Faça login novamente.')
+      }
+      
+      if (errorMessage.includes('YouTube não conectado')) {
+        throw new Error('YouTube não conectado. Conecte sua conta primeiro.')
+      }
+      
+      throw new Error(`Erro na sincronização: ${errorMessage}`)
     }
 
     if (!response.data) {
