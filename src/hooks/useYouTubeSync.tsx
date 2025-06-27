@@ -144,6 +144,9 @@ const checkYouTubeQuota = async (): Promise<QuotaStatus> => {
     const percentageUsed = Math.round((quotaUsed / quotaLimit) * 100)
     const remainingQuota = quotaLimit - quotaUsed
     
+    // ✅ FIX: Removido reset_time que não existe na tabela
+    const resetTime = data?.updated_at ? new Date(data.updated_at).toISOString() : undefined
+    
     logger.info('[QUOTA-CHECK] Status da quota:', {
       quotaUsed,
       quotaLimit,
@@ -156,7 +159,7 @@ const checkYouTubeQuota = async (): Promise<QuotaStatus> => {
       hasQuota: quotaUsed < quotaLimit,
       quotaUsed,
       quotaLimit,
-      resetTime: data?.reset_time,
+      resetTime,
       percentageUsed,
       remainingQuota
     }
@@ -313,7 +316,6 @@ export function useYouTubeSync() {
           clearTimeout(timeoutId)
 
           logger.info('[YT-SYNC] Resposta da Edge Function:', {
-            status: response.status,
             error: response.error?.message,
             dataPreview: response.data ? {
               hasStats: !!response.data.stats,
@@ -321,11 +323,7 @@ export function useYouTubeSync() {
             } : null
           })
 
-          // ✅ DETECÇÃO MELHORADA DE ERRO 429
-          if (response.status === 429) {
-            throw new Error('Rate limit atingido na Edge Function (HTTP 429)')
-          }
-
+          // ✅ FIX: Verificar erro na response corretamente
           if (response.error) {
             const errorMsg = response.error.message || 'Erro desconhecido'
             
