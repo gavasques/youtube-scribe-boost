@@ -34,6 +34,7 @@ interface QuotaStatus {
   resetTime?: string
   percentageUsed?: number
   remainingQuota?: number
+  isExceeded: boolean
 }
 
 interface SyncProgress {
@@ -115,7 +116,7 @@ const CACHE_TTL = 10 * 60 * 1000 // 10 minutos
 // Função de sleep
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-// ✅ NOVA FUNÇÃO: Verificar quota do YouTube
+// ✅ FUNÇÃO MELHORADA: Verificar quota do YouTube com detecção de excesso
 const checkYouTubeQuota = async (): Promise<QuotaStatus> => {
   try {
     const today = new Date().toISOString().split('T')[0]
@@ -135,7 +136,8 @@ const checkYouTubeQuota = async (): Promise<QuotaStatus> => {
         quotaUsed: 0, 
         quotaLimit: 10000,
         percentageUsed: 0,
-        remainingQuota: 10000
+        remainingQuota: 10000,
+        isExceeded: false
       }
     }
     
@@ -143,25 +145,27 @@ const checkYouTubeQuota = async (): Promise<QuotaStatus> => {
     const quotaLimit = 10000 // YouTube API daily limit
     const percentageUsed = Math.round((quotaUsed / quotaLimit) * 100)
     const remainingQuota = quotaLimit - quotaUsed
+    const isExceeded = quotaUsed >= quotaLimit
     
-    // ✅ FIX: Removido reset_time que não existe na tabela
     const resetTime = data?.updated_at ? new Date(data.updated_at).toISOString() : undefined
     
-    logger.info('[QUOTA-CHECK] Status da quota:', {
-      quotaUsed,
-      quotaLimit,
-      percentageUsed,
-      remainingQuota,
-      hasQuota: quotaUsed < quotaLimit
+    logger.info('[QUOTA-CHECK] Status detalhado da quota:', {
+      quotaUsed: quotaUsed.toLocaleString(),
+      quotaLimit: quotaLimit.toLocaleString(),
+      percentageUsed: `${percentageUsed}%`,
+      remainingQuota: remainingQuota.toLocaleString(),
+      isExceeded,
+      hasQuota: !isExceeded
     })
     
     return {
-      hasQuota: quotaUsed < quotaLimit,
+      hasQuota: !isExceeded,
       quotaUsed,
       quotaLimit,
       resetTime,
       percentageUsed,
-      remainingQuota
+      remainingQuota,
+      isExceeded
     }
   } catch (error) {
     logger.error('[QUOTA-CHECK] Erro na verificação:', error)
@@ -170,7 +174,8 @@ const checkYouTubeQuota = async (): Promise<QuotaStatus> => {
       quotaUsed: 0, 
       quotaLimit: 10000,
       percentageUsed: 0,
-      remainingQuota: 10000
+      remainingQuota: 10000,
+      isExceeded: false
     }
   }
 }
@@ -196,11 +201,11 @@ export function useYouTubeSync() {
   const cacheRef = useRef(syncCache)
   const isProcessingRef = useRef(false)
   
-  // ✅ FUNÇÃO MELHORADA: Sync com detecção de falso sucesso
+  // ✅ FUNÇÃO MELHORADA: Sync com detecção aprimorada de quota excedida
   const performSync = useCallback(async (options: SyncOptions): Promise<SyncResult> => {
     logger.info('[YT-SYNC] Iniciando sincronização', { options })
     
-    // 1. ✅ Verificar quota do YouTube ANTES de tudo
+    // 1. ✅ VERIFICAÇÃO DETALHADA DA QUOTA
     setProgress({
       step: 'quota_check',
       current: 0,
@@ -211,14 +216,41 @@ export function useYouTubeSync() {
     const quotaStatus = await checkYouTubeQuota()
     logger.info('[YT-SYNC] Status da quota:', quotaStatus)
     
+    // ✅ DETECÇÃO ESPECÍFICA DE QUOTA EXCEDIDA
+    if (quotaStatus.isExceeded) {
+      const resetTime = quotaStatus.resetTime ? 
+        new Date(quotaStatus.resetTime).toLocaleString('pt-BR') : 
+        'desconhecido'
+      
+      const message = `🚨 Quota do YouTube API excedida!
+📊 Usado: ${quotaStatus.quotaUsed.toLocaleString()}/${quotaStatus.quotaLimit.toLocaleString()} (${quotaStatus.percentageUsed}%)
+⏰ Reset diário às 00:00 UTC (próximo reset: ${resetTime})
+💡 Aguarde o reset da quota ou solicite aumento no Google Cloud Console.`
+
+      throw new Error(message)
+    }
+    
     if (!quotaStatus.hasQuota) {
       const resetTime = quotaStatus.resetTime ? 
-        new Date(quotaStatus.resetTime).toLocaleString() : 
+        new Date(quotaStatus.resetTime).toLocaleString('pt-BR') : 
         'desconhecido'
-      throw new Error(
-        `Quota do YouTube API excedida (${quotaStatus.quotaUsed}/${quotaStatus.quotaLimit}). ` +
-        `Reset em: ${resetTime}`
-      )
+      
+      throw new Error(`Quota do YouTube API insuficiente (${quotaStatus.quotaUsed}/${quotaStatus.quotaLimit}). Reset em: ${resetTime}`)
+    }
+    
+    // ✅ AVISO PREVENTIVO QUANDO QUOTA ESTÁ ALTA
+    if (quotaStatus.percentageUsed && quotaStatus.percentageUsed >= 90) {
+      logger.warn(`[YT-SYNC] ⚠️ Quota alta: ${quotaStatus.percentageUsed}% usada`)
+      
+      setProgress({
+        step: 'quota_warning',
+        current: 0,
+        total: 6,
+        message: `⚠️ Quota em ${quotaStatus.percentageUsed}% - Use com moderação (${quotaStatus.remainingQuota} requests restantes)`
+      })
+      
+      // Aguardar 3 segundos para mostrar o aviso
+      await sleep(3000)
     }
     
     // 2. Verificar rate limiting
@@ -270,7 +302,7 @@ export function useYouTubeSync() {
     }
     abortControllerRef.current = new AbortController()
 
-    // 6. ✅ Executar sync com detecção melhorada de 429 e falso sucesso
+    // 6. ✅ Executar sync com detecção melhorada de quota e falso sucesso
     let lastError: Error | null = null
 
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -327,9 +359,15 @@ export function useYouTubeSync() {
           if (response.error) {
             const errorMsg = response.error.message || 'Erro desconhecido'
             
-            // ✅ Verificar se é erro relacionado a quota
-            if (errorMsg.includes('quota') || errorMsg.includes('Quota')) {
-              throw new Error(`Quota do YouTube excedida: ${errorMsg}`)
+            // ✅ DETECÇÃO ESPECÍFICA DE QUOTA EXCEDIDA NA RESPOSTA
+            if (errorMsg.includes('quotaExceeded') || 
+                errorMsg.includes('Daily Limit Exceeded') ||
+                errorMsg.includes('quota') || 
+                errorMsg.includes('Quota') ||
+                errorMsg.includes('403')) {
+              
+              logger.error('[YT-SYNC] 🚨 Quota excedida detectada na resposta da API')
+              throw new Error('🚨 Quota do YouTube API excedida. Aguarde o reset diário (00:00 UTC) ou solicite aumento da quota no Google Cloud Console.')
             }
             
             // ✅ Verificar se é erro 429
@@ -371,8 +409,9 @@ export function useYouTubeSync() {
             // Se não há erros reportados mas também não há vídeos processados
             if (!result.errors || result.errors.length === 0) {
               throw new Error(
-                'Sincronização retornou sucesso mas não processou nenhum vídeo. ' +
-                'Possível problema de quota, autenticação ou rate limiting no YouTube.'
+                '🚨 Sincronização retornou sucesso mas não processou nenhum vídeo. ' +
+                'Possível problema de quota, autenticação ou rate limiting no YouTube. ' +
+                'Verifique se a quota não foi excedida.'
               )
             }
             
@@ -424,10 +463,15 @@ export function useYouTubeSync() {
         lastError = error
         logger.error(`[YT-SYNC] Tentativa ${attempt} falhou:`, error.message)
 
-        // ✅ Se é erro relacionado a quota, não tentar novamente
-        if (error.message?.includes('quota') || error.message?.includes('Quota')) {
-          logger.error('[YT-SYNC] Erro de quota detectado, não tentando novamente')
-          throw error
+        // ✅ DETECÇÃO ESPECÍFICA DE QUOTA EXCEDIDA
+        if (error.message?.includes('quotaExceeded') || 
+            error.message?.includes('Daily Limit Exceeded') ||
+            error.message?.includes('quota') || 
+            error.message?.includes('Quota') ||
+            error.message?.includes('403')) {
+          
+          logger.error('[YT-SYNC] 🚨 Quota excedida detectada, não tentando novamente')
+          throw new Error('🚨 Quota do YouTube API excedida. Aguarde o reset diário (00:00 UTC) ou solicite aumento da quota no Google Cloud Console.')
         }
 
         // ✅ Se é erro 429, aguardar MUITO mais tempo
@@ -551,11 +595,20 @@ export function useYouTubeSync() {
         message: `Erro: ${errorMessage}`
       })
       
-      toast({
-        title: "Erro na sincronização",
-        description: errorMessage,
-        variant: "destructive"
-      })
+      // ✅ TOAST ESPECÍFICO PARA QUOTA EXCEDIDA
+      if (errorMessage.includes('Quota') || errorMessage.includes('quota')) {
+        toast({
+          title: "🚨 Quota do YouTube excedida",
+          description: "Aguarde o reset diário ou solicite aumento da quota.",
+          variant: "destructive"
+        })
+      } else {
+        toast({
+          title: "Erro na sincronização",
+          description: errorMessage,
+          variant: "destructive"
+        })
+      }
       
       throw error
       
@@ -806,7 +859,7 @@ export function useYouTubeSync() {
     stopBatchSync,
     resetProgress,
     
-    // ✅ NOVAS FUNÇÕES
+    // ✅ FUNÇÕES PRINCIPAIS E NOVAS
     startSync,
     cancelSync,
     getRateLimitStatus,
