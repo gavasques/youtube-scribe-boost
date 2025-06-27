@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -31,6 +32,12 @@ interface SyncResult {
   hasMorePages: boolean
   currentPage: number
   totalPages?: number
+  quotaInfo?: {
+    exceeded: boolean
+    resetTime?: string
+    requestsUsed?: number
+    dailyLimit?: number
+  }
 }
 
 function log(message: string, data?: any) {
@@ -44,6 +51,49 @@ function logError(message: string, error?: any) {
   console.error(`[SYNC-ERROR] ${new Date().toISOString()} - ${message}`)
   if (error) {
     console.error('[SYNC-ERROR] Details:', error)
+  }
+}
+
+// Store quota usage in Supabase
+async function updateQuotaUsage(supabaseService: any, userId: string, requestsUsed: number) {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    
+    await supabaseService
+      .from('youtube_quota_usage')
+      .upsert({
+        user_id: userId,
+        date: today,
+        requests_used: requestsUsed,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,date' })
+    
+    log('Quota usage updated', { userId, requestsUsed, date: today })
+  } catch (error) {
+    logError('Failed to update quota usage', error)
+  }
+}
+
+async function getQuotaUsage(supabaseService: any, userId: string) {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    
+    const { data, error } = await supabaseService
+      .from('youtube_quota_usage')
+      .select('requests_used')
+      .eq('user_id', userId)
+      .eq('date', today)
+      .maybeSingle()
+    
+    if (error && error.code !== 'PGRST116') {
+      logError('Failed to get quota usage', error)
+      return 0
+    }
+    
+    return data?.requests_used ?? 0
+  } catch (error) {
+    logError('Failed to get quota usage', error)
+    return 0
   }
 }
 
@@ -168,7 +218,7 @@ serve(async (req) => {
       )
     }
 
-    // Verificar se temos options no body
+    // Process options
     if (!requestBody.options) {
       logError('Missing options in request body', { 
         requestBody, 
@@ -177,9 +227,6 @@ serve(async (req) => {
         bodyType: typeof requestBody,
         bodyString: JSON.stringify(requestBody)
       })
-      
-      // Tentar usar valores padrão se options estiver ausente
-      log('Attempting to use default options for basic sync')
       
       requestBody = {
         options: {
@@ -196,7 +243,6 @@ serve(async (req) => {
       log('Using default options', requestBody.options)
     }
 
-    // Aplicar valores padrão para options
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
@@ -230,6 +276,29 @@ serve(async (req) => {
     }
 
     log('User authenticated', { userId: user.id })
+
+    // Check current quota usage
+    const currentQuotaUsage = await getQuotaUsage(supabaseService, user.id)
+    const dailyLimit = 10000 // YouTube API default daily quota
+    const estimatedRequestsNeeded = Math.min(options.maxVideos, 50) * 2 // Search + Details
+    
+    log('Quota check', { 
+      currentUsage: currentQuotaUsage, 
+      dailyLimit, 
+      requestsNeeded: estimatedRequestsNeeded,
+      wouldExceed: currentQuotaUsage + estimatedRequestsNeeded > dailyLimit
+    })
+
+    // If we're close to quota limit, reduce the batch size
+    const remainingQuota = dailyLimit - currentQuotaUsage
+    if (remainingQuota < estimatedRequestsNeeded) {
+      const maxPossibleVideos = Math.max(1, Math.floor(remainingQuota / 2))
+      options.maxVideos = Math.min(options.maxVideos, maxPossibleVideos)
+      log('Reduced batch size due to quota limits', { 
+        remainingQuota, 
+        newMaxVideos: options.maxVideos 
+      })
+    }
 
     const { data: tokenData, error: tokenError } = await supabaseService
       .from('youtube_tokens')
@@ -277,10 +346,8 @@ serve(async (req) => {
       log('Token refreshed successfully')
     }
 
-    // For complete sync, use maxResults=50 per page, for single page sync use the requested maxVideos
     const pageSize = options.syncAll ? 50 : Math.min(options.maxVideos, 50)
     
-    // Build search URL with pagination support
     let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${tokenData.channel_id}&type=video&order=date&maxResults=${pageSize}`
     
     if (options.pageToken) {
@@ -294,20 +361,34 @@ serve(async (req) => {
       syncAll: options.syncAll 
     })
     
+    let requestsUsed = 0
+    
     const searchResponse = await fetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
+    requestsUsed += 1
 
     if (!searchResponse.ok) {
       const error = await searchResponse.json()
       logError('YouTube search failed', error)
       
-      // Tratamento específico para quota exceeded
-      if (error.error?.code === 403 && error.error?.message?.includes('quota')) {
+      // Enhanced quota error handling
+      if (error.error?.code === 403 && error.error?.errors?.some((e: any) => e.reason === 'quotaExceeded')) {
+        log('YouTube API quota exceeded')
+        
+        // Update quota usage
+        await updateQuotaUsage(supabaseService, user.id, currentQuotaUsage + requestsUsed)
+        
         return new Response(
           JSON.stringify({ 
-            error: 'YouTube API quota exceeded. Please try again later.',
-            details: 'Quota do YouTube API foi excedida. Tente novamente em algumas horas.'
+            error: 'YouTube API quota exceeded',
+            details: 'A quota diária do YouTube API foi excedida. A quota é resetada à meia-noite (horário do Pacífico). Tente novamente em algumas horas.',
+            quotaInfo: {
+              exceeded: true,
+              resetTime: 'Meia-noite (Horário do Pacífico)',
+              requestsUsed: currentQuotaUsage + requestsUsed,
+              dailyLimit: dailyLimit
+            }
           }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
@@ -334,13 +415,20 @@ serve(async (req) => {
     })
 
     if (videoIds.length === 0) {
+      await updateQuotaUsage(supabaseService, user.id, currentQuotaUsage + requestsUsed)
+      
       return new Response(
         JSON.stringify({ 
           success: true,
           stats: { processed: 0, new: 0, updated: 0, errors: 0, totalEstimated: totalResults },
           hasMorePages: false,
           currentPage: 1,
-          nextPageToken: null
+          nextPageToken: null,
+          quotaInfo: {
+            exceeded: false,
+            requestsUsed: currentQuotaUsage + requestsUsed,
+            dailyLimit: dailyLimit
+          }
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -351,10 +439,30 @@ serve(async (req) => {
     const detailsResponse = await fetch(detailsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
+    requestsUsed += 1
 
     if (!detailsResponse.ok) {
       const error = await detailsResponse.json()
       logError('YouTube details failed', error)
+      
+      if (error.error?.code === 403 && error.error?.errors?.some((e: any) => e.reason === 'quotaExceeded')) {
+        await updateQuotaUsage(supabaseService, user.id, currentQuotaUsage + requestsUsed)
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'YouTube API quota exceeded',
+            details: 'A quota diária do YouTube API foi excedida durante o processamento.',
+            quotaInfo: {
+              exceeded: true,
+              resetTime: 'Meia-noite (Horário do Pacífico)',
+              requestsUsed: currentQuotaUsage + requestsUsed,
+              dailyLimit: dailyLimit
+            }
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ error: 'Failed to get video details' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -387,7 +495,6 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .maybeSingle()
 
-        // Core video data for the videos table
         const coreVideoData = {
           user_id: user.id,
           youtube_id: video.id,
@@ -402,7 +509,6 @@ serve(async (req) => {
         let videoId: string
         
         if (existingVideo) {
-          // Update existing video
           const { error: updateError } = await supabaseService
             .from('videos')
             .update(coreVideoData)
@@ -414,7 +520,6 @@ serve(async (req) => {
           stats.updated++
           log(`Updated existing video: ${video.snippet.title}`)
         } else {
-          // Insert new video
           const { data: newVideo, error: insertError } = await supabaseService
             .from('videos')
             .insert(coreVideoData)
@@ -428,7 +533,7 @@ serve(async (req) => {
           log(`Created new video: ${video.snippet.title}`)
         }
 
-        // Insert/update metadata in video_metadata table
+        // Insert/update metadata
         const metadataData = {
           video_id: videoId,
           views_count: parseInt(video.statistics.viewCount || '0'),
@@ -450,7 +555,7 @@ serve(async (req) => {
           logError('Failed to upsert metadata', metadataError)
         }
 
-        // Insert/update descriptions in video_descriptions table
+        // Insert/update descriptions
         const descriptionData = {
           video_id: videoId,
           original_description: video.snippet.description || '',
@@ -466,7 +571,7 @@ serve(async (req) => {
           logError('Failed to upsert description', descriptionError)
         }
 
-        // Insert/update configuration in video_configuration table
+        // Insert/update configuration
         const configData = {
           video_id: videoId,
           configuration_status: 'NOT_CONFIGURED',
@@ -482,16 +587,14 @@ serve(async (req) => {
           logError('Failed to upsert configuration', configError)
         }
 
-        // Handle tags if they exist
+        // Handle tags
         if (video.snippet.tags && video.snippet.tags.length > 0) {
-          // Delete existing tags for this video
           await supabaseService
             .from('video_tags')
             .delete()
             .eq('video_id', videoId)
             .eq('tag_type', 'original')
 
-          // Insert new tags
           const tagData = video.snippet.tags.map((tag: string) => ({
             video_id: videoId,
             tag_text: tag,
@@ -516,7 +619,9 @@ serve(async (req) => {
       }
     }
 
-    // Calculate pagination info
+    // Update quota usage
+    await updateQuotaUsage(supabaseService, user.id, currentQuotaUsage + requestsUsed)
+
     const hasMorePages = !!nextPageToken
     const estimatedTotalPages = Math.ceil(totalResults / resultsPerPage)
     const currentPage = options.pageToken ? 
@@ -528,7 +633,12 @@ serve(async (req) => {
       nextPageToken,
       hasMorePages,
       currentPage,
-      totalPages: estimatedTotalPages
+      totalPages: estimatedTotalPages,
+      quotaInfo: {
+        exceeded: false,
+        requestsUsed: currentQuotaUsage + requestsUsed,
+        dailyLimit: dailyLimit
+      }
     }
 
     log('Sync completed successfully', { 
@@ -537,7 +647,8 @@ serve(async (req) => {
       hasMorePages,
       nextPageToken: nextPageToken ? 'present' : 'none',
       currentPage,
-      totalPages: estimatedTotalPages
+      totalPages: estimatedTotalPages,
+      quotaUsed: requestsUsed
     })
 
     return new Response(

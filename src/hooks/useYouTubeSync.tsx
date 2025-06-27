@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -23,6 +22,13 @@ interface SyncStats {
   totalEstimated?: number
 }
 
+interface QuotaInfo {
+  exceeded: boolean
+  resetTime?: string
+  requestsUsed?: number
+  dailyLimit?: number
+}
+
 interface SyncProgress {
   step: string
   current: number
@@ -33,6 +39,7 @@ interface SyncProgress {
   totalPages?: number
   videosProcessed?: number
   totalVideosEstimated?: number
+  quotaInfo?: QuotaInfo
 }
 
 interface SyncResult {
@@ -42,6 +49,7 @@ interface SyncResult {
   hasMorePages: boolean
   currentPage: number
   totalPages?: number
+  quotaInfo?: QuotaInfo
 }
 
 interface BatchSyncState {
@@ -65,7 +73,7 @@ export function useYouTubeSync() {
     allErrors: []
   })
 
-  // Retry configuration for YouTube API calls
+  // Retry configuration - don't retry quota exceeded errors
   const { retryWithCondition } = useRetry({
     maxAttempts: 3,
     delay: 2000,
@@ -105,7 +113,6 @@ export function useYouTubeSync() {
         totalVideosEstimated: options.syncAll ? undefined : options.maxVideos
       })
 
-      // Payload estruturado corretamente
       const payload = {
         options: {
           type: options.type,
@@ -118,14 +125,12 @@ export function useYouTubeSync() {
         }
       }
 
-      // Log detalhado do payload
       console.log('YouTube Sync - Enviando payload:', JSON.stringify(payload, null, 2))
       logger.info('Sending request payload', payload)
 
-      // Use retry logic for the API call
+      // Use retry logic with quota-aware conditions
       const result = await retryWithCondition(
         async () => {
-          // Teste de comunicação primeiro
           console.log('YouTube Sync - Testando comunicação...')
           
           const testResponse = await supabase.functions.invoke('youtube-sync', {
@@ -139,7 +144,6 @@ export function useYouTubeSync() {
             throw new Error(`Teste de comunicação falhou: ${testResponse.error.message}`)
           }
 
-          // Agora enviar a requisição real
           console.log('YouTube Sync - Enviando requisição real...')
           
           const response = await supabase.functions.invoke('youtube-sync', {
@@ -152,11 +156,12 @@ export function useYouTubeSync() {
             console.error('YouTube Sync - Response error:', response.error)
             logger.error('Sync failed', response.error)
             
-            // Tratamento específico para diferentes tipos de erro
             const errorMessage = response.error.message || 'Erro desconhecido'
             
-            if (errorMessage.includes('quota') || errorMessage.includes('exceeded')) {
-              throw new Error('Quota do YouTube API excedida. Tente novamente em algumas horas.')
+            // Handle quota exceeded specifically
+            if (errorMessage.includes('quota') || errorMessage.includes('exceeded') || 
+                errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+              throw new Error('YouTube API quota excedida. A quota é resetada à meia-noite (horário do Pacífico). Tente novamente em algumas horas.')
             }
             
             if (errorMessage.includes('Bad Request') || errorMessage.includes('Missing options')) {
@@ -178,7 +183,7 @@ export function useYouTubeSync() {
           console.log('YouTube Sync - Success response:', response.data)
           return response.data as SyncResult
         },
-        // Retry condition: retry on network errors but not on auth/quota errors
+        // Enhanced retry condition - don't retry quota errors
         (error) => {
           const errorMessage = error.message?.toLowerCase() || ''
           const shouldRetry = !errorMessage.includes('authentication') && 
@@ -186,6 +191,8 @@ export function useYouTubeSync() {
                              !errorMessage.includes('não conectado') &&
                              !errorMessage.includes('quota') &&
                              !errorMessage.includes('exceeded') &&
+                             !errorMessage.includes('429') &&
+                             !errorMessage.includes('too many requests') &&
                              !errorMessage.includes('bad request') &&
                              !errorMessage.includes('missing options')
           
@@ -200,25 +207,33 @@ export function useYouTubeSync() {
         total: 3, 
         message: 'Sincronização concluída!',
         totalVideosEstimated: result.stats.totalEstimated,
-        videosProcessed: result.stats.processed
+        videosProcessed: result.stats.processed,
+        quotaInfo: result.quotaInfo
       })
 
       const statsMessage = `${result.stats.processed} vídeos processados. ${result.stats.new} novos, ${result.stats.updated} atualizados.`
       
+      // Show quota info if available
+      let quotaMessage = ''
+      if (result.quotaInfo) {
+        const usagePercentage = ((result.quotaInfo.requestsUsed || 0) / (result.quotaInfo.dailyLimit || 10000)) * 100
+        quotaMessage = ` Quota: ${usagePercentage.toFixed(1)}% usada.`
+      }
+      
       if (result.errors && result.errors.length > 0) {
         toast({
           title: 'Sincronização concluída com avisos',
-          description: `${statsMessage} ${result.errors.length} erros encontrados.`,
+          description: `${statsMessage}${quotaMessage} ${result.errors.length} erros encontrados.`,
           variant: 'default'
         })
       } else {
         toast({
           title: 'Sincronização concluída!',
-          description: statsMessage,
+          description: `${statsMessage}${quotaMessage}`,
         })
       }
 
-      logger.info('Sync completed successfully', { stats: result.stats })
+      logger.info('Sync completed successfully', { stats: result.stats, quotaInfo: result.quotaInfo })
 
       return result
 
@@ -227,25 +242,33 @@ export function useYouTubeSync() {
       
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       
+      // Check if it's a quota error
+      const isQuotaError = errorMessage.toLowerCase().includes('quota') || 
+                          errorMessage.toLowerCase().includes('exceeded') ||
+                          errorMessage.toLowerCase().includes('429')
+      
       setProgress({ 
         step: 'error', 
         current: 0, 
         total: 3, 
-        message: 'Erro na sincronização',
-        errors: [errorMessage]
+        message: isQuotaError ? 'Quota do YouTube API excedida' : 'Erro na sincronização',
+        errors: [errorMessage],
+        quotaInfo: isQuotaError ? { exceeded: true, resetTime: 'Meia-noite (Horário do Pacífico)' } : undefined
       })
       
-      // Show specific toast for the error
+      // Show specific toast for quota vs other errors
       toast({
-        title: 'Erro na sincronização',
-        description: errorMessage,
+        title: isQuotaError ? 'Quota do YouTube API excedida' : 'Erro na sincronização',
+        description: isQuotaError ? 
+          'A quota diária foi excedida. Tente novamente após a meia-noite (horário do Pacífico).' :
+          errorMessage,
         variant: 'destructive'
       })
       
       throw error
     } finally {
       setSyncing(false)
-      setTimeout(() => setProgress(null), 10000)
+      setTimeout(() => setProgress(null), 15000)
     }
   }
 
@@ -268,7 +291,6 @@ export function useYouTubeSync() {
       logger.info('Starting complete YouTube sync', { options })
 
       while (true) {
-        // Check if sync was paused
         if (batchSync.isPaused) {
           setProgress({
             step: 'paused',
@@ -281,7 +303,6 @@ export function useYouTubeSync() {
             totalVideosEstimated
           })
           
-          // Wait for resume
           while (batchSync.isPaused) {
             await new Promise(resolve => setTimeout(resolve, 1000))
           }
@@ -302,12 +323,11 @@ export function useYouTubeSync() {
           ...options,
           syncAll: true,
           pageToken,
-          maxVideos: 50 // Fixed at 50 per page for complete sync
+          maxVideos: 50
         }
 
         const result = await syncWithYouTube(syncOptions)
 
-        // Update total stats
         const newTotalStats = {
           processed: batchSync.totalStats.processed + result.stats.processed,
           new: batchSync.totalStats.new + result.stats.new,
@@ -325,7 +345,6 @@ export function useYouTubeSync() {
           pageToken: result.nextPageToken
         }))
 
-        // Update estimates
         if (result.stats.totalEstimated && !totalVideosEstimated) {
           totalVideosEstimated = result.stats.totalEstimated
         }
@@ -339,10 +358,10 @@ export function useYouTubeSync() {
           hasMorePages: result.hasMorePages,
           totalStatsProcessed: newTotalStats.processed,
           totalVideosEstimated,
-          nextPageToken: result.nextPageToken
+          nextPageToken: result.nextPageToken,
+          quotaInfo: result.quotaInfo
         })
 
-        // Check if there are more pages
         if (!result.hasMorePages || !result.nextPageToken) {
           logger.info('No more pages to process, completing sync')
           break
@@ -351,11 +370,9 @@ export function useYouTubeSync() {
         pageToken = result.nextPageToken
         currentPage++
 
-        // Add delay between requests to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
 
-      // Final success
       setProgress({
         step: 'complete',
         current: totalPages || currentPage,
@@ -384,22 +401,27 @@ export function useYouTubeSync() {
       logger.error('Batch sync error', error)
       
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      const isQuotaError = errorMessage.toLowerCase().includes('quota') || 
+                          errorMessage.toLowerCase().includes('exceeded')
       
       setProgress({
         step: 'error',
         current: currentPage,
         total: totalPages || currentPage,
-        message: 'Erro na sincronização completa',
+        message: isQuotaError ? 'Quota excedida durante sincronização completa' : 'Erro na sincronização completa',
         errors: [errorMessage],
         currentPage,
         totalPages,
         videosProcessed: batchSync.totalStats.processed,
-        totalVideosEstimated
+        totalVideosEstimated,
+        quotaInfo: isQuotaError ? { exceeded: true, resetTime: 'Meia-noite (Horário do Pacífico)' } : undefined
       })
       
       toast({
-        title: 'Erro na sincronização completa',
-        description: errorMessage,
+        title: isQuotaError ? 'Quota excedida' : 'Erro na sincronização completa',
+        description: isQuotaError ? 
+          'Quota do YouTube API excedida durante sincronização. Tente novamente após reset.' :
+          errorMessage,
         variant: 'destructive'
       })
       
