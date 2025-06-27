@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 interface UseRetryOptions {
   maxAttempts: number
@@ -10,7 +10,7 @@ interface UseRetryOptions {
 export function useRetry({ maxAttempts, delay, backoff = false }: UseRetryOptions) {
   const [isRetrying, setIsRetrying] = useState(false)
 
-  const retryWithCondition = async <T>(
+  const retryWithCondition = useCallback(async <T>(
     fn: () => Promise<T>,
     shouldRetry: (error: any, attemptNumber: number) => boolean
   ): Promise<T> => {
@@ -37,7 +37,7 @@ export function useRetry({ maxAttempts, delay, backoff = false }: UseRetryOption
     
     setIsRetrying(false)
     throw new Error('Max attempts reached')
-  }
+  }, [maxAttempts, delay, backoff])
 
   return {
     retryWithCondition,
