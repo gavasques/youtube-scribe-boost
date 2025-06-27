@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -40,6 +39,7 @@ interface SyncResult {
     updatedInPage: number
     isEmptyPage: boolean
     totalChannelVideos?: number
+    videosReturnedByAPI: number
   }
   processingSpeed?: {
     videosPerMinute: number
@@ -296,17 +296,17 @@ serve(async (req) => {
       )
     }
 
-    // CORREÇÃO PRINCIPAL: Extract options com propagação correta do pageToken
+    // CORREÇÃO: Extract options com propagação correta do pageToken
     const options: SyncOptions = {
       type: requestBody.options?.type || 'incremental',
       includeRegular: requestBody.options?.includeRegular !== false,
       includeShorts: requestBody.options?.includeShorts !== false,
       syncMetadata: requestBody.options?.syncMetadata !== false,
       maxVideos: requestBody.options?.maxVideos || 50,
-      pageToken: requestBody.options?.pageToken || undefined, // CORREÇÃO: Manter undefined se não houver
+      pageToken: requestBody.options?.pageToken || undefined,
       syncAll: requestBody.options?.syncAll || false,
       deepScan: requestBody.options?.deepScan || false,
-      maxEmptyPages: requestBody.options?.maxEmptyPages || 15
+      maxEmptyPages: requestBody.options?.maxEmptyPages || 25
     }
     
     log('Sync options processed', {
@@ -352,7 +352,7 @@ serve(async (req) => {
     const tokenData = connectionValidation.tokens!
 
     // Check quota before proceeding
-    const canProceed = await checkQuotaUsage(supabaseService, user.id, 100)
+    const canProceed = await checkQuotaUsage(supababaseService, user.id, 100)
     if (!canProceed) {
       log('YouTube API quota exceeded')
       await updateQuotaUsage(supabaseService, user.id, 1)
@@ -371,7 +371,7 @@ serve(async (req) => {
     const expiresAt = new Date(tokenData.expires_at)
     const now = new Date()
 
-    // CORREÇÃO: Verificar e renovar token OAuth se necessário (importante para paginação)
+    // CORREÇÃO: Verificar e renovar token OAuth se necessário
     if (expiresAt <= now) {
       log('Token expired, refreshing for pagination compatibility...')
       const newToken = await refreshYouTubeToken(tokenData.refresh_token)
@@ -463,9 +463,12 @@ serve(async (req) => {
     const totalResults = searchData.pageInfo?.totalResults || totalChannelVideos || 0
     const resultsPerPage = searchData.pageInfo?.resultsPerPage || 50
     
+    // CORREÇÃO: Campo adicional para distinguir vídeos retornados pela API
+    const videosReturnedByAPI = videoIds.length
+    
     // CORREÇÃO: Logs detalhados de paginação para debugging
     log('Pagination details from YouTube API', { 
-      videosFound: videoIds.length,
+      videosReturnedByAPI, // CORREÇÃO: Novo campo
       nextPageToken: nextPageToken ? `presente (${nextPageToken.substring(0, 20)}...)` : 'ausente',
       totalResults,
       resultsPerPage,
@@ -478,12 +481,12 @@ serve(async (req) => {
 
     if (videoIds.length === 0) {
       const elapsedTime = Date.now() - startTime
-      log('No videos found in this page', {
+      log('No videos returned by YouTube API', { // CORREÇÃO: Log mais específico
         searchUrl: searchUrl.substring(0, 100) + '...',
         pageToken: options.pageToken,
         totalResults,
         nextPageToken,
-        possibleEndOfChannel: !nextPageToken
+        isActuallyEmpty: true // CORREÇÃO: Flag para indicar página verdadeiramente vazia
       })
       
       return new Response(
@@ -498,7 +501,8 @@ serve(async (req) => {
             newInPage: 0,
             updatedInPage: 0,
             isEmptyPage: true,
-            totalChannelVideos
+            totalChannelVideos,
+            videosReturnedByAPI: 0 // CORREÇÃO: Campo específico para vídeos retornados pela API
           },
           processingSpeed: {
             videosPerMinute: 0,
@@ -657,13 +661,13 @@ serve(async (req) => {
     const currentPage = options.pageToken ? 
       Math.floor((stats.processed || 0) / resultsPerPage) + 1 : 1
 
-    // CORREÇÃO: Melhor lógica para páginas vazias - considerar vídeos processados
-    const isEmptyPage = stats.processed === 0
+    // CORREÇÃO: Lógica corrigida para "página vazia" - apenas quando API não retorna vídeos
+    const isEmptyPage = videosReturnedByAPI === 0
 
     const result: SyncResult = {
       stats,
       errors: errors.length > 0 ? errors : undefined,
-      nextPageToken, // CORREÇÃO: Retornar o nextPageToken recebido da API
+      nextPageToken,
       hasMorePages,
       currentPage,
       totalPages: estimatedTotalPages,
@@ -672,7 +676,8 @@ serve(async (req) => {
         newInPage: pageNewCount,
         updatedInPage: pageUpdatedCount,
         isEmptyPage,
-        totalChannelVideos
+        totalChannelVideos,
+        videosReturnedByAPI // CORREÇÃO: Novo campo crucial para a lógica correta
       },
       processingSpeed: {
         videosPerMinute: Math.round(videosPerMinute * 100) / 100,
@@ -693,13 +698,15 @@ serve(async (req) => {
       newVideos: newVideoTitles.length > 0 ? newVideoTitles.slice(0, 3) : 'none',
       updatedVideos: updatedVideoTitles.length > 0 ? updatedVideoTitles.slice(0, 3) : 'none',
       quotaUsed: 2,
-      // CORREÇÃO: Log final de paginação
+      // CORREÇÃO: Log final com distinção clara
       paginationSummary: {
         receivedPageToken: options.pageToken ? 'sim' : 'não',
         returningPageToken: nextPageToken ? 'sim' : 'não',
         isLastPage: !nextPageToken,
         totalVideosInChannel: totalChannelVideos,
-        processedThisPage: stats.processed
+        videosReturnedByAPI,
+        videosProcessed: stats.processed,
+        isActuallyEmpty: isEmptyPage
       }
     })
 

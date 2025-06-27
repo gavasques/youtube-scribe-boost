@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { useYouTubeAuth } from '@/hooks/useYouTubeAuth'
@@ -41,7 +42,7 @@ export const useYouTubeSyncManager = () => {
     allErrors: [],
     pagesProcessed: 0,
     emptyPages: 0,
-    maxEmptyPages: 5
+    maxEmptyPages: 25 // CORREÇÃO: Aumentado de 5 para 25
   })
 
   const syncControlRef = useRef({
@@ -222,7 +223,7 @@ export const useYouTubeSyncManager = () => {
       allErrors: [],
       pagesProcessed: 0,
       emptyPages: 0,
-      maxEmptyPages: options.maxEmptyPages || 10,
+      maxEmptyPages: options.maxEmptyPages || 25, // CORREÇÃO: Aumentado para 25
       startTime: Date.now()
     })
 
@@ -242,8 +243,9 @@ export const useYouTubeSyncManager = () => {
     let totalErrors = 0
     let consecutiveEmptyPages = 0
     let pageCount = 0
-    const maxEmptyPages = options.maxEmptyPages || 10
+    const maxEmptyPages = options.maxEmptyPages || 25 // CORREÇÃO: Aumentado para 25
     const deepScan = options.deepScan || false
+    const maxPagesLimit = 100 // CORREÇÃO: Limite de segurança para evitar loops infinitos
 
     try {
       do {
@@ -281,12 +283,11 @@ export const useYouTubeSyncManager = () => {
           message: `Processando página ${pageCount + 1}... | Total: ${totalProcessed} vídeos | Novos: ${totalNew} | Atualizados: ${totalUpdated}`
         })
 
-        // CORREÇÃO PRINCIPAL: Garantir propagação correta do pageToken
         const syncResult = await performSync(
           { 
             ...options, 
             syncAll: true, 
-            pageToken, // CORREÇÃO: Propagar pageToken corretamente
+            pageToken,
             deepScan, 
             maxEmptyPages,
             maxVideos: 50
@@ -315,7 +316,6 @@ export const useYouTubeSyncManager = () => {
           break
         }
 
-        // CORREÇÃO: Atualização correta do pageToken para próxima iteração
         pageToken = syncResult.nextPageToken
         totalProcessed += syncResult.stats.processed
         totalNew += syncResult.stats.new
@@ -323,14 +323,16 @@ export const useYouTubeSyncManager = () => {
         totalErrors += syncResult.stats.errors
         pageCount++
 
-        // CORREÇÃO: Lógica melhorada para páginas vazias
-        const hasProcessedVideos = syncResult.stats.processed > 0
-        if (hasProcessedVideos) {
+        // CORREÇÃO PRINCIPAL: Lógica corrigida para páginas vazias
+        // Uma página só é vazia se a API do YouTube não retornou nenhum vídeo
+        const videosReturnedByAPI = syncResult.pageStats?.videosReturnedByAPI || 0
+        
+        if (videosReturnedByAPI > 0) {
           consecutiveEmptyPages = 0
-          console.log(`[SYNC-MANAGER] Página ${pageCount} com ${syncResult.stats.processed} vídeos processados. Reset contador de páginas vazias.`)
+          console.log(`[SYNC-MANAGER] Página ${pageCount} com ${videosReturnedByAPI} vídeos retornados pela API (${syncResult.stats.processed} processados). Reset contador de páginas vazias.`)
         } else {
           consecutiveEmptyPages++
-          console.log(`[SYNC-MANAGER] Página ${pageCount} vazia detectada (sem vídeos processados). Consecutivas: ${consecutiveEmptyPages}/${maxEmptyPages}`)
+          console.log(`[SYNC-MANAGER] ⚠️ Página ${pageCount} verdadeiramente vazia - API não retornou vídeos. Consecutivas: ${consecutiveEmptyPages}/${maxEmptyPages}`)
         }
 
         setBatchSync(prev => ({
@@ -349,58 +351,68 @@ export const useYouTubeSyncManager = () => {
           step: 'processing',
           current: pageCount,
           total: Math.max(pageCount + (pageToken ? 1 : 0), Math.ceil((syncResult.pageStats?.totalChannelVideos || 73) / 50)),
-          message: `Página ${pageCount} concluída | Total: ${totalProcessed} vídeos processados | ${totalNew} novos | ${totalUpdated} atualizados | Páginas vazias: ${consecutiveEmptyPages}`,
+          message: `Página ${pageCount} concluída | API retornou: ${videosReturnedByAPI} vídeos | Processados: ${syncResult.stats.processed} | Total acumulado: ${totalProcessed} | Páginas vazias: ${consecutiveEmptyPages}`,
           pageStats: syncResult.pageStats,
           processingSpeed: syncResult.processingSpeed,
           totalVideosEstimated: syncResult.pageStats?.totalChannelVideos
         })
 
         console.log(`[SYNC-MANAGER] Página ${pageCount} concluída:`, {
+          videosRetornadosAPI: videosReturnedByAPI, // CORREÇÃO: Campo principal para decisão
           processados: syncResult.stats.processed,
           novos: syncResult.stats.new,
           atualizados: syncResult.stats.updated,
           erros: syncResult.stats.errors,
           totalAcumulado: totalProcessed,
-          hasProcessedVideos,
           consecutiveEmptyPages,
           maxEmptyPages,
           nextPageToken: pageToken ? 'presente' : 'ausente',
-          // CORREÇÃO: Debug detalhado da paginação
-          paginationDebug: {
-            videosInPage: syncResult.pageStats?.videosInPage,
-            isEmptyPage: syncResult.pageStats?.isEmptyPage,
-            totalChannelVideos: syncResult.pageStats?.totalChannelVideos,
-            hasMorePages: syncResult.hasMorePages,
-            receivedNextPageToken: pageToken,
-            apiIndicatesMore: !!pageToken
+          // CORREÇÃO: Debug detalhado da nova lógica
+          paginationLogic: {
+            isActuallyEmpty: videosReturnedByAPI === 0,
+            hasNewOrUpdated: syncResult.stats.new > 0 || syncResult.stats.updated > 0,
+            shouldContinue: !!pageToken && consecutiveEmptyPages < maxEmptyPages,
+            withinPageLimit: pageCount < maxPagesLimit
           }
         })
 
-        // CORREÇÃO: Condições de parada baseadas no nextPageToken da API
+        // CORREÇÃO: Condições de parada baseadas na lógica corrigida
         const shouldStop = 
-          !pageToken || // CORREÇÃO: Parar quando não há nextPageToken da API
-          (!deepScan && consecutiveEmptyPages >= maxEmptyPages) ||
+          !pageToken || // API não retornou nextPageToken (fim natural)
+          consecutiveEmptyPages >= maxEmptyPages || // Muitas páginas vazias consecutivas
+          pageCount >= maxPagesLimit || // Limite de segurança atingido
           !syncControlRef.current.isRunning ||
           syncControlRef.current.aborted ||
           (!syncResult.hasMorePages)
 
         if (shouldStop) {
-          const reason = !pageToken ? 'fim dos vídeos (nextPageToken ausente da API)' : 
-                        (!syncResult.hasMorePages) ? 'API indica fim dos vídeos (hasMorePages=false)' :
-                        (!deepScan && consecutiveEmptyPages >= maxEmptyPages) ? `${consecutiveEmptyPages} páginas vazias consecutivas (limite: ${maxEmptyPages})` :
-                        syncControlRef.current.aborted ? 'abortado pelo usuário' :
-                        'parado pelo usuário'
-          console.log(`[SYNC-MANAGER] Parando sincronização: ${reason}`)
+          let reason = 'desconhecido'
+          
+          if (!pageToken) {
+            reason = 'fim natural - API não retornou nextPageToken'
+          } else if (consecutiveEmptyPages >= maxEmptyPages) {
+            reason = `${consecutiveEmptyPages} páginas vazias consecutivas (limite: ${maxEmptyPages})`
+          } else if (pageCount >= maxPagesLimit) {
+            reason = `limite de segurança atingido (${maxPagesLimit} páginas)`
+          } else if (!syncResult.hasMorePages) {
+            reason = 'API indica fim dos vídeos (hasMorePages=false)'
+          } else if (syncControlRef.current.aborted) {
+            reason = 'abortado pelo usuário'
+          } else {
+            reason = 'parado pelo usuário'
+          }
+          
+          console.log(`[SYNC-MANAGER] ✅ Parando sincronização: ${reason}`)
           break
         }
 
-        // CORREÇÃO: Delay otimizado entre páginas (1.2s)
+        // CORREÇÃO: Delay otimizado entre páginas (800ms em vez de 1200ms)
         if (pageToken && syncControlRef.current.shouldContinue && !syncControlRef.current.aborted) {
-          console.log(`[SYNC-MANAGER] Aguardando 1.2s antes da próxima página...`)
-          await new Promise(resolve => setTimeout(resolve, 1200))
+          console.log(`[SYNC-MANAGER] Aguardando 800ms antes da próxima página...`)
+          await new Promise(resolve => setTimeout(resolve, 800))
         }
 
-      } while (pageToken && syncControlRef.current.shouldContinue && syncControlRef.current.isRunning && !syncControlRef.current.aborted)
+      } while (pageToken && syncControlRef.current.shouldContinue && syncControlRef.current.isRunning && !syncControlRef.current.aborted && pageCount < maxPagesLimit)
 
       if (syncControlRef.current.aborted) {
         throw new Error('Sincronização abortada pelo usuário')
@@ -417,7 +429,7 @@ export const useYouTubeSyncManager = () => {
         message: finalMessage
       })
 
-      console.log('[SYNC-MANAGER] Sincronização completa finalizada:', {
+      console.log('[SYNC-MANAGER] ✅ Sincronização completa finalizada:', {
         totalPages: pageCount,
         totalNew,
         totalUpdated,
@@ -426,13 +438,14 @@ export const useYouTubeSyncManager = () => {
         consecutiveEmptyPages,
         maxEmptyPages,
         deepScan,
-        // CORREÇÃO: Summary final detalhado
+        // CORREÇÃO: Summary final com a nova lógica
         finalSummary: {
           videosPerPage: Math.round(totalProcessed / pageCount),
           avgNewPerPage: Math.round(totalNew / pageCount),
           avgUpdatedPerPage: Math.round(totalUpdated / pageCount),
-          completionReason: !pageToken ? 'fim natural (API)' : 'limite atingido',
-          lastPageToken: pageToken || 'nenhum'
+          completionReason: !pageToken ? 'fim natural (API)' : consecutiveEmptyPages >= maxEmptyPages ? 'páginas vazias' : 'limite atingido',
+          lastPageToken: pageToken || 'nenhum',
+          emptyPagesLogic: 'corrigida - baseada em videosReturnedByAPI'
         }
       })
 
