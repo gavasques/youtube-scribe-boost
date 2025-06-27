@@ -15,9 +15,11 @@ export function VideoPreview() {
   const finalDescription = video.compiled_description || video.current_description || ''
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(finalDescription)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (finalDescription) {
+      await navigator.clipboard.writeText(finalDescription)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const openYouTube = () => {
@@ -47,6 +49,7 @@ export function VideoPreview() {
             size="sm"
             onClick={handleCopy}
             className="gap-2"
+            disabled={!finalDescription}
           >
             <Copy className="w-4 h-4" />
             {copied ? 'Copiado!' : 'Copiar'}
@@ -57,6 +60,7 @@ export function VideoPreview() {
             size="sm"
             onClick={openYouTube}
             className="gap-2"
+            disabled={!video.youtube_url}
           >
             <ExternalLink className="w-4 h-4" />
             Ver no YouTube

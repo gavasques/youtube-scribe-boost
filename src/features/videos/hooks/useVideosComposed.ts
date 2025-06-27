@@ -71,12 +71,12 @@ export function useVideosComposed() {
         thumbnail_url: videoMetadata?.thumbnail_url || null,
         privacy_status: videoMetadata?.privacy_status || 'public',
         
-        // Description fields (required by Video interface)
-        original_description: '',
-        current_description: '',
-        compiled_description: '',
+        // Description fields (required by Video interface) - will be populated by specialized hooks later
+        original_description: null,
+        current_description: null,
+        compiled_description: null,
         
-        // Tags arrays (required by Video interface)
+        // Tags arrays (required by Video interface) - will be populated by specialized hooks later
         original_tags: [],
         current_tags: [],
         ai_generated_tags: [],
@@ -84,9 +84,9 @@ export function useVideosComposed() {
         // Transcription field (required by Video interface - use string)
         transcription: videoTranscription?.transcription || null,
         
-        // AI fields (required by Video interface)
-        ai_summary: '',
-        ai_description: '',
+        // AI fields (required by Video interface) - will be populated by AI service later
+        ai_summary: null,
+        ai_description: null,
         ai_chapters: null,
         
         // Configuration fields (required by Video interface)

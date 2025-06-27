@@ -609,6 +609,33 @@ export type Database = {
           },
         ]
       }
+      youtube_quota_usage: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          requests_used: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          requests_used?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          requests_used?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       youtube_tokens: {
         Row: {
           access_token: string
@@ -662,6 +689,14 @@ export type Database = {
       ensure_manual_block_exists: {
         Args: { p_user_id: string }
         Returns: string
+      }
+      get_quota_usage: {
+        Args: { p_user_id: string; p_date: string }
+        Returns: {
+          requests_used: number
+          date: string
+          updated_at: string
+        }[]
       }
       process_scheduled_tasks: {
         Args: Record<PropertyKey, never>

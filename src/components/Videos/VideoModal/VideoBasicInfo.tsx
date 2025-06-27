@@ -28,6 +28,16 @@ export function VideoBasicInfo() {
     return num.toString()
   }
 
+  // Safely format date
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A'
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR')
+    } catch {
+      return 'N/A'
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -53,16 +63,18 @@ export function VideoBasicInfo() {
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline" className="gap-1">
                 <Eye className="w-3 h-3" />
-                {formatNumber(video.views_count)} views
+                {formatNumber(video.views_count || 0)} views
               </Badge>
               <Badge variant="outline" className="gap-1">
                 <ThumbsUp className="w-3 h-3" />
-                {formatNumber(video.likes_count)} likes
+                {formatNumber(video.likes_count || 0)} likes
               </Badge>
-              <Badge variant="outline" className="gap-1">
-                <Calendar className="w-3 h-3" />
-                {new Date(video.published_at).toLocaleDateString('pt-BR')}
-              </Badge>
+              {video.published_at && (
+                <Badge variant="outline" className="gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {formatDate(video.published_at)}
+                </Badge>
+              )}
               {video.duration_formatted && (
                 <Badge variant="secondary">
                   {video.duration_formatted}
@@ -93,7 +105,7 @@ export function VideoBasicInfo() {
             className="min-h-[150px]"
           />
           <p className="text-xs text-muted-foreground">
-            {video.current_description?.length || 0} caracteres
+            {(video.current_description || '').length} caracteres
           </p>
         </div>
       </CardContent>
