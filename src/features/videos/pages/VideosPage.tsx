@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { VideoModal } from "@/components/Videos/VideoModal"
 import { VideoFilters } from "@/components/Videos/VideoFilters"
-import { YouTubeSyncModal } from "@/components/Videos/YouTubeSyncModal"
+import { YouTubeSyncModalNew } from "@/components/Videos/YouTubeSyncModalNew"
 import { VideoPreviewModal } from "@/components/Videos/VideoPreviewModal"
 import { VideoHeader } from "@/components/Videos/VideoHeader"
 import { VideoList } from "@/components/Videos/VideoList/VideoList"
@@ -125,7 +125,7 @@ export default function VideosPage() {
         categories={categories}
       />
 
-      <YouTubeSyncModal
+      <YouTubeSyncModalNew
         open={showSyncModal}
         onClose={() => setShowSyncModal(false)}
         onSyncComplete={onSyncComplete}
