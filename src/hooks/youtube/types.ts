@@ -1,3 +1,4 @@
+
 export interface SyncOptions {
   type: 'full' | 'incremental'
   includeRegular: boolean
@@ -18,6 +19,21 @@ export interface SyncStats {
   totalEstimated?: number
 }
 
+export interface ProcessingSpeed {
+  videosPerMinute: number
+  elapsedTimeMs: number
+  eta?: string
+}
+
+export interface PageStats {
+  videosInPage: number
+  newInPage: number
+  updatedInPage: number
+  isEmptyPage: boolean
+  totalChannelVideos?: number
+  videosReturnedByAPI: number
+}
+
 export interface SyncResult {
   stats: SyncStats
   errors?: string[]
@@ -25,19 +41,8 @@ export interface SyncResult {
   hasMorePages: boolean
   currentPage: number
   totalPages?: number
-  pageStats: {
-    videosInPage: number
-    newInPage: number
-    updatedInPage: number
-    isEmptyPage: boolean
-    totalChannelVideos?: number
-    videosReturnedByAPI: number
-  }
-  processingSpeed?: {
-    videosPerMinute: number
-    elapsedTimeMs: number
-    eta?: string
-  }
+  pageStats: PageStats
+  processingSpeed?: ProcessingSpeed
 }
 
 export interface SyncProgress {
@@ -45,17 +50,21 @@ export interface SyncProgress {
   current: number
   total: number
   message: string
-  pageStats?: {
-    videosInPage: number
-    newInPage: number
-    updatedInPage: number
-    isEmptyPage: boolean
-    totalChannelVideos?: number
-  }
-  processingSpeed?: {
-    videosPerMinute: number
-    elapsedTimeMs: number
-    eta?: string
-  }
+  pageStats?: PageStats
+  processingSpeed?: ProcessingSpeed
   totalVideosEstimated?: number
+}
+
+export interface BatchSyncState {
+  isRunning: boolean
+  canPause: boolean
+  isPaused: boolean
+  totalStats: SyncStats
+  allErrors: string[]
+  pagesProcessed: number
+  emptyPages: number
+  maxEmptyPages: number
+  startTime?: number
+  lastPageStats?: PageStats
+  overallSpeed?: ProcessingSpeed
 }
